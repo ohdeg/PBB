@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/baseball_db}
+    username: ${DB_USERNAME:baseball_user}
+    password: ${DB_PASSWORD:baseball_password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+app:
+  mail:
+    mock: false
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  jwt:
+    secret: ${JWT_SECRET_KEY}
+  cookie:
+    secure: true
+  # Cloudflare R2 (prod) — 환경변수 필수
+  r2:
+    enabled: ${R2_ENABLED:true}
+    account-id: ${R2_ACCOUNT_ID}
+    bucket: ${R2_BUCKET:studio-bs-prod}
+    endpoint: ${R2_ENDPOINT} # https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+    region: ${R2_REGION:auto}
+    access-key-id: ${R2_ACCESS_KEY_ID}
+    secret-access-key: ${R2_SECRET_ACCESS_KEY}
+    public-base-url: ${R2_PUBLIC_BASE_URL:}
+    key-prefix: ${R2_KEY_PREFIX:prod/}
+
+logging:
+  level:
+    root: info

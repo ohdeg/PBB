@@ -1,0 +1,9 @@
+# Local overrides — root .gitignore covers the repo.
+# Keep this file so tooling expecting a package-local ignore still works.
+
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+.DS_Store

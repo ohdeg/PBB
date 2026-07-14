@@ -1,0 +1,13 @@
+# Local overrides — root .gitignore covers the repo.
+
+.gradle/
+build/
+out/
+bin/
+.idea/
+*.iml
+HELP.md
+.DS_Store
+.env
+.env.*
+!.env.example

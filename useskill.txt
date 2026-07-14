@@ -1,0 +1,76 @@
+PBB 사용 기술 스택 (Frontend)
+
+1. Vite
+- 역할: React 앱 번들링 및 개발 서버
+- 선정 이유: ESBuild 기반의 빠른 HMR, TypeScript/JSX를 별도 복잡한 설정 없이 바로 사용 가능
+
+2. React
+- 역할: UI 컴포넌트 및 인증 화면 구성
+- 선정 이유: 선언적 UI와 컴포넌트 단위 재사용으로 로그인/회원가입/비밀번호 재설정 등 단계형 폼을 명확히 분리
+
+3. TypeScript
+- 역할: 정적 타입 검사
+- 선정 이유: API Request/Response와 Zustand 상태를 인터페이스로 고정하여 any 사용을 금지하고, 백엔드 계약 변경 시 프론트에서 조기 오류 발견
+
+4. Zustand
+- 역할: Access Token 상태 관리
+- 선정 이유: XSS 완화를 위해 Access Token을 로컬 스토리지가 아닌 메모리(스토어)에만 보관. 보일러플레이트가 적어 인증 상태 중심으로 가볍게 사용
+
+5. Axios
+- 역할: HTTP 클라이언트
+- 선정 이유: Request Interceptor로 Authorization Bearer 헤더 주입, Response Interceptor로 401 시 /api/v1/auth/refresh Silent Refresh 후 원요청 재시도. withCredentials로 HttpOnly Refresh Token 쿠키 전송
+
+6. React Router
+- 역할: 클라이언트 라우팅
+- 선정 이유: /login, /signup, /find-email, /reset-password 등 인증 플로우 페이지를 URL 단위로 분리
+
+7. OpenSheetMusicDisplay (OSMD)
+- 역할: MusicXML/MXL 악보 SVG 렌더링 (Score Viewer)
+- 선정 이유: 브라우저에서 표준 MusicXML을 오선보로 표시하고 조옮김(Transpose)까지 지원
+
+8. JSZip
+- 역할: .mxl (압축 MusicXML) 내부 XML 추출
+- 선정 이유: OSMD에 넘기기 전 MXL 컨테이너에서 score XML을 풀어내기 위함
+
+토큰 전략 (프론트)
+- Access Token: Zustand 메모리 변수만 사용 (새로고침 시 bootstrapAuth로 refresh 재발급 시도)
+- Refresh Token: 브라우저 HttpOnly 쿠키 (JS로 접근하지 않음, API 호출 시 credentials 포함)
+- 회원가입 동의: 프론트 `src/data/consents.ts` + 백엔드 `ConsentCatalog` 동기화
+  - 필수: 이용약관, 개인정보 수집·이용, 만 14세 이상
+  - 선택: 마케팅 목적 수집·이용, 채널별(이메일/SMS/푸시) 수신
+  - 특수(기본 비활성): 위치, 제3자 제공, 소셜 로그인 — `enabled=true` 로 켜면 UI·서버 검증에 자동 반영
+  - 동의 결과는 `user_consents` 테이블에 버전과 함께 저장
+
+API Base URL
+- 환경변수 VITE_API_BASE_URL (기본값 http://localhost:8080)
+
+================================================================================
+PBB 사용 기술 스택 (Main Backend)
+
+1. Java 25 + Spring Boot
+- 역할: 회원 인증/회원가입 등 메인 API 서버
+- 프로필: spring.profiles.active=${SPRING_PROFILES_ACTIVE:dev}
+  - application.yaml: 공통 설정 + 기본 프로필 dev
+  - application-dev.yaml: 로컬 Docker MySQL/Redis, 메일 mock(콘솔 로그)
+  - application-prod.yaml: 환경변수 기반 DB/Redis/SMTP, 실메일 발송
+
+2. Spring Data JPA + MySQL 8.0
+- 역할: users 테이블 회원 데이터 영속화
+- 회원가입 시 비밀번호는 BCrypt로 단방향 해시 저장
+
+3. Spring Data Redis
+- 역할: 회원가입 인증 코드(signup:email, TTL 3분), 인증 완료 플래그(signup_verified:email, TTL 10분)
+
+4. Spring Mail (Google SMTP)
+- 역할: 이메일 인증 코드 발송
+- dev: app.mail.mock=true → MockMailService가 콘솔에 코드 출력
+- prod: Google SMTP 실발송
+
+5. Spring Security + Validation
+- 역할: /api/v1/auth/** 공개, 그 외 인증 필요 / DTO 입력값 검증
+
+6. JJWT
+- 역할: Access Token(30분) / Refresh Token(7일) 발급·검증
+- Refresh Token: Redis 키 `RT:{email}` + HttpOnly 쿠키에 동시 저장
+- Access Token: JSON Body로 반환 (프론트 Zustand 메모리 보관)
+

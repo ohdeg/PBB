@@ -1,0 +1,50 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/baseball_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: baseball_user
+    password: baseball_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+app:
+  mail:
+    mock: true
+  cookie:
+    secure: false
+  # Cloudflare R2 (dev) — 값은 .env / 환경변수로만 주입 (yaml에 시크릿 넣지 말 것)
+  r2:
+    enabled: ${R2_ENABLED:false}
+    account-id: ${R2_ACCOUNT_ID:}
+    bucket: ${R2_BUCKET:pbb-dev}
+    endpoint: ${R2_ENDPOINT:} # https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+    region: ${R2_REGION:auto}
+    access-key-id: ${R2_ACCESS_KEY_ID:}
+    secret-access-key: ${R2_SECRET_ACCESS_KEY:}
+    public-base-url: ${R2_PUBLIC_BASE_URL:} # https://pub-xxxx.r2.dev
+    key-prefix: ${R2_KEY_PREFIX:dev/}
+
+logging:
+  level:
+    org.hibernate.SQL: debug

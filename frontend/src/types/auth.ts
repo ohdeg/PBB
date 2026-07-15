@@ -59,6 +59,14 @@ export interface PasswordResetRequest {
   newPassword: string;
 }
 
+export interface PasswordChangeVerifyRequest {
+  code: string;
+}
+
+export interface PasswordChangeRequest {
+  newPassword: string;
+}
+
 export interface ApiErrorBody {
   message: string;
 }

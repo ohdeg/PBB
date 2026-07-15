@@ -9,6 +9,7 @@ import { BrewNotePage } from './pages/BrewNotePage';
 import { FindEmailPage } from './pages/FindEmailPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ScoreViewerPage } from './pages/ScoreViewerPage';
@@ -65,6 +66,10 @@ export default function App() {
                 element={<Navigate to="/hobbies/analyze-baseball" replace />}
               />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route
+                path="/profile/change-password"
+                element={<ChangePasswordPage />}
+              />
             </Route>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />

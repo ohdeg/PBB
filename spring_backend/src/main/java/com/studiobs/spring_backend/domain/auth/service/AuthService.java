@@ -5,6 +5,7 @@ import com.studiobs.spring_backend.domain.auth.dto.ConsentAgreementRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailVerifyRequest;
 import com.studiobs.spring_backend.domain.auth.dto.LoginRequest;
+import com.studiobs.spring_backend.domain.auth.dto.PasswordResetRequest;
 import com.studiobs.spring_backend.domain.auth.dto.SignupRequest;
 import com.studiobs.spring_backend.domain.auth.jwt.JwtTokenProvider;
 import com.studiobs.spring_backend.domain.mail.service.MailService;
@@ -174,6 +175,119 @@ public class AuthService {
             String email = jwtTokenProvider.getEmail(refreshToken);
             authRedisService.deleteRefreshToken(email);
         }
+    }
+
+    public void requestPasswordChange(String email) {
+        String normalized = normalizeEmail(email);
+        if (userService.findByEmail(normalized).isEmpty()) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+
+        String code = generateSixDigitCode();
+        authRedisService.savePasswordChangeCode(normalized, code);
+        authRedisService.deletePasswordChangeVerified(normalized);
+        mailService.sendVerificationCode(normalized, code);
+    }
+
+    public void verifyPasswordChange(String email, String code) {
+        String normalized = normalizeEmail(email);
+        String trimmedCode = code.trim();
+
+        String savedCode = authRedisService.getPasswordChangeCode(normalized)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.BAD_REQUEST,
+                        "인증 코드가 만료되었거나 요청되지 않았습니다."));
+
+        if (!savedCode.equals(trimmedCode)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "인증 코드가 올바르지 않습니다.");
+        }
+
+        authRedisService.deletePasswordChangeCode(normalized);
+        authRedisService.markPasswordChangeVerified(normalized);
+    }
+
+    @Transactional
+    public void changePassword(String email, String newPassword) {
+        String normalized = normalizeEmail(email);
+
+        if (!authRedisService.isPasswordChangeVerified(normalized)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "이메일 인증을 먼저 완료해 주세요.");
+        }
+
+        User user = userService.findByEmail(normalized)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.UNAUTHORIZED,
+                        "로그인이 필요합니다."));
+
+        if (userService.matchesPassword(user, newPassword)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "현재와 다른 비밀번호를 입력해 주세요.");
+        }
+
+        userService.updatePassword(user, newPassword);
+        authRedisService.deletePasswordChangeVerified(normalized);
+        authRedisService.deletePasswordChangeCode(normalized);
+        authRedisService.deleteRefreshToken(normalized);
+    }
+
+    public void requestPasswordReset(EmailRequest request) {
+        String email = normalizeEmail(request.email());
+
+        if (userService.findByEmail(email).isEmpty()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "가입된 이메일이 아닙니다.");
+        }
+
+        String code = generateSixDigitCode();
+        authRedisService.savePasswordResetCode(email, code);
+        authRedisService.deletePasswordResetVerified(email);
+        mailService.sendVerificationCode(email, code);
+    }
+
+    public void verifyPasswordReset(EmailVerifyRequest request) {
+        String email = normalizeEmail(request.email());
+        String code = request.code().trim();
+
+        String savedCode = authRedisService.getPasswordResetCode(email)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.BAD_REQUEST,
+                        "인증 코드가 만료되었거나 요청되지 않았습니다."));
+
+        if (!savedCode.equals(code)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "인증 코드가 올바르지 않습니다.");
+        }
+
+        authRedisService.deletePasswordResetCode(email);
+        authRedisService.markPasswordResetVerified(email);
+    }
+
+    @Transactional
+    public void resetPassword(PasswordResetRequest request) {
+        String email = normalizeEmail(request.email());
+
+        if (!authRedisService.isPasswordResetVerified(email)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "이메일 인증을 먼저 완료해 주세요.");
+        }
+
+        User user = userService.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND,
+                        "가입된 이메일이 아닙니다."));
+
+        if (userService.matchesPassword(user, request.newPassword())) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "현재와 다른 비밀번호를 입력해 주세요.");
+        }
+
+        userService.updatePassword(user, request.newPassword());
+        authRedisService.deletePasswordResetVerified(email);
+        authRedisService.deletePasswordResetCode(email);
+        authRedisService.deleteRefreshToken(email);
     }
 
     private String generateSixDigitCode() {

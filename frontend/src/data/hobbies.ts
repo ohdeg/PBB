@@ -21,7 +21,7 @@ export const HOBBY_APPS: HobbyApp[] = [
     description: '타격·투구·수비 데이터를 읽고 구조적으로 분석하는 워크스페이스',
     category: '스포츠',
     path: '/hobbies/analyze-baseball',
-    accent: '#3d9a6a',
+    accent: '#34c759',
     available: true,
   },
   {
@@ -31,7 +31,7 @@ export const HOBBY_APPS: HobbyApp[] = [
     description: '원두·추출·테이스팅 노트를 정리하는 홈카페 앱',
     category: '라이프',
     path: '/hobbies/brew-note',
-    accent: '#c4a574',
+    accent: '#ff9f0a',
     available: true,
   },
   {
@@ -41,7 +41,7 @@ export const HOBBY_APPS: HobbyApp[] = [
     description: '악보를 골라 확대·넘기며 읽는 뷰어',
     category: '음악',
     path: '/hobbies/score-viewer',
-    accent: '#6b8fd4',
+    accent: '#5e5ce6',
     available: true,
   },
 ];

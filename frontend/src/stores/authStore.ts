@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import { parseAccessTokenPayload } from '../utils/jwt';
+import { parseAccessTokenPayload, parseUserClass } from '../utils/jwt';
+import type { ParsedUserClass } from '../utils/jwt';
 
 interface AuthState {
   accessToken: string | null;
   nickname: string | null;
   email: string | null;
+  userClass: ParsedUserClass | null;
   setAccessToken: (token: string | null) => void;
   clearAuth: () => void;
 }
@@ -13,9 +15,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   nickname: null,
   email: null,
+  userClass: null,
   setAccessToken: (token) => {
     if (!token) {
-      set({ accessToken: null, nickname: null, email: null });
+      set({
+        accessToken: null,
+        nickname: null,
+        email: null,
+        userClass: null,
+      });
       return;
     }
 
@@ -24,8 +32,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       accessToken: token,
       nickname: payload?.nickname ?? null,
       email: payload?.sub ?? null,
+      userClass: parseUserClass(payload?.userClass),
     });
   },
   clearAuth: () =>
-    set({ accessToken: null, nickname: null, email: null }),
+    set({
+      accessToken: null,
+      nickname: null,
+      email: null,
+      userClass: null,
+    }),
 }));

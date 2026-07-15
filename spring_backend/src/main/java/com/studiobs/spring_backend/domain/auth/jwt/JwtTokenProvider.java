@@ -18,6 +18,7 @@ public class JwtTokenProvider {
     private static final String TOKEN_TYPE_REFRESH = "refresh";
     private static final String CLAIM_USER_ID = "userId";
     private static final String CLAIM_NICKNAME = "nickname";
+    private static final String CLAIM_USER_CLASS = "userClass";
 
     private final JwtProperties jwtProperties;
     private final SecretKey secretKey;
@@ -65,6 +66,7 @@ public class JwtTokenProvider {
                 .subject(user.getEmail())
                 .claim(CLAIM_USER_ID, user.getId().toString())
                 .claim(CLAIM_NICKNAME, user.getNickname())
+                .claim(CLAIM_USER_CLASS, user.getUserClass().getValue())
                 .claim(CLAIM_TOKEN_TYPE, tokenType)
                 .issuedAt(now)
                 .expiration(expiry)

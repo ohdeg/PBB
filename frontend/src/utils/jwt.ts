@@ -2,9 +2,23 @@ export interface AccessTokenPayload {
   sub: string;
   nickname: string;
   userId: string;
+  userClass?: string;
   type: string;
   exp?: number;
   iat?: number;
+}
+
+export type ParsedUserClass = 'free' | 'dev';
+
+export function parseUserClass(raw: string | undefined): ParsedUserClass | null {
+  if (!raw) {
+    return null;
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'free' || normalized === 'dev') {
+    return normalized;
+  }
+  return null;
 }
 
 export function parseAccessTokenPayload(

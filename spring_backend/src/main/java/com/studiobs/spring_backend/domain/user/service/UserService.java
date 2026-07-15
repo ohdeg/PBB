@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.user.service;
 
 import com.studiobs.spring_backend.domain.user.dto.UserResponse;
 import com.studiobs.spring_backend.domain.user.entity.User;
+import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import com.studiobs.spring_backend.domain.user.entity.UserConsent;
 import com.studiobs.spring_backend.domain.user.repository.UserConsentRepository;
 import com.studiobs.spring_backend.domain.user.repository.UserRepository;
@@ -40,6 +41,19 @@ public class UserService {
         return userRepository.findByNickname(nickname);
     }
 
+    @Transactional(readOnly = true)
+    public List<User> searchByEmailOrNickname(String query) {
+        String trimmed = query.trim();
+        if (trimmed.isEmpty()) {
+            return List.of();
+        }
+        return userRepository
+                .findTop20ByEmailContainingIgnoreCaseOrNicknameContainingIgnoreCaseOrderByNicknameAsc(
+                        trimmed,
+                        trimmed
+                );
+    }
+
     @Transactional
     public UserResponse register(
             String email,
@@ -51,6 +65,7 @@ public class UserService {
                 .email(email)
                 .nickname(nickname)
                 .password(passwordEncoder.encode(rawPassword))
+                .userClass(UserClass.FREE)
                 .build();
         User saved = userRepository.save(user);
 
@@ -69,6 +84,18 @@ public class UserService {
 
     public boolean matchesPassword(User user, String rawPassword) {
         return passwordEncoder.matches(rawPassword, user.getPassword());
+    }
+
+    @Transactional
+    public void updatePassword(User user, String rawPassword) {
+        user.changePassword(passwordEncoder.encode(rawPassword));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public UserResponse updateUserClass(User user, UserClass userClass) {
+        user.changeUserClass(userClass);
+        return UserResponse.from(userRepository.save(user));
     }
 
     public record ConsentInput(String key, boolean agreed, String version) {

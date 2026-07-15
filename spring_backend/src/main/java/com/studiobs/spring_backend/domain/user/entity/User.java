@@ -2,6 +2,8 @@ package com.studiobs.spring_backend.domain.user.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -39,6 +41,10 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String nickname;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_class", nullable = false, length = 16)
+    private UserClass userClass;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -48,9 +54,18 @@ public class User {
     private LocalDateTime updatedAt;
 
     @Builder
-    public User(String email, String password, String nickname) {
+    public User(String email, String password, String nickname, UserClass userClass) {
         this.email = email;
         this.password = password;
         this.nickname = nickname;
+        this.userClass = userClass != null ? userClass : UserClass.FREE;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    public void changeUserClass(UserClass userClass) {
+        this.userClass = userClass;
     }
 }

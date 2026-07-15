@@ -7,6 +7,8 @@ import type {
   FindEmailResponse,
   LoginRequest,
   LoginResponse,
+  PasswordChangeRequest,
+  PasswordChangeVerifyRequest,
   PasswordRequest,
   PasswordResetRequest,
   PasswordVerifyRequest,
@@ -64,6 +66,26 @@ export const authApi = {
   resetPassword(payload: PasswordResetRequest) {
     return apiClient.patch<ApiMessageResponse>(
       '/api/v1/auth/password/reset',
+      payload,
+    );
+  },
+
+  requestPasswordChange() {
+    return apiClient.post<ApiMessageResponse>(
+      '/api/v1/auth/password/change/request',
+    );
+  },
+
+  verifyPasswordChange(payload: PasswordChangeVerifyRequest) {
+    return apiClient.post<ApiMessageResponse>(
+      '/api/v1/auth/password/change/verify',
+      payload,
+    );
+  },
+
+  changePassword(payload: PasswordChangeRequest) {
+    return apiClient.patch<ApiMessageResponse>(
+      '/api/v1/auth/password/change',
       payload,
     );
   },

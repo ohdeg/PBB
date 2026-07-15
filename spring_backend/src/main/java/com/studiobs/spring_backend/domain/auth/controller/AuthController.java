@@ -3,10 +3,14 @@ package com.studiobs.spring_backend.domain.auth.controller;
 import com.studiobs.spring_backend.domain.auth.dto.EmailRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailVerifyRequest;
 import com.studiobs.spring_backend.domain.auth.dto.LoginRequest;
+import com.studiobs.spring_backend.domain.auth.dto.PasswordChangeRequest;
+import com.studiobs.spring_backend.domain.auth.dto.PasswordChangeVerifyRequest;
+import com.studiobs.spring_backend.domain.auth.dto.PasswordResetRequest;
 import com.studiobs.spring_backend.domain.auth.dto.SignupRequest;
 import com.studiobs.spring_backend.domain.auth.dto.TokenResponse;
 import com.studiobs.spring_backend.domain.auth.service.AuthService;
 import com.studiobs.spring_backend.domain.auth.service.AuthService.IssuedTokens;
+import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
 import com.studiobs.spring_backend.domain.auth.support.RefreshTokenCookieFactory;
 import com.studiobs.spring_backend.global.common.MessageResponse;
 import com.studiobs.spring_backend.global.config.CookieProperties;
@@ -17,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +36,7 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
     private final CookieProperties cookieProperties;
+    private final AccessTokenResolver accessTokenResolver;
 
     @PostMapping("/email/request")
     @ResponseStatus(HttpStatus.OK)
@@ -77,6 +83,58 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.clear().toString())
                 .body(new MessageResponse("로그아웃되었습니다."));
+    }
+
+    @PostMapping("/password/request")
+    @ResponseStatus(HttpStatus.OK)
+    public MessageResponse requestPasswordReset(@Valid @RequestBody EmailRequest request) {
+        authService.requestPasswordReset(request);
+        return new MessageResponse("인증 코드를 이메일로 발송했습니다.");
+    }
+
+    @PostMapping("/password/verify")
+    @ResponseStatus(HttpStatus.OK)
+    public MessageResponse verifyPasswordReset(@Valid @RequestBody EmailVerifyRequest request) {
+        authService.verifyPasswordReset(request);
+        return new MessageResponse("이메일 인증이 완료되었습니다.");
+    }
+
+    @PatchMapping("/password/reset")
+    @ResponseStatus(HttpStatus.OK)
+    public MessageResponse resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+        authService.resetPassword(request);
+        return new MessageResponse("비밀번호가 변경되었습니다. 다시 로그인해 주세요.");
+    }
+
+    @PostMapping("/password/change/request")
+    @ResponseStatus(HttpStatus.OK)
+    public MessageResponse requestPasswordChange(HttpServletRequest request) {
+        String email = accessTokenResolver.requireEmail(request);
+        authService.requestPasswordChange(email);
+        return new MessageResponse("인증 코드를 이메일로 발송했습니다.");
+    }
+
+    @PostMapping("/password/change/verify")
+    @ResponseStatus(HttpStatus.OK)
+    public MessageResponse verifyPasswordChange(
+            HttpServletRequest request,
+            @Valid @RequestBody PasswordChangeVerifyRequest body
+    ) {
+        String email = accessTokenResolver.requireEmail(request);
+        authService.verifyPasswordChange(email, body.code());
+        return new MessageResponse("이메일 인증이 완료되었습니다.");
+    }
+
+    @PatchMapping("/password/change")
+    public ResponseEntity<MessageResponse> changePassword(
+            HttpServletRequest request,
+            @Valid @RequestBody PasswordChangeRequest body
+    ) {
+        String email = accessTokenResolver.requireEmail(request);
+        authService.changePassword(email, body.newPassword());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.clear().toString())
+                .body(new MessageResponse("비밀번호가 변경되었습니다. 다시 로그인해 주세요."));
     }
 
     private String extractRefreshToken(HttpServletRequest request) {

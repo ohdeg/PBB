@@ -9,7 +9,7 @@
 |----|------|------|
 | Analyze Baseball | `/hobbies/analyze-baseball` | 야구 데이터 분석 워크스페이스 |
 | Brew Note | `/hobbies/brew-note` | 커피 레시피·테이스팅 노트 |
-| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 뷰어 (OSMD) |
+| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 
 공통 기능: 회원가입(약관 동의 포함) · 로그인 · JWT 인증 · PBB 스플래시 · 프로필
 

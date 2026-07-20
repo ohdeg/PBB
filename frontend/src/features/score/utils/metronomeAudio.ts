@@ -18,14 +18,44 @@ export class MetronomeAudio {
     if (!profile) return;
 
     const audioContext = this.ensureContext();
-    const now = audioContext.currentTime;
+    this.scheduleClick(audioContext.currentTime, profile);
+  }
+
+  /** Call synchronously from a user gesture before the first scheduled click. */
+  resume(): void {
+    this.ensureContext();
+  }
+
+  async playClickAt(timeSec: number, strength: BeatStrengthLevel): Promise<void> {
+    const profile = getBeatClickProfile(strength);
+    if (!profile) return;
+
+    await this.ensureRunning();
+    this.scheduleClick(timeSec, profile);
+  }
+
+  private async ensureRunning(): Promise<AudioContext> {
+    const audioContext = this.ensureContext();
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
+    return audioContext;
+  }
+
+  private scheduleClick(
+    startTime: number,
+    profile: NonNullable<ReturnType<typeof getBeatClickProfile>>,
+  ): void {
+    const audioContext = this.context;
+    if (!audioContext) return;
+
     const gain = audioContext.createGain();
     gain.connect(audioContext.destination);
 
     this.scheduleTone(
       audioContext,
       gain,
-      now,
+      startTime,
       profile.frequency,
       profile.oscillatorType,
       profile.peakGain,
@@ -36,7 +66,7 @@ export class MetronomeAudio {
       this.scheduleTone(
         audioContext,
         gain,
-        now,
+        startTime,
         profile.harmonicFrequency,
         'sine',
         profile.peakGain * profile.harmonicGainRatio,

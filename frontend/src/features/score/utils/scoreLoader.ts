@@ -1,4 +1,5 @@
-import JSZip from 'jszip';
+import { fetchScoreContent } from '../services/scoreRepository';
+import { AppError } from './appError';
 
 function stripBom(text: string): string {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
@@ -24,6 +25,7 @@ function isMusicXmlText(text: string): boolean {
 }
 
 async function extractMusicXmlFromMxl(buffer: ArrayBuffer): Promise<string> {
+  const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(buffer);
   const containerXml = await zip.file('META-INF/container.xml')?.async('string');
 
@@ -38,8 +40,7 @@ async function extractMusicXmlFromMxl(buffer: ArrayBuffer): Promise<string> {
   }
 
   const xmlEntry = Object.keys(zip.files).find(
-    (name) =>
-      (name.endsWith('.xml') || name.endsWith('.musicxml')) && !name.startsWith('META-INF/'),
+    (name) => (name.endsWith('.xml') || name.endsWith('.musicxml')) && !name.startsWith('META-INF/'),
   );
   if (xmlEntry) {
     const xml = await zip.file(xmlEntry)?.async('string');
@@ -48,7 +49,7 @@ async function extractMusicXmlFromMxl(buffer: ArrayBuffer): Promise<string> {
     }
   }
 
-  throw new Error('No MusicXML found in MXL file');
+  throw new AppError('errors.mxlNoMusicXml');
 }
 
 export async function blobToMusicXml(blob: Blob): Promise<string> {
@@ -60,8 +61,13 @@ export async function blobToMusicXml(blob: Blob): Promise<string> {
     : stripBom(new TextDecoder('utf-8').decode(buffer)).trim();
 
   if (!isMusicXmlText(xmlText)) {
-    throw new Error('Invalid MusicXML file content');
+    throw new AppError('errors.invalidMusicXmlContent');
   }
 
   return xmlText;
+}
+
+export async function fetchScoreMusicXml(scoreId: string): Promise<string> {
+  const blob = await fetchScoreContent(scoreId);
+  return blobToMusicXml(blob);
 }

@@ -1,4 +1,5 @@
 import { Button } from '../../../components/ui/Button';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface FloatingPlaybackButtonProps {
   visible: boolean;
@@ -17,16 +18,25 @@ export default function FloatingPlaybackButton({
   totalMeasures,
   onTogglePlay,
 }: FloatingPlaybackButtonProps) {
+  const t = useTranslation();
+
   if (!visible) return null;
 
   const isActive = isPlaying || isCountingIn;
-  const buttonLabel = isCountingIn ? '예비박 중지' : isPlaying ? '일시정지' : '재생';
+  const buttonLabel = isCountingIn
+    ? t('playback.stopCountIn')
+    : isPlaying
+      ? t('playback.pause')
+      : t('playback.play');
 
   return (
-    <div className="floating-playback" role="toolbar" aria-label="재생 컨트롤">
-      {isCountingIn && <span className="floating-playback-countin">예비박 1마디</span>}
+    <div className="floating-playback" role="toolbar" aria-label={t('floating.playbackToolbar')}>
+      {isCountingIn && <span className="floating-playback-countin">{t('floating.countInOneMeasure')}</span>}
       <span className="floating-playback-measure">
-        마디 {currentMeasureIndex + 1}/{Math.max(totalMeasures, 1)}
+        {t('floating.progressMeasure', {
+          current: currentMeasureIndex + 1,
+          total: Math.max(totalMeasures, 1),
+        })}
       </span>
       <Button onClick={onTogglePlay} variant={isActive ? 'primary' : 'secondary'}>
         {buttonLabel}

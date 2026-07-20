@@ -32,6 +32,26 @@ PBB 사용 기술 스택 (Frontend)
 - 역할: .mxl (압축 MusicXML) 내부 XML 추출
 - 선정 이유: OSMD에 넘기기 전 MXL 컨테이너에서 score XML을 풀어내기 위함
 
+9. Lotto (클라이언트 유틸)
+- 역할: 몬테카를로·Hot/Cold 번호 생성, 당첨금 세금 계산 (`features/lotto/utils`)
+- 선정 이유: 기존 Firebase 로또 앱 로직을 FE에 이식. 회차·히스토리는 MySQL API(`/api/v1/lotto`)로 저장. 자동 당첨번호 동기화는 미포함
+
+10. Tailwind CSS v4 (+ @tailwindcss/vite)
+- 역할: Lotto 페이지 UI(추첨기·번호 볼·히스토리) 유틸리티 클래스
+- 선정 이유: 원본 로또 앱 UI를 그대로 이식하기 위해 도입. 기존 PBB 커스텀 CSS와 병행
+
+11. html-to-image
+- 역할: 생성 번호 히스토리 PNG 내보내기
+- 선정 이유: 원본 로또 앱의 선택/전체 저장 UX 유지
+
+12. SheetJS (xlsx)
+- 역할: 동행복권 형식 엑셀에서 회차·본번호 파싱 (DEV 전용 일괄 업로드)
+- 선정 이유: 원본 6PICK Excel import 로직 재사용
+
+13. Brew Note (근무·대타)
+- 역할: 직원 정규 근무(요일 반복·자정 넘김), 대타 신청/승인, 주간·월간 달력, 근무 외 재고 수정 차단
+- API: `/api/v1/brew/stores/{id}/schedules|calendar|covers|staff`
+
 토큰 전략 (프론트)
 - Access Token: Zustand 메모리 변수만 사용 (새로고침 시 bootstrapAuth로 refresh 재발급 시도)
 - Refresh Token: 브라우저 HttpOnly 쿠키 (JS로 접근하지 않음, API 호출 시 credentials 포함)

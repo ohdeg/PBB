@@ -10,6 +10,12 @@ import {
   type BeatSubdivisionId,
 } from '../utils/beatSubdivision';
 import { DEFAULT_TIME_SIGNATURE, type TimeSignature } from '../utils/measureTiming';
+import { DEFAULT_MEASURES_PER_LINE, clampMeasuresPerLine } from '../constants/scoreLayout';
+import {
+  type AutoScrollMode,
+  readAutoScrollMode,
+  writeAutoScrollMode,
+} from '../constants/userPreferences';
 
 interface ScorePlaybackState {
   bpm: number;
@@ -22,7 +28,7 @@ interface ScorePlaybackState {
   isMetronomeEnabled: boolean;
   isMeasureHighlightEnabled: boolean;
   scrollSmoothing: ScrollBehavior;
-  /** 0 = OSMD 자동 줄바꿈 */
+  autoScrollMode: AutoScrollMode;
   measuresPerLine: number;
   beatStrengths: BeatStrengthLevel[];
   beatSubdivisions: BeatSubdivisionId[];
@@ -38,6 +44,7 @@ interface ScorePlaybackState {
   setMetronomeEnabled: (enabled: boolean) => void;
   setMeasureHighlightEnabled: (enabled: boolean) => void;
   setScrollSmoothing: (behavior: ScrollBehavior) => void;
+  setAutoScrollMode: (mode: AutoScrollMode) => void;
   setMeasuresPerLine: (measuresPerLine: number) => void;
   setBeatStrengthAt: (beatIndex: number, strength: BeatStrengthLevel) => void;
   setBeatSubdivisionAt: (beatIndex: number, subdivisionId: BeatSubdivisionId) => void;
@@ -45,21 +52,6 @@ interface ScorePlaybackState {
 }
 
 const DEFAULT_BPM = 120;
-const MEASURES_PER_LINE_STORAGE_KEY = 'music-viewer:measures-per-line';
-
-const normalizeMeasuresPerLine = (value: number): number => {
-  if (!Number.isFinite(value) || value < 0) return 0;
-  return Math.min(32, Math.trunc(value));
-};
-
-const readStoredMeasuresPerLine = (): number => {
-  try {
-    const saved = Number(localStorage.getItem(MEASURES_PER_LINE_STORAGE_KEY));
-    return normalizeMeasuresPerLine(saved);
-  } catch {
-    return 0;
-  }
-};
 
 const normalizeBeatsPerMeasure = (beatsPerMeasure: number): number =>
   Number.isFinite(beatsPerMeasure) && beatsPerMeasure > 0
@@ -89,7 +81,8 @@ export const useScorePlaybackStore = create<ScorePlaybackState>((set) => ({
   isMetronomeEnabled: true,
   isMeasureHighlightEnabled: true,
   scrollSmoothing: 'smooth',
-  measuresPerLine: readStoredMeasuresPerLine(),
+  autoScrollMode: readAutoScrollMode(),
+  measuresPerLine: DEFAULT_MEASURES_PER_LINE,
   beatStrengths: createDefaultBeatStrengths(DEFAULT_TIME_SIGNATURE.beatsPerMeasure),
   beatSubdivisions: createDefaultBeatSubdivisions(DEFAULT_TIME_SIGNATURE.beatsPerMeasure),
   setBpm: (bpm) => set({ bpm: Number.isFinite(bpm) && bpm > 0 ? bpm : DEFAULT_BPM }),
@@ -117,21 +110,27 @@ export const useScorePlaybackStore = create<ScorePlaybackState>((set) => ({
     }),
   togglePlaying: () => set((state) => ({ isPlaying: !state.isPlaying })),
   setPlaying: (isPlaying) => set({ isPlaying }),
-  setCurrentMeasureIndex: (currentMeasureIndex) => set({ currentMeasureIndex }),
-  setElapsedMs: (elapsedMs) => set({ elapsedMs: Math.max(0, elapsedMs) }),
+  setCurrentMeasureIndex: (currentMeasureIndex) =>
+    set((state) =>
+      state.currentMeasureIndex === currentMeasureIndex ? state : { currentMeasureIndex },
+    ),
+  setElapsedMs: (elapsedMs) =>
+    set((state) => {
+      const nextElapsedMs = Math.max(0, elapsedMs);
+      return state.elapsedMs === nextElapsedMs ? state : { elapsedMs: nextElapsedMs };
+    }),
   setAutoScroll: (isAutoScroll) => set({ isAutoScroll }),
   setMetronomeEnabled: (isMetronomeEnabled) => set({ isMetronomeEnabled }),
   setMeasureHighlightEnabled: (isMeasureHighlightEnabled) => set({ isMeasureHighlightEnabled }),
   setScrollSmoothing: (scrollSmoothing) => set({ scrollSmoothing }),
-  setMeasuresPerLine: (measuresPerLine) => {
-    const normalized = normalizeMeasuresPerLine(measuresPerLine);
-    try {
-      localStorage.setItem(MEASURES_PER_LINE_STORAGE_KEY, String(normalized));
-    } catch {
-      // ignore quota / private mode
-    }
-    set({ measuresPerLine: normalized });
+  setAutoScrollMode: (autoScrollMode) => {
+    writeAutoScrollMode(autoScrollMode);
+    set({ autoScrollMode });
   },
+  setMeasuresPerLine: (measuresPerLine) =>
+    set({
+      measuresPerLine: clampMeasuresPerLine(measuresPerLine),
+    }),
   setBeatStrengthAt: (beatIndex, strength) =>
     set((state) => {
       const strengths = [...state.beatStrengths];

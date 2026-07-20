@@ -1,4 +1,5 @@
 import { useEffect, useId, type ReactNode } from 'react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface FloatingSettingsPanelProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export default function FloatingSettingsPanel({
   onClose,
   children,
 }: FloatingSettingsPanelProps) {
+  const t = useTranslation();
   const panelId = useId();
 
   useEffect(() => {
@@ -37,43 +39,35 @@ export default function FloatingSettingsPanel({
           onClick={isOpen ? onClose : onOpen}
           aria-expanded={isOpen}
           aria-controls={panelId}
-          aria-label={isOpen ? '설정 닫기' : '설정 열기'}
+          aria-label={isOpen ? t('floating.closeSettings') : t('floating.openSettings')}
         >
           <span className="floating-settings-trigger-icon" aria-hidden="true">
             ⚙
           </span>
-          <span className="floating-settings-trigger-label">설정</span>
+          <span className="floating-settings-trigger-label">{t('floating.settingsLabel')}</span>
         </button>
 
         {isOpen && (
-          <>
-            <button
-              type="button"
-              className="floating-settings-backdrop"
-              onClick={onClose}
-              aria-label="설정 닫기"
-            />
-            <div
-              id={panelId}
-              className="floating-settings-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-label="연습 설정"
-            >
-              <div className="floating-settings-header">
-                <h2 className="floating-settings-title">연습 설정</h2>
-                <button
-                  type="button"
-                  className="floating-settings-close"
-                  onClick={onClose}
-                  aria-label="설정 닫기"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="floating-settings-body">{children}</div>
+          <div
+            id={panelId}
+            className="floating-settings-panel"
+            role="dialog"
+            aria-modal="false"
+            aria-label={t('floating.practiceSettings')}
+          >
+            <div className="floating-settings-header">
+              <h2 className="floating-settings-title">{t('floating.practiceSettings')}</h2>
+              <button
+                type="button"
+                className="floating-settings-close"
+                onClick={onClose}
+                aria-label={t('floating.closeSettings')}
+              >
+                ✕
+              </button>
             </div>
-          </>
+            <div className="floating-settings-body">{children}</div>
+          </div>
         )}
       </div>
     </div>

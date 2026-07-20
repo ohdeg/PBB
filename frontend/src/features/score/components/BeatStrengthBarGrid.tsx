@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from '../i18n/LanguageContext';
+import { getBeatStrengthLabel } from '../i18n/beatStrengthLabels';
 import {
-  BEAT_STRENGTH_LABELS,
   cycleBeatStrength,
   getActiveBeatInMeasure,
   type BeatStrengthLevel,
@@ -18,6 +19,7 @@ interface BeatStrengthBarGridProps {
   isHighlightActive?: boolean;
   highlightElapsedMs?: number;
   bpm?: number;
+  activeBeatIndexOverride?: number | null;
 }
 
 type SegmentPosition = 'top' | 'middle' | 'bottom';
@@ -43,9 +45,10 @@ interface BeatStrengthBarProps {
   strength: BeatStrengthLevel;
   isActive: boolean;
   onCycle: () => void;
+  ariaLabel: string;
 }
 
-function BeatStrengthBar({ beatIndex, strength, isActive, onCycle }: BeatStrengthBarProps) {
+function BeatStrengthBar({ strength, isActive, onCycle, ariaLabel }: BeatStrengthBarProps) {
   const isSolid = strength === 'strong';
 
   return (
@@ -55,7 +58,7 @@ function BeatStrengthBar({ beatIndex, strength, isActive, onCycle }: BeatStrengt
         isActive ? ' beat-strength-bar--active' : ''
       }`}
       onClick={onCycle}
-      aria-label={`${beatIndex + 1}박 ${BEAT_STRENGTH_LABELS[strength]}${isActive ? ' (현재 박)' : ''}`}
+      aria-label={ariaLabel}
       aria-current={isActive ? 'step' : undefined}
     >
       {isSolid ? (
@@ -82,13 +85,24 @@ export default function BeatStrengthBarGrid({
   isHighlightActive = false,
   highlightElapsedMs = 0,
   bpm = 120,
+  activeBeatIndexOverride,
 }: BeatStrengthBarGridProps) {
+  const t = useTranslation();
   const [pickerBeatIndex, setPickerBeatIndex] = useState<number | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
 
   const activeBeatIndex = useMemo(() => {
     if (!isHighlightActive) return null;
+    if (activeBeatIndexOverride !== undefined) {
+      return activeBeatIndexOverride;
+    }
     return getActiveBeatInMeasure(highlightElapsedMs, bpm, beatCount);
-  }, [isHighlightActive, highlightElapsedMs, bpm, beatCount]);
+  }, [isHighlightActive, highlightElapsedMs, bpm, beatCount, activeBeatIndexOverride]);
+
+  useEffect(() => {
+    if (pickerBeatIndex === null) return;
+    pickerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [pickerBeatIndex]);
 
   return (
     <>
@@ -108,12 +122,18 @@ export default function BeatStrengthBarGrid({
                 strength={strength}
                 isActive={isActive}
                 onCycle={() => onBeatStrengthChange(beatIndex, cycleBeatStrength(strength))}
+                ariaLabel={
+                  t('beatStrength.beatAria', {
+                    beat: beatIndex + 1,
+                    strength: getBeatStrengthLabel(t, strength),
+                  }) + (isActive ? t('beatStrength.beatAriaActive') : '')
+                }
               />
               <button
                 type="button"
                 className="beat-subdivision-trigger"
                 onClick={() => setPickerBeatIndex(beatIndex)}
-                aria-label={`${beatIndex + 1}박 세분화 선택`}
+                aria-label={t('beatSubdivision.selectAria', { beat: beatIndex + 1 })}
               >
                 <BeatSubdivisionIcon
                   subdivisionId={subdivisionId}
@@ -129,13 +149,15 @@ export default function BeatStrengthBarGrid({
       </div>
 
       {pickerBeatIndex !== null && (
-        <BeatSubdivisionPicker
-          beatIndex={pickerBeatIndex}
-          selectedId={beatSubdivisions[pickerBeatIndex] ?? DEFAULT_BEAT_SUBDIVISION}
-          isOpen
-          onClose={() => setPickerBeatIndex(null)}
-          onSelect={(subdivisionId) => onBeatSubdivisionChange(pickerBeatIndex, subdivisionId)}
-        />
+        <div ref={pickerRef}>
+          <BeatSubdivisionPicker
+            beatIndex={pickerBeatIndex}
+            selectedId={beatSubdivisions[pickerBeatIndex] ?? DEFAULT_BEAT_SUBDIVISION}
+            isOpen
+            onClose={() => setPickerBeatIndex(null)}
+            onSelect={(subdivisionId) => onBeatSubdivisionChange(pickerBeatIndex, subdivisionId)}
+          />
+        </div>
       )}
     </>
   );

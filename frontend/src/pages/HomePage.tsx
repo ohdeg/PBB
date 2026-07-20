@@ -51,8 +51,15 @@ export function HomePage() {
 function HobbyFeaturedTile({ app }: { app: HobbyApp }) {
   const content = (
     <>
-      <div className="featured-icon" style={{ background: app.accent }}>
-        {app.name.slice(0, 1)}
+      <div
+        className={`featured-icon${app.iconSrc ? ' has-image' : ''}`}
+        style={app.iconSrc ? undefined : { background: app.accent }}
+      >
+        {app.iconSrc ? (
+          <img src={app.iconSrc} alt="" width={88} height={88} draggable={false} />
+        ) : (
+          app.name.slice(0, 1)
+        )}
       </div>
       <div className="featured-copy">
         <p className="featured-category">{app.category}</p>
@@ -84,8 +91,16 @@ function HobbyFeaturedTile({ app }: { app: HobbyApp }) {
 function HobbyAppTile({ app }: { app: HobbyApp }) {
   const body = (
     <>
-      <div className="app-icon" style={{ background: app.accent }} aria-hidden="true">
-        {app.name.slice(0, 1)}
+      <div
+        className={`app-icon${app.iconSrc ? ' has-image' : ''}`}
+        style={app.iconSrc ? undefined : { background: app.accent }}
+        aria-hidden="true"
+      >
+        {app.iconSrc ? (
+          <img src={app.iconSrc} alt="" width={50} height={50} draggable={false} />
+        ) : (
+          app.name.slice(0, 1)
+        )}
       </div>
       <div className="app-meta">
         <p className="app-name">{app.name}</p>

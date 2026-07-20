@@ -6,12 +6,15 @@ import { RouteSplash } from './components/RouteSplash';
 import { SplashScreen } from './components/SplashScreen';
 import { AnalysisPage } from './pages/AnalysisPage';
 import { BrewNotePage } from './pages/BrewNotePage';
+import { BrewStorePage } from './pages/BrewStorePage';
+import { LottoPage } from './pages/LottoPage';
 import { FindEmailPage } from './pages/FindEmailPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { ScoreLibraryPage } from './pages/ScoreLibraryPage';
 import { ScoreViewerPage } from './pages/ScoreViewerPage';
 import { SignupPage } from './pages/SignupPage';
 
@@ -56,7 +59,13 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/hobbies/analyze-baseball" element={<AnalysisPage />} />
               <Route path="/hobbies/brew-note" element={<BrewNotePage />} />
-              <Route path="/hobbies/score-viewer" element={<ScoreViewerPage />} />
+              <Route
+                path="/hobbies/brew-note/stores/:storeId"
+                element={<BrewStorePage />}
+              />
+              <Route path="/hobbies/lotto" element={<LottoPage />} />
+              <Route path="/hobbies/score-viewer" element={<ScoreLibraryPage />} />
+              <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route
                 path="/hobbies/pbb"
                 element={<Navigate to="/hobbies/analyze-baseball" replace />}

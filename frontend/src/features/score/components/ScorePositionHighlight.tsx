@@ -3,9 +3,14 @@ import type { PlayheadHighlight } from '../utils/measureTiming';
 interface ScorePositionHighlightProps {
   highlight: PlayheadHighlight | null;
   visible: boolean;
+  variant?: 'progress' | 'selection';
 }
 
-export default function ScorePositionHighlight({ highlight, visible }: ScorePositionHighlightProps) {
+export default function ScorePositionHighlight({
+  highlight,
+  visible,
+  variant = 'progress',
+}: ScorePositionHighlightProps) {
   if (!visible || !highlight) return null;
 
   const measureLeftPx = highlight.measureLeftPx - highlight.lineLeftPx;
@@ -22,7 +27,8 @@ export default function ScorePositionHighlight({ highlight, visible }: ScorePosi
         }}
       >
         <div
-          className="score-highlight-measure"
+          key={highlight.measureIndex}
+          className={`score-highlight-measure score-highlight-measure--${variant}`}
           style={{
             left: `${measureLeftPx}px`,
             width: `${highlight.measureWidthPx}px`,

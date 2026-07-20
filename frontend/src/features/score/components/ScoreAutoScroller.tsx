@@ -1,116 +1,260 @@
-import { useEffect, useMemo, useRef } from 'react';
-import type { MeasureWindow } from '../utils/measureTiming';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import type { AutoScrollMode } from '../constants/userPreferences';
+import type { BeatStrengthLevel } from '../utils/beatStrength';
+import type { BeatSubdivisionId } from '../utils/beatSubdivision';
+import { collectMetronomeClickEvents } from '../utils/metronomeBeatEvents';
+import type { MetronomeAudio } from '../utils/metronomeAudio';
+import type { MeasureLayoutInContainer, MeasureWindow } from '../utils/measureTiming';
 import {
-  MEASURE_LINE_THRESHOLD_PX,
+  getLineIndexForMeasure,
   getMeasureIndexByElapsed,
   getTotalDurationMs,
+  groupMeasureLayoutsByLine,
 } from '../utils/measureTiming';
-import { scrollToAnchoredMeasure } from '../utils/scrollAnchor';
+import {
+  cancelScrollAnimation,
+  resetScrollAnchorCache,
+  scrollToAnchoredMeasure,
+} from '../utils/scrollAnchor';
+
+interface PlaybackMetronomeParams {
+  enabled: boolean;
+  windows: MeasureWindow[];
+  bpm: number;
+  beatsPerMeasure: number;
+  beatStrengths: BeatStrengthLevel[];
+  beatSubdivisions: BeatSubdivisionId[];
+}
 
 interface ScoreAutoScrollerProps {
   isPlaying: boolean;
   windows: MeasureWindow[];
   measureOffsets: number[];
+  measureLayouts: MeasureLayoutInContainer[];
   autoScrollEnabled: boolean;
+  autoScrollMode: AutoScrollMode;
   scrollBehavior: ScrollBehavior;
   initialElapsedMs?: number;
+  playbackEndMs?: number;
   syncKey?: number;
+  playbackAnchorMsRef?: RefObject<number | null>;
+  playbackMetronomeRef?: RefObject<PlaybackMetronomeParams>;
+  metronomeRef?: RefObject<MetronomeAudio | null>;
   onElapsedMsChange?: (elapsedMs: number) => void;
   onMeasureIndexChange?: (measureIndex: number) => void;
 }
 
-const USER_SCROLL_LOCK_MS = 2500;
+interface ScrollDecision {
+  shouldScroll: boolean;
+  unitIndex: number;
+  targetY?: number;
+}
 
-function shouldScrollToMeasure(
-  measureIndex: number,
+const PLAYBACK_STATE_PUBLISH_INTERVAL_MS = 50;
+
+function getViewportHeight(): number {
+  return window.visualViewport?.height ?? window.innerHeight;
+}
+
+function getLineScrollTargetY(
+  lineIndex: number,
+  measureLayouts: MeasureLayoutInContainer[],
   measureOffsets: number[],
-  lastScrolledMeasureIndex: number,
-  lastScrolledY: number | null,
-): boolean {
-  const targetY = measureOffsets[measureIndex];
-  if (targetY === undefined) return false;
-  if (lastScrolledMeasureIndex === measureIndex) return false;
+  fallbackMeasureIndex: number,
+): number | undefined {
+  const lines = groupMeasureLayoutsByLine(measureLayouts);
+  const lineLayouts = lines[lineIndex];
 
-  if (lastScrolledY === null) return true;
-
-  const previousY = measureOffsets[lastScrolledMeasureIndex];
-  if (previousY !== undefined && Math.abs(targetY - previousY) <= MEASURE_LINE_THRESHOLD_PX) {
-    return false;
+  if (!lineLayouts || lineLayouts.length === 0) {
+    return measureOffsets[fallbackMeasureIndex];
   }
 
-  return Math.abs(targetY - lastScrolledY) > MEASURE_LINE_THRESHOLD_PX;
+  const lineStartMeasureIndex = lineLayouts.reduce(
+    (earliest, layout) => (layout.measureIndex < earliest ? layout.measureIndex : earliest),
+    lineLayouts[0].measureIndex,
+  );
+
+  return measureOffsets[lineStartMeasureIndex] ?? measureOffsets[fallbackMeasureIndex];
+}
+
+function shouldScrollByLine(
+  measureIndex: number,
+  measureLayouts: MeasureLayoutInContainer[],
+  measureOffsets: number[],
+  lastScrolledUnitIndex: number,
+): ScrollDecision {
+  if (measureLayouts.length === 0) {
+    const targetY = measureOffsets[measureIndex];
+    if (targetY === undefined) {
+      return { shouldScroll: false, unitIndex: -1 };
+    }
+
+    const previousY =
+      lastScrolledUnitIndex >= 0 ? measureOffsets[lastScrolledUnitIndex] : null;
+    if (previousY !== null && targetY === previousY) {
+      return { shouldScroll: false, unitIndex: lastScrolledUnitIndex };
+    }
+
+    return { shouldScroll: true, unitIndex: measureIndex, targetY };
+  }
+
+  const lineIndex = getLineIndexForMeasure(measureIndex, measureLayouts);
+  if (lineIndex < 0) {
+    return { shouldScroll: false, unitIndex: -1 };
+  }
+
+  if (lineIndex === lastScrolledUnitIndex) {
+    return { shouldScroll: false, unitIndex: lineIndex };
+  }
+
+  const targetY = getLineScrollTargetY(lineIndex, measureLayouts, measureOffsets, measureIndex);
+  if (targetY === undefined) {
+    return { shouldScroll: false, unitIndex: lineIndex };
+  }
+
+  return { shouldScroll: true, unitIndex: lineIndex, targetY };
+}
+
+function shouldScrollByPage(
+  measureIndex: number,
+  measureOffsets: number[],
+  lastScrolledUnitIndex: number,
+): ScrollDecision {
+  const measureY = measureOffsets[measureIndex];
+  if (measureY === undefined) {
+    return { shouldScroll: false, unitIndex: -1 };
+  }
+
+  const pageHeight = Math.max(getViewportHeight(), 1);
+  const pageIndex = Math.floor(measureY / pageHeight);
+
+  if (pageIndex === lastScrolledUnitIndex) {
+    return { shouldScroll: false, unitIndex: pageIndex };
+  }
+
+  const pageTopY = pageIndex * pageHeight;
+  return {
+    shouldScroll: true,
+    unitIndex: pageIndex,
+    targetY: pageTopY,
+  };
+}
+
+function shouldAutoScroll(
+  measureIndex: number,
+  measureLayouts: MeasureLayoutInContainer[],
+  measureOffsets: number[],
+  lastScrolledUnitIndex: number,
+  autoScrollMode: AutoScrollMode,
+): ScrollDecision {
+  if (autoScrollMode === 'page') {
+    return shouldScrollByPage(measureIndex, measureOffsets, lastScrolledUnitIndex);
+  }
+
+  return shouldScrollByLine(measureIndex, measureLayouts, measureOffsets, lastScrolledUnitIndex);
+}
+
+function fireMetronomeRange(
+  params: PlaybackMetronomeParams,
+  metronome: MetronomeAudio | null,
+  firedKeys: Set<string>,
+  fromMs: number,
+  toMs: number,
+): number {
+  if (!params.enabled || !metronome || toMs <= fromMs) {
+    return toMs;
+  }
+
+  const events = collectMetronomeClickEvents(
+    params.windows,
+    fromMs,
+    toMs,
+    params.bpm,
+    params.beatsPerMeasure,
+    params.beatStrengths,
+    params.beatSubdivisions,
+  );
+
+  for (const event of events) {
+    if (firedKeys.has(event.slotKey)) continue;
+    metronome.playClick(event.strength);
+    firedKeys.add(event.slotKey);
+  }
+
+  return toMs;
 }
 
 export default function ScoreAutoScroller({
   isPlaying,
   windows,
   measureOffsets,
+  measureLayouts,
   autoScrollEnabled,
+  autoScrollMode,
   scrollBehavior,
   initialElapsedMs = 0,
+  playbackEndMs,
   syncKey = 0,
+  playbackAnchorMsRef,
+  playbackMetronomeRef,
+  metronomeRef,
   onElapsedMsChange,
   onMeasureIndexChange,
 }: ScoreAutoScrollerProps) {
   const frameIdRef = useRef<number | null>(null);
-  const virtualElapsedRef = useRef(0);
-  const lastTickRef = useRef<number | null>(null);
-  const lastScrolledMeasureRef = useRef<number>(-1);
-  const lastScrolledYRef = useRef<number | null>(null);
-  const userScrollLockedRef = useRef(false);
-  const userScrollTimerRef = useRef<number | null>(null);
+  const lastScrolledUnitIndexRef = useRef<number>(-1);
+  const initialElapsedMsRef = useRef(initialElapsedMs);
+  const metronomeCursorRef = useRef(initialElapsedMs + 1);
+  const metronomeFiredKeysRef = useRef<Set<string>>(new Set());
+  const lastPublishedElapsedMsRef = useRef<number>(initialElapsedMs);
+  const lastPublishedMeasureIndexRef = useRef<number>(-1);
+
+  initialElapsedMsRef.current = initialElapsedMs;
 
   const totalDurationMs = useMemo(() => getTotalDurationMs(windows), [windows]);
+  const playbackLimitMs = playbackEndMs ?? totalDurationMs;
 
   useEffect(() => {
-    if (!isPlaying) return;
-
-    const lockAutoScroll = () => {
-      userScrollLockedRef.current = true;
-      if (userScrollTimerRef.current !== null) {
-        window.clearTimeout(userScrollTimerRef.current);
-      }
-      userScrollTimerRef.current = window.setTimeout(() => {
-        userScrollLockedRef.current = false;
-        userScrollTimerRef.current = null;
-      }, USER_SCROLL_LOCK_MS);
-    };
-
-    window.addEventListener('wheel', lockAutoScroll, { passive: true });
-    window.addEventListener('touchmove', lockAutoScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener('wheel', lockAutoScroll);
-      window.removeEventListener('touchmove', lockAutoScroll);
-      if (userScrollTimerRef.current !== null) {
-        window.clearTimeout(userScrollTimerRef.current);
-        userScrollTimerRef.current = null;
-      }
-      userScrollLockedRef.current = false;
-    };
+    if (!isPlaying) {
+      cancelScrollAnimation();
+      resetScrollAnchorCache();
+    }
   }, [isPlaying]);
 
   useEffect(() => {
-    virtualElapsedRef.current = initialElapsedMs;
-    lastScrolledMeasureRef.current = -1;
-    lastScrolledYRef.current = null;
-
-    if (!autoScrollEnabled || measureOffsets.length === 0) return;
-
-    const measureIndex = getMeasureIndexByElapsed(windows, initialElapsedMs);
-    const targetY = measureOffsets[measureIndex];
-    if (targetY !== undefined) {
-      lastScrolledMeasureRef.current = measureIndex;
-      lastScrolledYRef.current = targetY;
-      scrollToAnchoredMeasure(targetY, scrollBehavior);
-    }
-  }, [syncKey, initialElapsedMs, windows, measureOffsets, autoScrollEnabled, scrollBehavior]);
+    lastScrolledUnitIndexRef.current = -1;
+    resetScrollAnchorCache();
+    metronomeFiredKeysRef.current.clear();
+    metronomeCursorRef.current = initialElapsedMsRef.current + 1;
+    lastPublishedElapsedMsRef.current = initialElapsedMsRef.current;
+    lastPublishedMeasureIndexRef.current = -1;
+  }, [syncKey]);
 
   useEffect(() => {
-    if (isPlaying) {
-      virtualElapsedRef.current = initialElapsedMs;
+    if (!autoScrollEnabled || measureOffsets.length === 0 || !isPlaying) return;
+
+    const measureIndex = getMeasureIndexByElapsed(windows, initialElapsedMsRef.current);
+    const scrollDecision = shouldAutoScroll(
+      measureIndex,
+      measureLayouts,
+      measureOffsets,
+      -1,
+      autoScrollMode,
+    );
+
+    if (scrollDecision.shouldScroll && scrollDecision.targetY !== undefined) {
+      lastScrolledUnitIndexRef.current = scrollDecision.unitIndex;
+      scrollToAnchoredMeasure(scrollDecision.targetY, scrollBehavior, {
+        lockAnchor: true,
+        anchorRatio: autoScrollMode === 'page' ? 0 : undefined,
+      });
+      return;
     }
-  }, [isPlaying, initialElapsedMs]);
+
+    if (scrollDecision.unitIndex >= 0) {
+      lastScrolledUnitIndexRef.current = scrollDecision.unitIndex;
+    }
+  }, [syncKey, isPlaying, autoScrollEnabled, autoScrollMode, scrollBehavior]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -118,43 +262,67 @@ export default function ScoreAutoScroller({
         cancelAnimationFrame(frameIdRef.current);
         frameIdRef.current = null;
       }
-      lastTickRef.current = null;
       return;
     }
 
-    const tick = (time: number) => {
-      const previousTick = lastTickRef.current ?? time;
-      const deltaMs = Math.max(0, time - previousTick);
-      lastTickRef.current = time;
-
-      const elapsedMs = Math.min(totalDurationMs, virtualElapsedRef.current + deltaMs);
-      virtualElapsedRef.current = elapsedMs;
-
-      const measureIndex = getMeasureIndexByElapsed(windows, elapsedMs);
-      onElapsedMsChange?.(elapsedMs);
-      onMeasureIndexChange?.(measureIndex);
-
+    const playbackStartElapsedMs = initialElapsedMsRef.current;
+    const playbackAnchorMs = playbackAnchorMsRef?.current ?? performance.now();
+    const publishPlaybackState = (elapsedMs: number, measureIndex: number, force = false) => {
       if (
-        autoScrollEnabled &&
-        !userScrollLockedRef.current &&
-        shouldScrollToMeasure(
-          measureIndex,
-          measureOffsets,
-          lastScrolledMeasureRef.current,
-          lastScrolledYRef.current,
-        )
+        force ||
+        elapsedMs - lastPublishedElapsedMsRef.current >= PLAYBACK_STATE_PUBLISH_INTERVAL_MS
       ) {
-        const targetY = measureOffsets[measureIndex];
-        if (targetY !== undefined) {
-          lastScrolledMeasureRef.current = measureIndex;
-          lastScrolledYRef.current = targetY;
-          scrollToAnchoredMeasure(targetY, scrollBehavior);
-        }
-      } else if (lastScrolledMeasureRef.current !== measureIndex) {
-        lastScrolledMeasureRef.current = measureIndex;
+        onElapsedMsChange?.(elapsedMs);
+        lastPublishedElapsedMsRef.current = elapsedMs;
       }
 
-      if (elapsedMs < totalDurationMs) {
+      if (force || measureIndex !== lastPublishedMeasureIndexRef.current) {
+        onMeasureIndexChange?.(measureIndex);
+        lastPublishedMeasureIndexRef.current = measureIndex;
+      }
+    };
+
+    const tick = (time: number) => {
+      const elapsedMs = Math.min(
+        playbackLimitMs,
+        playbackStartElapsedMs + Math.max(0, time - playbackAnchorMs),
+      );
+
+      const metronomeParams = playbackMetronomeRef?.current;
+      if (metronomeParams) {
+        metronomeCursorRef.current = fireMetronomeRange(
+          metronomeParams,
+          metronomeRef?.current ?? null,
+          metronomeFiredKeysRef.current,
+          metronomeCursorRef.current,
+          elapsedMs,
+        );
+      }
+
+      const measureIndex = getMeasureIndexByElapsed(windows, elapsedMs);
+      publishPlaybackState(elapsedMs, measureIndex, elapsedMs >= playbackLimitMs);
+
+      if (autoScrollEnabled) {
+        const scrollDecision = shouldAutoScroll(
+          measureIndex,
+          measureLayouts,
+          measureOffsets,
+          lastScrolledUnitIndexRef.current,
+          autoScrollMode,
+        );
+
+        if (scrollDecision.shouldScroll && scrollDecision.targetY !== undefined) {
+          lastScrolledUnitIndexRef.current = scrollDecision.unitIndex;
+          requestAnimationFrame(() => {
+            scrollToAnchoredMeasure(scrollDecision.targetY!, scrollBehavior, {
+              lockAnchor: true,
+              anchorRatio: autoScrollMode === 'page' ? 0 : undefined,
+            });
+          });
+        }
+      }
+
+      if (elapsedMs < playbackLimitMs) {
         frameIdRef.current = requestAnimationFrame(tick);
       }
     };
@@ -166,17 +334,23 @@ export default function ScoreAutoScroller({
         cancelAnimationFrame(frameIdRef.current);
         frameIdRef.current = null;
       }
-      lastTickRef.current = null;
     };
   }, [
     isPlaying,
+    syncKey,
     windows,
     totalDurationMs,
+    playbackLimitMs,
     onElapsedMsChange,
     onMeasureIndexChange,
     autoScrollEnabled,
+    autoScrollMode,
     scrollBehavior,
     measureOffsets,
+    measureLayouts,
+    playbackAnchorMsRef,
+    playbackMetronomeRef,
+    metronomeRef,
   ]);
 
   return null;

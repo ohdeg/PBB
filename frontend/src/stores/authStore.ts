@@ -6,6 +6,7 @@ interface AuthState {
   accessToken: string | null;
   nickname: string | null;
   email: string | null;
+  userId: string | null;
   userClass: ParsedUserClass | null;
   setAccessToken: (token: string | null) => void;
   clearAuth: () => void;
@@ -15,6 +16,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   nickname: null,
   email: null,
+  userId: null,
   userClass: null,
   setAccessToken: (token) => {
     if (!token) {
@@ -22,6 +24,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         accessToken: null,
         nickname: null,
         email: null,
+        userId: null,
         userClass: null,
       });
       return;
@@ -32,6 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       accessToken: token,
       nickname: payload?.nickname ?? null,
       email: payload?.sub ?? null,
+      userId: payload?.userId ?? null,
       userClass: parseUserClass(payload?.userClass),
     });
   },
@@ -40,6 +44,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       accessToken: null,
       nickname: null,
       email: null,
+      userId: null,
       userClass: null,
     }),
 }));

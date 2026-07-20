@@ -7,6 +7,8 @@ export interface HobbyApp {
   path: string | null;
   accent: string;
   available: boolean;
+  /** 앱 아이콘 이미지 (없으면 이름 첫 글자) */
+  iconSrc?: string;
 }
 
 export const HOBBY_CATEGORIES = ['스포츠', '라이프', '음악'] as const;
@@ -26,19 +28,30 @@ export const HOBBY_APPS: HobbyApp[] = [
   },
   {
     id: 'brew-note',
-    name: 'Brew Note',
-    subtitle: '커피 레시피',
-    description: '원두·추출·테이스팅 노트를 정리하는 홈카페 앱',
+    name: 'Veveno',
+    subtitle: '가게 노트',
+    description: '메뉴·재고·근무를 한곳에 남기는 가벼운 매장 노트',
     category: '라이프',
     path: '/hobbies/brew-note',
-    accent: '#ff9f0a',
+    accent: '#c4a484',
     available: true,
+  },
+    {
+    id: 'lotto',
+    name: '6PICK',
+    subtitle: '로또 번호',
+    description: '몬테카를로·Hot/Cold로 번호를 만들고 히스토리를 저장하는 앱',
+    category: '라이프',
+    path: '/hobbies/lotto',
+    accent: '#af52de',
+    available: true,
+    iconSrc: '/6pick/logo.svg',
   },
   {
     id: 'score-viewer',
     name: 'Score Viewer',
     subtitle: '악보 뷰어',
-    description: '악보를 골라 확대·넘기며 읽는 뷰어',
+    description: 'MusicXML/MXL 악보를 열고 메트로놈·조옮김·자동 스크롤로 연습',
     category: '음악',
     path: '/hobbies/score-viewer',
     accent: '#5e5ce6',

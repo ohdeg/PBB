@@ -3,6 +3,7 @@ package com.studiobs.spring_backend.domain.auth.support;
 import com.studiobs.spring_backend.domain.auth.jwt.JwtTokenProvider;
 import com.studiobs.spring_backend.global.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,18 +16,23 @@ public class AccessTokenResolver {
     private final JwtTokenProvider jwtTokenProvider;
 
     public String requireEmail(HttpServletRequest request) {
+        return findEmail(request)
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+    }
+
+    public Optional<String> findEmail(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith("Bearer ")) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+            return Optional.empty();
         }
 
         String token = header.substring("Bearer ".length()).trim();
         if (token.isEmpty()
                 || !jwtTokenProvider.isValid(token)
                 || !jwtTokenProvider.isAccessToken(token)) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "유효하지 않은 Access Token입니다.");
+            return Optional.empty();
         }
 
-        return jwtTokenProvider.getEmail(token);
+        return Optional.of(jwtTokenProvider.getEmail(token));
     }
 }

@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.lotto.service;
 
 import com.studiobs.spring_backend.domain.lotto.dto.LottoDrawResponse;
+import com.studiobs.spring_backend.domain.lotto.dto.LottoDrawSnapshot;
 import com.studiobs.spring_backend.domain.lotto.dto.LottoUserPicksResponse;
 import com.studiobs.spring_backend.domain.lotto.dto.ReplaceLottoDrawsRequest;
 import com.studiobs.spring_backend.domain.lotto.dto.SaveLottoUserPicksRequest;
@@ -81,8 +82,10 @@ public class LottoService {
         }
 
         // 병합 보존: 들어온 값이 null인 필드는 기존(자동 동기화 등으로 채워진) 값을 유지한다.
-        Map<Integer, LottoDraw> existingByRound = drawRepository.findAll().stream()
-                .collect(Collectors.toMap(LottoDraw::getRound, draw -> draw));
+        // 엔티티가 아닌 DTO 스냅샷으로 읽어 영속성 컨텍스트를 오염시키지 않는다
+        // (관리 엔티티가 남아 있으면 deleteAllInBatch 후 saveAll이 merge→update로 동작해 실패).
+        Map<Integer, LottoDrawSnapshot> existingByRound = drawRepository.findAllSnapshots().stream()
+                .collect(Collectors.toMap(LottoDrawSnapshot::round, snapshot -> snapshot));
 
         drawRepository.deleteAllInBatch();
         drawRepository.flush();
@@ -186,21 +189,21 @@ public class LottoService {
 
     /** replace 시 들어온 값이 null인 필드는 기존 회차 값으로 보존한다. 본번호는 항상 요청 값을 사용. */
     private UpsertLottoDrawRequest mergeWithExisting(
-            UpsertLottoDrawRequest incoming, LottoDraw existing) {
+            UpsertLottoDrawRequest incoming, LottoDrawSnapshot existing) {
         if (existing == null) {
             return incoming;
         }
         return new UpsertLottoDrawRequest(
                 incoming.round(),
                 incoming.mainNumbers(),
-                incoming.bonusNumber() != null ? incoming.bonusNumber() : existing.getBonusNumber(),
-                incoming.drawDate() != null ? incoming.drawDate() : existing.getDrawDate(),
+                incoming.bonusNumber() != null ? incoming.bonusNumber() : existing.bonusNumber(),
+                incoming.drawDate() != null ? incoming.drawDate() : existing.drawDate(),
                 incoming.firstPrizeAmount() != null
                         ? incoming.firstPrizeAmount()
-                        : existing.getFirstPrizeAmount(),
+                        : existing.firstPrizeAmount(),
                 incoming.firstPrizeWinnerCount() != null
                         ? incoming.firstPrizeWinnerCount()
-                        : existing.getFirstPrizeWinnerCount());
+                        : existing.firstPrizeWinnerCount());
     }
 
     private LottoDraw toNewEntity(UpsertLottoDrawRequest request) {

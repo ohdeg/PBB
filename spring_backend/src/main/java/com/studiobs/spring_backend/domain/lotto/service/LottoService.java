@@ -80,10 +80,15 @@ public class LottoService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "저장할 회차가 없습니다.");
         }
 
+        // 병합 보존: 들어온 값이 null인 필드는 기존(자동 동기화 등으로 채워진) 값을 유지한다.
+        Map<Integer, LottoDraw> existingByRound = drawRepository.findAll().stream()
+                .collect(Collectors.toMap(LottoDraw::getRound, draw -> draw));
+
         drawRepository.deleteAllInBatch();
         drawRepository.flush();
 
         List<LottoDraw> entities = byRound.values().stream()
+                .map(item -> mergeWithExisting(item, existingByRound.get(item.round())))
                 .map(this::toNewEntity)
                 .toList();
         return drawRepository.saveAll(entities).stream()
@@ -177,6 +182,25 @@ public class LottoService {
                 .orElseGet(() -> toNewEntity(request));
 
         return drawRepository.save(draw);
+    }
+
+    /** replace 시 들어온 값이 null인 필드는 기존 회차 값으로 보존한다. 본번호는 항상 요청 값을 사용. */
+    private UpsertLottoDrawRequest mergeWithExisting(
+            UpsertLottoDrawRequest incoming, LottoDraw existing) {
+        if (existing == null) {
+            return incoming;
+        }
+        return new UpsertLottoDrawRequest(
+                incoming.round(),
+                incoming.mainNumbers(),
+                incoming.bonusNumber() != null ? incoming.bonusNumber() : existing.getBonusNumber(),
+                incoming.drawDate() != null ? incoming.drawDate() : existing.getDrawDate(),
+                incoming.firstPrizeAmount() != null
+                        ? incoming.firstPrizeAmount()
+                        : existing.getFirstPrizeAmount(),
+                incoming.firstPrizeWinnerCount() != null
+                        ? incoming.firstPrizeWinnerCount()
+                        : existing.getFirstPrizeWinnerCount());
     }
 
     private LottoDraw toNewEntity(UpsertLottoDrawRequest request) {

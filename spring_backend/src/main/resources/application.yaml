@@ -20,4 +20,7 @@ app:
     # 프론트/백엔드 도메인이 다르면 prod 에서 None 필요 (crossdomain 쿠키). 로컬 dev 기본값 Strict.
     same-site: ${COOKIE_SAME_SITE:Strict}
     path: /api/v1/auth
+  mail:
+    # 발신 주소 (발송 도메인 인증 필요). prod 는 MAIL_FROM 으로 no-reply@<도메인> 주입.
+    from: ${MAIL_FROM:no-reply@pbb.com}
   # Cloudflare R2 설정은 application-dev.yaml / application-prod.yaml 에서 프로필별로 관리

@@ -2,13 +2,18 @@ package com.studiobs.spring_backend.domain.brew.controller;
 
 import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
 import com.studiobs.spring_backend.domain.brew.dto.CalendarResponse;
+import com.studiobs.spring_backend.domain.brew.dto.CoverAfterLeaveCountResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CoverResponse;
+import com.studiobs.spring_backend.domain.brew.dto.ApproveJoinRequest;
 import com.studiobs.spring_backend.domain.brew.dto.AssignCoverRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CreateCoverRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
+import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
 import com.studiobs.spring_backend.domain.brew.dto.MenuResponse;
 import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
+import com.studiobs.spring_backend.domain.brew.dto.NoticeRequest;
+import com.studiobs.spring_backend.domain.brew.dto.NoticeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeContentsRequest;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
@@ -89,6 +94,17 @@ public class BrewController {
         return brewService.createStore(accessTokenResolver.requireEmail(request), body);
     }
 
+    @PostMapping("/stores/{storeId}/invite-code/regenerate")
+    public StoreResponse regenerateInviteCode(
+            HttpServletRequest request,
+            @PathVariable UUID storeId
+    ) {
+        return brewService.regenerateInviteCode(
+                accessTokenResolver.requireEmail(request),
+                storeId
+        );
+    }
+
     @GetMapping("/stores/{storeId}")
     public StoreResponse getStore(HttpServletRequest request, @PathVariable UUID storeId) {
         return brewService.getStore(storeId, accessTokenResolver.findEmail(request).orElse(null));
@@ -137,6 +153,36 @@ public class BrewController {
     public MessageResponse deleteMenu(HttpServletRequest request, @PathVariable UUID menuId) {
         brewService.deleteMenu(accessTokenResolver.requireEmail(request), menuId);
         return new MessageResponse("메뉴가 삭제되었습니다.");
+    }
+
+    @GetMapping("/stores/{storeId}/notices")
+    public List<NoticeResponse> listNotices(HttpServletRequest request, @PathVariable UUID storeId) {
+        return brewService.listNotices(accessTokenResolver.requireEmail(request), storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/notices")
+    @ResponseStatus(HttpStatus.CREATED)
+    public NoticeResponse createNotice(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @Valid @RequestBody NoticeRequest body
+    ) {
+        return brewService.createNotice(accessTokenResolver.requireEmail(request), storeId, body);
+    }
+
+    @PatchMapping("/notices/{noticeId}")
+    public NoticeResponse updateNotice(
+            HttpServletRequest request,
+            @PathVariable UUID noticeId,
+            @Valid @RequestBody NoticeRequest body
+    ) {
+        return brewService.updateNotice(accessTokenResolver.requireEmail(request), noticeId, body);
+    }
+
+    @DeleteMapping("/notices/{noticeId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteNotice(HttpServletRequest request, @PathVariable UUID noticeId) {
+        brewService.deleteNotice(accessTokenResolver.requireEmail(request), noticeId);
     }
 
     @GetMapping("/menus/{menuId}/recipes")
@@ -272,9 +318,10 @@ public class BrewController {
     public MessageResponse approveJoin(
             HttpServletRequest request,
             @PathVariable UUID storeId,
-            @PathVariable UUID userId
+            @PathVariable UUID userId,
+            @Valid @RequestBody ApproveJoinRequest body
     ) {
-        brewService.approveJoin(accessTokenResolver.requireEmail(request), storeId, userId);
+        brewService.approveJoin(accessTokenResolver.requireEmail(request), storeId, userId, body);
         return new MessageResponse("가입을 승인했습니다.");
     }
 
@@ -289,9 +336,56 @@ public class BrewController {
     }
 
     @DeleteMapping("/subscriptions/{storeId}")
-    public MessageResponse unsubscribe(HttpServletRequest request, @PathVariable UUID storeId) {
-        brewService.unsubscribe(accessTokenResolver.requireEmail(request), storeId);
-        return new MessageResponse("구독을 해지했습니다.");
+    public MessageResponse unsubscribe(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @Valid @RequestBody LeaveDateRequest body
+    ) {
+        brewService.unsubscribe(accessTokenResolver.requireEmail(request), storeId, body);
+        return new MessageResponse("퇴사가 예약·처리되었습니다.");
+    }
+
+    @PostMapping("/stores/{storeId}/subscribers/{userId}/resign")
+    public Object resignSubscriber(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @PathVariable UUID userId,
+            @Valid @RequestBody LeaveDateRequest body
+    ) {
+        SubscriberResponse result = brewService.resignSubscriber(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                userId,
+                body
+        );
+        if (result == null) {
+            return new MessageResponse("퇴사 처리되었습니다.");
+        }
+        return result;
+    }
+
+    @DeleteMapping("/stores/{storeId}/subscribers/{userId}/leave")
+    public SubscriberResponse clearScheduledLeave(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @PathVariable UUID userId
+    ) {
+        return brewService.clearScheduledLeave(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                userId
+        );
+    }
+
+    @DeleteMapping("/subscriptions/{storeId}/leave")
+    public MessageResponse clearMyScheduledLeave(
+            HttpServletRequest request,
+            @PathVariable UUID storeId
+    ) {
+        String email = accessTokenResolver.requireEmail(request);
+        // resolve user id via resign clear — need userId; use service method for self
+        brewService.clearMyScheduledLeave(email, storeId);
+        return new MessageResponse("퇴사 예약을 취소했습니다.");
     }
 
     @GetMapping("/stores/{storeId}/schedules")
@@ -332,6 +426,22 @@ public class BrewController {
                 from,
                 to
         );
+    }
+
+    @GetMapping("/stores/{storeId}/subscribers/{userId}/covers-after-leave")
+    public CoverAfterLeaveCountResponse countCoversAfterLeave(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @PathVariable UUID userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate leaveDate
+    ) {
+        int count = brewScheduleService.countCoversAfterLeaveDate(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                userId,
+                leaveDate
+        );
+        return new CoverAfterLeaveCountResponse(count);
     }
 
     @GetMapping("/stores/{storeId}/covers/pending")

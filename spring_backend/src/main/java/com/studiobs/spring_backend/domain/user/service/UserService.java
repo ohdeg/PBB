@@ -104,6 +104,11 @@ public class UserService {
         return UserResponse.from(userRepository.save(user));
     }
 
+    @Transactional
+    public void delete(User user) {
+        userRepository.delete(user);
+    }
+
     public record ConsentInput(String key, boolean agreed, String version) {
     }
 }

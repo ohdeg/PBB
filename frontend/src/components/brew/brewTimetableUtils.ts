@@ -41,6 +41,13 @@ export interface BrewTimetableSegment {
   isLast: boolean;
 }
 
+interface TimedItem {
+  occurrence: BrewCalendarOccurrence;
+  start: number;
+  end: number;
+  id: string;
+}
+
 function parseTimeToMinutes(raw: string): number {
   const parts = raw.slice(0, 5).split(':');
   const hours = Number(parts[0] ?? 0);
@@ -55,6 +62,25 @@ function getOccurrenceEndMinutes(occ: BrewCalendarOccurrence): number {
     end += 24 * 60;
   }
   return end;
+}
+
+/** COVERED_OUT을 제외한 근무 구간 */
+function expandWorkSpans(occurrences: BrewCalendarOccurrence[]): TimedItem[] {
+  const items: TimedItem[] = [];
+  for (const occurrence of occurrences) {
+    if (occurrence.type === 'COVERED_OUT') {
+      continue;
+    }
+    const start = parseTimeToMinutes(occurrence.startTime);
+    const end = getOccurrenceEndMinutes(occurrence);
+    items.push({
+      occurrence,
+      start,
+      end,
+      id: `${occurrence.userId}-${occurrence.type}-${occurrence.coverId ?? occurrence.startTime}-${start}`,
+    });
+  }
+  return items;
 }
 
 function formatHourLabel(hour: number): string {
@@ -141,13 +167,6 @@ export function getBrewWeekTimetableRange(
   return buildRange(startHour, endHour);
 }
 
-interface TimedItem {
-  occurrence: BrewCalendarOccurrence;
-  start: number;
-  end: number;
-  id: string;
-}
-
 /**
  * 겹치는 구간만 폭을 나누고, 혼자인 구간은 전체 폭.
  * 시작·종료 시각을 경계로 세로 세그먼트를 만든다.
@@ -156,13 +175,7 @@ export function layoutBrewDayTimetableBlocks(
   occurrences: BrewCalendarOccurrence[],
   range: BrewTimetableRange,
 ): BrewTimetableSegment[] {
-  const visible = occurrences.filter((occ) => occ.type !== 'COVERED_OUT');
-  const items: TimedItem[] = visible.map((occurrence) => ({
-    occurrence,
-    start: parseTimeToMinutes(occurrence.startTime),
-    end: getOccurrenceEndMinutes(occurrence),
-    id: `${occurrence.userId}-${occurrence.type}-${occurrence.coverId ?? occurrence.startTime}`,
-  }));
+  const items = expandWorkSpans(occurrences);
 
   if (items.length === 0) {
     return [];

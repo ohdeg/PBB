@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.dev.service;
 
 import com.studiobs.spring_backend.domain.auth.service.AuthRedisService;
+import com.studiobs.spring_backend.domain.config.service.AppConfigService;
 import com.studiobs.spring_backend.domain.user.dto.UserResponse;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.entity.UserClass;
@@ -19,6 +20,7 @@ public class DevAdminService {
 
     private final UserService userService;
     private final AuthRedisService authRedisService;
+    private final AppConfigService appConfigService;
 
     @Transactional(readOnly = true)
     public List<UserResponse> searchUsers(String actorEmail, String query) {
@@ -50,6 +52,12 @@ public class DevAdminService {
         UserResponse updated = userService.updateUserClass(target, userClass);
         authRedisService.deleteRefreshToken(normalizeEmail(target.getEmail()));
         return updated;
+    }
+
+    @Transactional
+    public List<String> updateFeaturedApps(String actorEmail, List<String> appIds) {
+        requireDev(actorEmail);
+        return appConfigService.setFeaturedAppIds(appIds);
     }
 
     private User requireDev(String actorEmail) {

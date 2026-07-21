@@ -3,10 +3,13 @@ export interface BrewStore {
   ownerUserId: string;
   name: string;
   isPublic: boolean;
+  /** owner에게만 내려옴 */
+  inviteCode: string | null;
   owned: boolean;
   subscribed: boolean;
   canEditStock: boolean;
   onDuty: boolean;
+  leaveDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +64,8 @@ export interface BrewSubscriber {
   email: string;
   nickname: string;
   canEditStock: boolean;
+  workStartDate: string | null;
+  leaveDate: string | null;
   createdAt: string;
 }
 
@@ -73,7 +78,9 @@ export type BrewCoverStatus =
 
 export type BrewCoverInitiator = 'EMPLOYEE' | 'OWNER';
 
-export type BrewOccurrenceType = 'REGULAR' | 'COVER' | 'COVERED_OUT';
+export type BrewOccurrenceType = 'REGULAR' | 'COVER' | 'COVERED_OUT' | 'EXTRA';
+
+export type BrewShiftKind = 'COVER' | 'EXTRA';
 
 export interface BrewSchedule {
   id: string;
@@ -89,7 +96,7 @@ export interface BrewSchedule {
 export interface BrewCover {
   id: string;
   storeId: string;
-  originalUserId: string;
+  originalUserId: string | null;
   originalNickname: string;
   coverUserId: string | null;
   coverNickname: string;
@@ -97,6 +104,7 @@ export interface BrewCover {
   startTime: string;
   endTime: string;
   overnight: boolean;
+  shiftKind: BrewShiftKind;
   initiatorType: BrewCoverInitiator;
   requestedByUserId: string;
   status: BrewCoverStatus;
@@ -104,6 +112,22 @@ export interface BrewCover {
   decidedByUserId: string | null;
   decidedAt: string | null;
   createdAt: string;
+}
+
+export interface BrewNotice {
+  id: string;
+  storeId: string;
+  authorUserId: string;
+  authorNickname: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrewNoticeInput {
+  title: string;
+  body: string;
 }
 
 export interface BrewCalendarOccurrence {
@@ -134,11 +158,12 @@ export interface BrewScheduleSlotInput {
 }
 
 export interface BrewCreateCoverInput {
-  originalUserId: string;
+  originalUserId?: string;
   coverUserId?: string;
   workDate: string;
   startTime: string;
   endTime: string;
+  shiftKind?: BrewShiftKind;
   note?: string;
 }
 

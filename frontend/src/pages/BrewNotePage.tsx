@@ -97,7 +97,7 @@ export function BrewNotePage() {
     const q = joinQuery.trim();
     if (!q) {
       setSearchResults([]);
-      setSearchMessage('가게 이름을 입력해 주세요.');
+      setSearchMessage('가게 이름 또는 코드를 입력해 주세요.');
       return;
     }
     setSearching(true);
@@ -237,7 +237,7 @@ export function BrewNotePage() {
 
           <section className="brew-section">
             <p className="brew-section__label">Subscribed</p>
-            <BrewCard title="구독 가게">
+            <BrewCard title="근무 가게">
               {hasSubs ? (
                 <div className="brew-stack">
                   {subscriptions.map((store) => (
@@ -252,7 +252,7 @@ export function BrewNotePage() {
                   ))}
                 </div>
               ) : (
-                <p className="brew-empty">구독 중인 가게가 없습니다.</p>
+                <p className="brew-empty">근무 중인 가게가 없습니다.</p>
               )}
             </BrewCard>
           </section>
@@ -272,14 +272,15 @@ export function BrewNotePage() {
             {panel === 'find' ? (
               <BrewCard title="가게 검색 · 가입">
                 <p className="brew-card-lead">
-                  이름으로 찾아 가입을 신청하거나, 이미 구독 중이면 바로 엽니다.
+                  가게 이름 또는 가게 코드(8자)로 찾아 가입을 신청합니다. 동명이 있을 때는
+                  코드를 쓰면 정확히 찾을 수 있습니다.
                 </p>
                 <div className="brew-search-row">
                   <BrewInput
                     value={joinQuery}
                     onChange={(e) => setJoinQuery(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
-                    placeholder="가게 이름"
+                    placeholder="가게 이름 또는 코드"
                     autoComplete="off"
                   />
                   <BrewButton onClick={() => void handleSearch()} loading={searching}>

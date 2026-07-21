@@ -28,6 +28,9 @@ public class BrewShiftCover {
     public static final String INITIATOR_EMPLOYEE = "EMPLOYEE";
     public static final String INITIATOR_OWNER = "OWNER";
 
+    public static final String KIND_COVER = "COVER";
+    public static final String KIND_EXTRA = "EXTRA";
+
     public static final String STATUS_PENDING_OWNER = "PENDING_OWNER";
     public static final String STATUS_PENDING_COVER = "PENDING_COVER";
     public static final String STATUS_APPROVED = "APPROVED";
@@ -46,7 +49,7 @@ public class BrewShiftCover {
     private UUID storeId;
 
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "original_user_id", nullable = false, length = 36)
+    @Column(name = "original_user_id", length = 36)
     private UUID originalUserId;
 
     @JdbcTypeCode(SqlTypes.CHAR)
@@ -61,6 +64,9 @@ public class BrewShiftCover {
 
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
+
+    @Column(name = "shift_kind", nullable = false, length = 16)
+    private String shiftKind;
 
     @Column(name = "initiator_type", nullable = false, length = 16)
     private String initiatorType;
@@ -98,6 +104,7 @@ public class BrewShiftCover {
             LocalDate workDate,
             LocalTime startTime,
             LocalTime endTime,
+            String shiftKind,
             String initiatorType,
             UUID requestedByUserId,
             String status,
@@ -109,6 +116,7 @@ public class BrewShiftCover {
         this.workDate = workDate;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.shiftKind = shiftKind == null ? KIND_COVER : shiftKind;
         this.initiatorType = initiatorType;
         this.requestedByUserId = requestedByUserId;
         this.status = status;

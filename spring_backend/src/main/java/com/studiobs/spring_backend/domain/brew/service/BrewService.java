@@ -1,11 +1,17 @@
 package com.studiobs.spring_backend.domain.brew.service;
 
+import com.studiobs.spring_backend.domain.brew.dto.ApproveJoinRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
+import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
 import com.studiobs.spring_backend.domain.brew.dto.MenuResponse;
 import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
+import com.studiobs.spring_backend.domain.brew.dto.NoticeRequest;
+import com.studiobs.spring_backend.domain.brew.dto.NoticeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeContentsRequest;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeResponse;
+import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
+import com.studiobs.spring_backend.domain.brew.dto.ScheduleSlotRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockCategoryResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockPermissionRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
@@ -16,20 +22,27 @@ import com.studiobs.spring_backend.domain.brew.dto.UpdateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewMenu;
 import com.studiobs.spring_backend.domain.brew.entity.BrewRecipe;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreNotice;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStock;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.repository.BrewMenuRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewRecipeRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreNoticeRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
+import com.studiobs.spring_backend.domain.brew.support.BrewInviteCodes;
+import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -47,6 +60,7 @@ public class BrewService {
     private final BrewStoreSubscriptionRepository subscriptionRepository;
     private final BrewStoreStockCategoryRepository stockCategoryRepository;
     private final BrewStoreStockRepository stockRepository;
+    private final BrewStoreNoticeRepository noticeRepository;
     private final BrewRedisService brewRedisService;
     private final BrewScheduleService brewScheduleService;
 
@@ -54,7 +68,7 @@ public class BrewService {
     public List<StoreResponse> listMyStores(String email) {
         User user = requireUser(email);
         return storeRepository.findByOwnerUserIdOrderByUpdatedAtDesc(user.getId()).stream()
-                .map(store -> StoreResponse.from(store, user.getId(), false, false, true))
+                .map(store -> StoreResponse.from(store, user.getId(), false, false, true, null))
                 .toList();
     }
 
@@ -73,26 +87,49 @@ public class BrewService {
             return List.of();
         }
         UUID viewerId = resolveUserId(emailOrNull);
-        return storeRepository
-                .findByNameContainingIgnoreCaseOrderByUpdatedAtDesc(q)
-                .stream()
+        Map<UUID, BrewStore> unique = new LinkedHashMap<>();
+        if (BrewInviteCodes.looksLikeCode(q)) {
+            storeRepository.findByInviteCodeIgnoreCase(q).ifPresent(store ->
+                    unique.put(store.getId(), store));
+        }
+        for (BrewStore store : storeRepository.findByNameContainingIgnoreCaseOrderByUpdatedAtDesc(q)) {
+            unique.putIfAbsent(store.getId(), store);
+        }
+        return unique.values().stream()
                 .map(store -> toStoreResponse(store, viewerId))
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<StoreResponse> listSubscriptions(String email) {
         User user = requireUser(email);
-        return subscriptionRepository.findBySubscriberUserIdOrderByCreatedAtDesc(user.getId()).stream()
-                .map(sub -> {
-                    BrewStore store = storeRepository.findById(sub.getStoreId()).orElse(null);
-                    if (store == null) {
-                        return null;
-                    }
-                    return StoreResponse.from(store, user.getId(), true, sub.isCanEditStock(), false);
-                })
-                .filter(store -> store != null)
-                .toList();
+        List<BrewStoreSubscription> subs =
+                subscriptionRepository.findBySubscriberUserIdOrderByCreatedAtDesc(user.getId());
+        List<StoreResponse> result = new ArrayList<>();
+        for (BrewStoreSubscription sub : subs) {
+            processDueLeaveIfNeeded(sub, user.getId());
+            if (!subscriptionRepository.existsBySubscriberUserIdAndStoreId(user.getId(), sub.getStoreId())) {
+                continue;
+            }
+            BrewStoreSubscription fresh = subscriptionRepository
+                    .findBySubscriberUserIdAndStoreId(user.getId(), sub.getStoreId())
+                    .orElse(null);
+            if (fresh == null) {
+                continue;
+            }
+            BrewStore store = storeRepository.findById(fresh.getStoreId()).orElse(null);
+            if (store == null) {
+                continue;
+            }
+            result.add(StoreResponse.from(
+                    store,
+                    user.getId(),
+                    true,
+                    fresh.isCanEditStock(),
+                    false,
+                    fresh.getLeaveDate()));
+        }
+        return result;
     }
 
     @Transactional
@@ -102,12 +139,32 @@ public class BrewService {
                 .ownerUserId(user.getId())
                 .name(request.name().trim())
                 .isPublic(request.isPublic())
+                .inviteCode(allocateInviteCode())
                 .build());
-        return StoreResponse.from(store, user.getId(), false, false, true);
+        return StoreResponse.from(store, user.getId(), false, false, true, null);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
+    public StoreResponse regenerateInviteCode(String email, UUID storeId) {
+        User user = requireUser(email);
+        BrewStore store = requireOwnedStore(storeId, user.getId());
+        store.rotateInviteCode(allocateInviteCode());
+        return StoreResponse.from(storeRepository.save(store), user.getId(), false, false, true, null);
+    }
+
+    private String allocateInviteCode() {
+        for (int attempt = 0; attempt < 32; attempt += 1) {
+            String code = BrewInviteCodes.generate();
+            if (!storeRepository.existsByInviteCodeIgnoreCase(code)) {
+                return code;
+            }
+        }
+        throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "가게 코드 발급에 실패했습니다. 다시 시도해 주세요.");
+    }
+
+    @Transactional
     public StoreResponse getStore(UUID storeId, String emailOrNull) {
+        processDueLeavesForStore(storeId);
         BrewStore store = requireStore(storeId);
         UUID viewerId = resolveUserId(emailOrNull);
         assertCanView(store, viewerId);
@@ -119,7 +176,7 @@ public class BrewService {
         User user = requireUser(email);
         BrewStore store = requireOwnedStore(storeId, user.getId());
         store.update(request.name().trim(), request.isPublic());
-        return StoreResponse.from(storeRepository.save(store), user.getId(), false, false, true);
+        return StoreResponse.from(storeRepository.save(store), user.getId(), false, false, true, null);
     }
 
     @Transactional
@@ -164,6 +221,46 @@ public class BrewService {
         BrewMenu menu = requireMenu(menuId);
         requireOwnedStore(menu.getStoreId(), user.getId());
         menuRepository.delete(menu);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NoticeResponse> listNotices(String email, UUID storeId) {
+        User user = requireUser(email);
+        BrewStore store = requireStore(storeId);
+        assertMember(store, user.getId());
+        return noticeRepository.findByStoreIdOrderByCreatedAtDesc(storeId).stream()
+                .map(n -> NoticeResponse.from(n, nicknameOf(n.getAuthorUserId())))
+                .toList();
+    }
+
+    @Transactional
+    public NoticeResponse createNotice(String email, UUID storeId, NoticeRequest request) {
+        User user = requireUser(email);
+        requireOwnedStore(storeId, user.getId());
+        BrewStoreNotice notice = noticeRepository.save(BrewStoreNotice.builder()
+                .storeId(storeId)
+                .authorUserId(user.getId())
+                .title(request.title().trim())
+                .body(request.body().trim())
+                .build());
+        return NoticeResponse.from(notice, user.getNickname());
+    }
+
+    @Transactional
+    public NoticeResponse updateNotice(String email, UUID noticeId, NoticeRequest request) {
+        User user = requireUser(email);
+        BrewStoreNotice notice = requireNotice(noticeId);
+        requireOwnedStore(notice.getStoreId(), user.getId());
+        notice.update(request.title().trim(), request.body().trim());
+        return NoticeResponse.from(noticeRepository.save(notice), nicknameOf(notice.getAuthorUserId()));
+    }
+
+    @Transactional
+    public void deleteNotice(String email, UUID noticeId) {
+        User user = requireUser(email);
+        BrewStoreNotice notice = requireNotice(noticeId);
+        requireOwnedStore(notice.getStoreId(), user.getId());
+        noticeRepository.delete(notice);
     }
 
     @Transactional(readOnly = true)
@@ -326,35 +423,54 @@ public class BrewService {
     }
 
     @Transactional
-    public void approveJoin(String email, UUID storeId, UUID requesterId) {
+    public void approveJoin(String email, UUID storeId, UUID requesterId, ApproveJoinRequest request) {
         User owner = requireUser(email);
         requireOwnedStore(storeId, owner.getId());
         if (!brewRedisService.hasJoinRequest(storeId, requesterId)) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "대기 중인 가입 신청이 없습니다.");
         }
+        boolean canEditStock = Boolean.TRUE.equals(request.canEditStock());
+        LocalDate workStartDate = request.workStartDate();
+        if (workStartDate != null) {
+            LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+            if (workStartDate.isBefore(today.minusYears(1)) || workStartDate.isAfter(today.plusYears(1))) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "근무 시작일은 오늘 기준 1년 이내여야 합니다.");
+            }
+        }
         if (!subscriptionRepository.existsBySubscriberUserIdAndStoreId(requesterId, storeId)) {
             subscriptionRepository.save(BrewStoreSubscription.builder()
                     .subscriberUserId(requesterId)
                     .storeId(storeId)
-                    .canEditStock(false)
+                    .canEditStock(canEditStock)
+                    .workStartDate(workStartDate)
                     .build());
+        } else {
+            BrewStoreSubscription existing = subscriptionRepository
+                    .findBySubscriberUserIdAndStoreId(requesterId, storeId)
+                    .orElseThrow();
+            existing.setCanEditStock(canEditStock);
+            existing.setWorkStartDate(workStartDate);
+            subscriptionRepository.save(existing);
         }
+        List<ScheduleSlotRequest> slots = request.slots() == null ? List.of() : request.slots();
+        brewScheduleService.replaceSchedules(
+                email,
+                storeId,
+                requesterId,
+                new ReplaceSchedulesRequest(slots)
+        );
         brewRedisService.deleteJoinRequest(storeId, requesterId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<SubscriberResponse> listSubscribers(String email, UUID storeId) {
         User owner = requireUser(email);
         requireOwnedStore(storeId, owner.getId());
+        processDueLeavesForStore(storeId);
         List<SubscriberResponse> result = new ArrayList<>();
         for (BrewStoreSubscription sub : subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId)) {
             userService.findById(sub.getSubscriberUserId()).ifPresent(u ->
-                    result.add(new SubscriberResponse(
-                            u.getId(),
-                            u.getEmail(),
-                            u.getNickname(),
-                            sub.isCanEditStock(),
-                            sub.getCreatedAt())));
+                    result.add(toSubscriberResponse(u, sub)));
         }
         return result;
     }
@@ -368,6 +484,7 @@ public class BrewService {
     ) {
         User owner = requireUser(email);
         requireOwnedStore(storeId, owner.getId());
+        processDueLeavesForStore(storeId);
         BrewStoreSubscription sub = subscriptionRepository
                 .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
@@ -375,12 +492,7 @@ public class BrewService {
         subscriptionRepository.save(sub);
         User subscriber = userService.findById(subscriberId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
-        return new SubscriberResponse(
-                subscriber.getId(),
-                subscriber.getEmail(),
-                subscriber.getNickname(),
-                sub.isCanEditStock(),
-                sub.getCreatedAt());
+        return toSubscriberResponse(subscriber, sub);
     }
 
     @Transactional
@@ -390,10 +502,136 @@ public class BrewService {
         brewRedisService.deleteJoinRequest(storeId, requesterId);
     }
 
+    /**
+     * 업주가 직원 퇴사 처리. leaveDate = 마지막 근무일.
+     * 이미 지난 날이면 즉시 해제, 오늘 이후면 예약.
+     */
     @Transactional
-    public void unsubscribe(String email, UUID storeId) {
+    public SubscriberResponse resignSubscriber(
+            String email,
+            UUID storeId,
+            UUID subscriberId,
+            LeaveDateRequest request
+    ) {
+        User owner = requireUser(email);
+        requireOwnedStore(storeId, owner.getId());
+        processDueLeavesForStore(storeId);
+        return applyLeave(storeId, subscriberId, request.leaveDate(), owner.getId(), true);
+    }
+
+    /** 직원이 스스로 퇴사(가게 나가기) */
+    @Transactional
+    public void unsubscribe(String email, UUID storeId, LeaveDateRequest request) {
         User user = requireUser(email);
-        subscriptionRepository.deleteBySubscriberUserIdAndStoreId(user.getId(), storeId);
+        processDueLeavesForStore(storeId);
+        BrewStore store = requireStore(storeId);
+        if (store.getOwnerUserId().equals(user.getId())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "업주는 구독을 해지할 수 없습니다. 가게를 삭제하세요.");
+        }
+        applyLeave(storeId, user.getId(), request.leaveDate(), user.getId(), false);
+    }
+
+    /** 예약된 퇴사 취소 */
+    @Transactional
+    public SubscriberResponse clearScheduledLeave(
+            String email,
+            UUID storeId,
+            UUID subscriberId
+    ) {
+        User actor = requireUser(email);
+        BrewStore store = requireStore(storeId);
+        boolean isOwner = store.getOwnerUserId().equals(actor.getId());
+        if (!isOwner && !actor.getId().equals(subscriberId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "본인 또는 업주만 퇴사 예약을 취소할 수 있습니다.");
+        }
+        if (isOwner) {
+            requireOwnedStore(storeId, actor.getId());
+        }
+        BrewStoreSubscription sub = subscriptionRepository
+                .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
+        sub.clearLeave();
+        subscriptionRepository.save(sub);
+        User subscriber = userService.findById(subscriberId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
+        return toSubscriberResponse(subscriber, sub);
+    }
+
+    /** 직원이 본인 퇴사 예약 취소 */
+    @Transactional
+    public void clearMyScheduledLeave(String email, UUID storeId) {
+        User user = requireUser(email);
+        clearScheduledLeave(email, storeId, user.getId());
+    }
+
+    private SubscriberResponse applyLeave(
+            UUID storeId,
+            UUID subscriberId,
+            LocalDate leaveDate,
+            UUID decidedByUserId,
+            boolean returnResponseIfScheduled
+    ) {
+        if (leaveDate == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "퇴사일을 입력해 주세요.");
+        }
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        if (leaveDate.isBefore(today.minusYears(1)) || leaveDate.isAfter(today.plusYears(1))) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "퇴사일은 오늘 기준 1년 이내여야 합니다.");
+        }
+        BrewStoreSubscription sub = subscriptionRepository
+                .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
+
+        if (leaveDate.isBefore(today)) {
+            finalizeLeave(storeId, subscriberId, leaveDate);
+            return null;
+        }
+
+        sub.scheduleLeave(leaveDate);
+        subscriptionRepository.save(sub);
+        brewScheduleService.deleteCoversAfterLeaveDate(storeId, subscriberId, leaveDate);
+        if (!returnResponseIfScheduled) {
+            return null;
+        }
+        User subscriber = userService.findById(subscriberId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
+        return toSubscriberResponse(subscriber, sub);
+    }
+
+    private void processDueLeavesForStore(UUID storeId) {
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        for (BrewStoreSubscription sub : subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId)) {
+            if (sub.isLeaveDue(today)) {
+                LocalDate leaveDate = sub.getLeaveDate();
+                if (leaveDate != null) {
+                    finalizeLeave(storeId, sub.getSubscriberUserId(), leaveDate);
+                }
+            }
+        }
+    }
+
+    private void processDueLeaveIfNeeded(BrewStoreSubscription sub, UUID decidedByUserId) {
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        if (sub.isLeaveDue(today) && sub.getLeaveDate() != null) {
+            finalizeLeave(sub.getStoreId(), sub.getSubscriberUserId(), sub.getLeaveDate());
+        }
+    }
+
+    private void finalizeLeave(UUID storeId, UUID userId, LocalDate leaveDate) {
+        brewScheduleService.purgeStaffMembership(storeId, userId, leaveDate);
+        subscriptionRepository.deleteBySubscriberUserIdAndStoreId(userId, storeId);
+    }
+
+    private SubscriberResponse toSubscriberResponse(User user, BrewStoreSubscription sub) {
+        return new SubscriberResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getNickname(),
+                sub.isCanEditStock(),
+                sub.getWorkStartDate(),
+                sub.getLeaveDate(),
+                sub.getCreatedAt()
+        );
     }
 
     private void requireStockEditor(UUID storeId, UUID userId) {
@@ -425,25 +663,36 @@ public class BrewService {
     }
 
     private StoreResponse toStoreResponse(BrewStore store, UUID viewerId) {
-        boolean subscribed = viewerId != null
-                && subscriptionRepository.existsBySubscriberUserIdAndStoreId(viewerId, store.getId());
+        boolean subscribed = false;
         boolean canEditStock = false;
         boolean onDuty = false;
+        LocalDate leaveDate = null;
         if (viewerId != null) {
             if (store.getOwnerUserId().equals(viewerId)) {
                 canEditStock = true;
                 onDuty = true;
             } else {
-                canEditStock = subscriptionRepository
-                        .findBySubscriberUserIdAndStoreId(viewerId, store.getId())
-                        .map(BrewStoreSubscription::isCanEditStock)
-                        .orElse(false);
-                if (canEditStock) {
-                    onDuty = brewScheduleService.isCurrentlyOnDuty(store.getId(), viewerId);
+                var subOpt = subscriptionRepository
+                        .findBySubscriberUserIdAndStoreId(viewerId, store.getId());
+                if (subOpt.isPresent()) {
+                    BrewStoreSubscription sub = subOpt.get();
+                    if (sub.isLeaveDue(BrewShiftTimes.nowSeoul().toLocalDate())) {
+                        LocalDate dueLeave = sub.getLeaveDate();
+                        if (dueLeave != null) {
+                            finalizeLeave(store.getId(), viewerId, dueLeave);
+                        }
+                    } else {
+                        subscribed = true;
+                        canEditStock = sub.isCanEditStock();
+                        leaveDate = sub.getLeaveDate();
+                        if (canEditStock) {
+                            onDuty = brewScheduleService.isCurrentlyOnDuty(store.getId(), viewerId);
+                        }
+                    }
                 }
             }
         }
-        return StoreResponse.from(store, viewerId, subscribed, canEditStock, onDuty);
+        return StoreResponse.from(store, viewerId, subscribed, canEditStock, onDuty, leaveDate);
     }
 
     private void assertCanView(BrewStore store, UUID viewerId) {
@@ -460,6 +709,25 @@ public class BrewService {
             return;
         }
         throw new BusinessException(HttpStatus.FORBIDDEN, "구독 또는 소유자만 열람할 수 있습니다.");
+    }
+
+    private void assertMember(BrewStore store, UUID userId) {
+        if (store.getOwnerUserId().equals(userId)) {
+            return;
+        }
+        if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, store.getId())) {
+            return;
+        }
+        throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
+    }
+
+    private String nicknameOf(UUID userId) {
+        return userService.findById(userId).map(User::getNickname).orElse("");
+    }
+
+    private BrewStoreNotice requireNotice(UUID noticeId) {
+        return noticeRepository.findById(noticeId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다."));
     }
 
     private User requireUser(String email) {

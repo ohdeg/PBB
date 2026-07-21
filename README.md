@@ -22,7 +22,7 @@
 | Analytics Backend | Python, FastAPI (스캐폴드) |
 | Infra | MySQL 8, Redis 7, Docker Compose |
 
-상세 설명: [`useskill.txt`](useskill.txt)
+상세 설명: [`useskill.md`](useskill.md)
 
 ## 구조
 
@@ -33,7 +33,7 @@ PBB/
 ├── fastAPI_backend/       # FastAPI (추후)
 ├── infra/mysql/           # init.sql, migrations
 ├── docker-compose.yml     # MySQL + Redis
-└── useskill.txt
+└── useskill.md
 ```
 
 ```text
@@ -122,6 +122,63 @@ npm run dev
 cd fastAPI_backend
 uvicorn main:app --reload
 ```
+
+## 배포 (Production)
+
+프론트는 **Cloudflare Pages**, 백엔드·MySQL·Redis 는 자체 리눅스 호스트에서 **Docker Compose**로 운영하고,
+백엔드는 **Cloudflare Tunnel**로 인터넷에 노출합니다 (포트포워딩·공인 IP·인증서 발급 불필요).
+
+```text
+브라우저 → app.<도메인>  (Cloudflare Pages, frontend/dist)
+         → api.<도메인>  (Cloudflare Tunnel → 리눅스 backend:8080)
+                           backend → mysql:3306 / redis:6379  (외부 비공개)
+```
+
+### 1. 백엔드 + DB + Redis (리눅스, Docker)
+
+```bash
+# Docker 설치
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER   # 재로그인
+
+# 환경변수 준비
+cp .env.prod.example .env.prod   # 값 채우기 (DB/Redis/JWT/CORS/COOKIE_SAME_SITE/Tunnel 토큰 등)
+
+# 기동
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml ps   # 상태 확인
+```
+
+- `MYSQL_ROOT_PASSWORD` / `DB_PASSWORD` / `REDIS_PASSWORD` / `JWT_SECRET_KEY` 는 강한 랜덤값으로.
+- `CORS_ALLOWED_ORIGINS=https://app.<도메인>`, `COOKIE_SAME_SITE=None` (도메인이 다를 때 필수).
+
+### 2. Cloudflare Tunnel
+
+Cloudflare 대시보드 → **Zero Trust → Networks → Tunnels → Create tunnel**:
+
+1. 터널 생성 후 **Token** 을 `.env.prod` 의 `CLOUDFLARE_TUNNEL_TOKEN` 에 입력
+2. Public hostname: `api.<도메인>` → Service `http://backend:8080`
+3. DNS 는 자동 생성 → `https://api.<도메인>` 이 HTTPS 로 열림
+
+### 3. 프론트엔드 (Cloudflare Pages)
+
+Pages → Git 연결:
+
+| 항목 | 값 |
+|------|-----|
+| Root directory | `frontend` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| 환경변수 | `VITE_API_BASE_URL=https://api.<도메인>` |
+
+- 커스텀 도메인 `app.<도메인>` 연결
+- SPA 라우팅용 `frontend/public/_redirects` 포함됨 (`/* /index.html 200`)
+
+### 4. 검증
+
+1. `https://api.<도메인>` 응답 확인
+2. 프론트에서 로그인 → **F5 새로고침 후 로그인 유지되면 크로스도메인 쿠키 성공**
+3. DevTools → Application → Cookies 에서 `refreshToken` 이 `Secure; SameSite=None` 인지 확인
 
 ## 보안 주의
 

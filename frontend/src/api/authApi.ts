@@ -89,4 +89,10 @@ export const authApi = {
       payload,
     );
   },
+
+  deleteAccount(payload: { password: string }) {
+    return apiClient.delete<ApiMessageResponse>('/api/v1/auth/account', {
+      data: payload,
+    });
+  },
 };

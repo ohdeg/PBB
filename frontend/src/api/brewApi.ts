@@ -5,6 +5,8 @@ import type {
   BrewCreateCoverInput,
   BrewJoinRequest,
   BrewMenu,
+  BrewNotice,
+  BrewNoticeInput,
   BrewRecipe,
   BrewSchedule,
   BrewScheduleSlotInput,
@@ -48,6 +50,12 @@ export const brewApi = {
     return apiClient.patch<BrewStore>(`/api/v1/brew/stores/${storeId}`, payload);
   },
 
+  regenerateInviteCode(storeId: string) {
+    return apiClient.post<BrewStore>(
+      `/api/v1/brew/stores/${storeId}/invite-code/regenerate`,
+    );
+  },
+
   deleteStore(storeId: string) {
     return apiClient.delete<ApiMessageResponse>(`/api/v1/brew/stores/${storeId}`);
   },
@@ -66,6 +74,22 @@ export const brewApi = {
 
   deleteMenu(menuId: string) {
     return apiClient.delete<ApiMessageResponse>(`/api/v1/brew/menus/${menuId}`);
+  },
+
+  listNotices(storeId: string) {
+    return apiClient.get<BrewNotice[]>(`/api/v1/brew/stores/${storeId}/notices`);
+  },
+
+  createNotice(storeId: string, payload: BrewNoticeInput) {
+    return apiClient.post<BrewNotice>(`/api/v1/brew/stores/${storeId}/notices`, payload);
+  },
+
+  updateNotice(noticeId: string, payload: BrewNoticeInput) {
+    return apiClient.patch<BrewNotice>(`/api/v1/brew/notices/${noticeId}`, payload);
+  },
+
+  deleteNotice(noticeId: string) {
+    return apiClient.delete(`/api/v1/brew/notices/${noticeId}`);
   },
 
   listRecipes(menuId: string) {
@@ -156,9 +180,18 @@ export const brewApi = {
     );
   },
 
-  approveJoin(storeId: string, userId: string) {
+  approveJoin(
+    storeId: string,
+    userId: string,
+    body: {
+      canEditStock: boolean;
+      workStartDate: string | null;
+      slots: BrewScheduleSlotInput[];
+    },
+  ) {
     return apiClient.post<ApiMessageResponse>(
       `/api/v1/brew/stores/${storeId}/join-requests/${userId}/approve`,
+      body,
     );
   },
 
@@ -168,9 +201,36 @@ export const brewApi = {
     );
   },
 
-  unsubscribe(storeId: string) {
+  unsubscribe(storeId: string, leaveDate: string) {
     return apiClient.delete<ApiMessageResponse>(
       `/api/v1/brew/subscriptions/${storeId}`,
+      { data: { leaveDate } },
+    );
+  },
+
+  resignSubscriber(storeId: string, userId: string, leaveDate: string) {
+    return apiClient.post<BrewSubscriber | ApiMessageResponse>(
+      `/api/v1/brew/stores/${storeId}/subscribers/${userId}/resign`,
+      { leaveDate },
+    );
+  },
+
+  clearSubscriberLeave(storeId: string, userId: string) {
+    return apiClient.delete<BrewSubscriber>(
+      `/api/v1/brew/stores/${storeId}/subscribers/${userId}/leave`,
+    );
+  },
+
+  clearMyLeave(storeId: string) {
+    return apiClient.delete<ApiMessageResponse>(
+      `/api/v1/brew/subscriptions/${storeId}/leave`,
+    );
+  },
+
+  countCoversAfterLeave(storeId: string, userId: string, leaveDate: string) {
+    return apiClient.get<{ count: number }>(
+      `/api/v1/brew/stores/${storeId}/subscribers/${userId}/covers-after-leave`,
+      { params: { leaveDate } },
     );
   },
 

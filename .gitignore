@@ -32,6 +32,7 @@ nbproject/private/
 .env.*
 !.env.example
 !**/.env.example
+!.env.prod.example
 *.pem
 *.p12
 *.jks
@@ -105,3 +106,5 @@ coverage/
 .turbo/
 .cache/
 .parcel-cache/
+useskill.md
+

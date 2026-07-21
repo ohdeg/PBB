@@ -40,6 +40,9 @@ public class BrewStore {
     @Column(name = "is_public", nullable = false)
     private boolean isPublic;
 
+    @Column(name = "invite_code", nullable = false, length = 8, unique = true)
+    private String inviteCode;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -49,14 +52,19 @@ public class BrewStore {
     private LocalDateTime updatedAt;
 
     @Builder
-    public BrewStore(UUID ownerUserId, String name, boolean isPublic) {
+    public BrewStore(UUID ownerUserId, String name, boolean isPublic, String inviteCode) {
         this.ownerUserId = ownerUserId;
         this.name = name;
         this.isPublic = isPublic;
+        this.inviteCode = inviteCode;
     }
 
     public void update(String name, boolean isPublic) {
         this.name = name;
         this.isPublic = isPublic;
+    }
+
+    public void rotateInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
     }
 }

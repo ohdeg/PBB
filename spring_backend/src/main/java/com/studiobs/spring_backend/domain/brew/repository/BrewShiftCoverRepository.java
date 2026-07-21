@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface BrewShiftCoverRepository extends JpaRepository<BrewShiftCover, UUID> {
 
@@ -18,6 +20,24 @@ public interface BrewShiftCoverRepository extends JpaRepository<BrewShiftCover, 
     List<BrewShiftCover> findByStoreIdAndStatusInOrderByWorkDateAscStartTimeAsc(
             UUID storeId,
             Collection<String> statuses
+    );
+
+    @Query("""
+            SELECT c FROM BrewShiftCover c
+            WHERE c.storeId = :storeId
+              AND c.workDate > :leaveDate
+              AND c.status IN :statuses
+              AND (
+                c.originalUserId = :userId
+                OR c.coverUserId = :userId
+                OR c.requestedByUserId = :userId
+              )
+            """)
+    List<BrewShiftCover> findInvolvingUserAfterLeaveDate(
+            @Param("storeId") UUID storeId,
+            @Param("userId") UUID userId,
+            @Param("leaveDate") LocalDate leaveDate,
+            @Param("statuses") Collection<String> statuses
     );
 
     List<BrewShiftCover> findByStoreIdAndOriginalUserIdAndWorkDateAndStatusIn(

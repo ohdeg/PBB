@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.auth.service;
 
 import com.studiobs.spring_backend.domain.auth.consent.ConsentCatalog;
 import com.studiobs.spring_backend.domain.auth.dto.ConsentAgreementRequest;
+import com.studiobs.spring_backend.domain.auth.dto.DeleteAccountRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailVerifyRequest;
 import com.studiobs.spring_backend.domain.auth.dto.LoginRequest;
@@ -175,6 +176,25 @@ public class AuthService {
             String email = jwtTokenProvider.getEmail(refreshToken);
             authRedisService.deleteRefreshToken(email);
         }
+    }
+
+    /**
+     * 회원 탈퇴. 비밀번호 확인 후 users 삭제.
+     * Veveno 소유 가게 등은 DB FK CASCADE로 함께 삭제된다.
+     */
+    @Transactional
+    public void deleteAccount(String email, DeleteAccountRequest request, String refreshToken) {
+        String normalized = normalizeEmail(email);
+        User user = userService.findByEmail(normalized)
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+
+        if (!userService.matchesPassword(user, request.password())) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
+        }
+
+        authRedisService.deleteRefreshToken(normalized);
+        logout(refreshToken);
+        userService.delete(user);
     }
 
     public void requestPasswordChange(String email) {

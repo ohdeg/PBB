@@ -3,8 +3,9 @@ import axios, {
   type AxiosInstance,
   type InternalAxiosRequestConfig,
 } from 'axios';
+import { useAppStatusStore } from '../stores/appStatusStore';
 import { useAuthStore } from '../stores/authStore';
-import type { RefreshResponse } from '../types/auth';
+import type { ApiErrorBody, RefreshResponse } from '../types/auth';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -54,6 +55,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryConfig | undefined;
+
+    if (error.response?.status === 503) {
+      const body = error.response.data as ApiErrorBody | undefined;
+      const message =
+        body && typeof body.message === 'string' ? body.message : null;
+      useAppStatusStore.getState().setMaintenance(true, message);
+      return Promise.reject(error);
+    }
 
     if (
       !originalRequest ||

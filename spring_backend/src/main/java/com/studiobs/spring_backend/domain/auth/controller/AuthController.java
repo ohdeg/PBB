@@ -1,5 +1,6 @@
 package com.studiobs.spring_backend.domain.auth.controller;
 
+import com.studiobs.spring_backend.domain.auth.dto.DeleteAccountRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailRequest;
 import com.studiobs.spring_backend.domain.auth.dto.EmailVerifyRequest;
 import com.studiobs.spring_backend.domain.auth.dto.LoginRequest;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -83,6 +85,18 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.clear().toString())
                 .body(new MessageResponse("로그아웃되었습니다."));
+    }
+
+    @DeleteMapping("/account")
+    public ResponseEntity<MessageResponse> deleteAccount(
+            HttpServletRequest request,
+            @Valid @RequestBody DeleteAccountRequest body
+    ) {
+        String email = accessTokenResolver.requireEmail(request);
+        authService.deleteAccount(email, body, extractRefreshToken(request));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.clear().toString())
+                .body(new MessageResponse("회원 탈퇴가 완료되었습니다."));
     }
 
     @PostMapping("/password/request")

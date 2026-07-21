@@ -7,11 +7,13 @@ import type {
   BrewCover,
   BrewSchedule,
   BrewScheduleSlotInput,
+  BrewShiftKind,
 } from '../../types/brew';
 import { getErrorMessage } from '../../utils/error';
 import { BrewButton } from './BrewButton';
 import { BrewCard } from './BrewCard';
 import { BrewInput } from './BrewInput';
+import { downloadMonthlyWorkJournal } from './brewMonthlyJournalExport';
 import BrewWeekTimelineView from './BrewWeekTimelineView';
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
@@ -25,6 +27,7 @@ interface BrewStaffMember {
 
 interface BrewSchedulePanelProps {
   storeId: string;
+  storeName: string;
   owned: boolean;
   subscribed: boolean;
   onError: (message: string) => void;
@@ -113,25 +116,48 @@ function rangesOverlap(a: [number, number], b: [number, number]): boolean {
   return a[0] < b[1] && b[0] < a[1];
 }
 
-function occurrenceLabel(occ: BrewCalendarOccurrence): string {
+function monthVisibleOccurrences(
+  items: BrewCalendarOccurrence[],
+): BrewCalendarOccurrence[] {
+  return items.filter((occ) => occ.type !== 'COVERED_OUT');
+}
+
+function monthChipLabel(occ: BrewCalendarOccurrence): string {
   const time = `${formatTime(occ.startTime)}–${formatTime(occ.endTime)}${
     occ.overnight ? ' (익일)' : ''
   }`;
-  if (occ.type === 'COVER') {
-    return `${occ.nickname} 대타(${occ.relatedNickname ?? ''}) ${time}`;
-  }
-  if (occ.type === 'COVERED_OUT') {
-    return `${occ.nickname} 대타나감→${occ.relatedNickname ?? ''} ${time}`;
+  if (occ.type === 'EXTRA') {
+    return `${occ.nickname} 추가 ${time}`;
   }
   return `${occ.nickname} ${time}`;
 }
 
-function coverStatusLabel(status: string): string {
+const MONTH_PREVIEW_COUNT = 4;
+
+function shiftKindLabel(kind: BrewShiftKind): string {
+  return kind === 'EXTRA' ? '추가' : '대체';
+}
+
+interface ScheduleSlotState {
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
+}
+
+function emptySlot(): ScheduleSlotState {
+  return {
+    enabled: false,
+    startTime: '09:00',
+    endTime: '18:00',
+  };
+}
+
+function coverStatusLabel(status: string, kind: BrewShiftKind = 'COVER'): string {
   switch (status) {
     case 'PENDING_OWNER':
-      return '업주 대타자 지정 대기';
+      return kind === 'EXTRA' ? '업주 승인 대기' : '업주 대타자 지정 대기';
     case 'PENDING_COVER':
-      return '대타자 수락 대기';
+      return kind === 'EXTRA' ? '추가 근무자 수락 대기' : '대타자 수락 대기';
     case 'APPROVED':
       return '승인됨';
     case 'REJECTED':
@@ -145,6 +171,7 @@ function coverStatusLabel(status: string): string {
 
 export function BrewSchedulePanel({
   storeId,
+  storeName,
   owned,
   subscribed,
   onError,
@@ -156,17 +183,17 @@ export function BrewSchedulePanel({
   const [pendingCovers, setPendingCovers] = useState<BrewCover[]>([]);
   const [staff, setStaff] = useState<BrewStaffMember[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exportingJournal, setExportingJournal] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [submittingCover, setSubmittingCover] = useState(false);
 
   const [editUserId, setEditUserId] = useState('');
-  const [slots, setSlots] = useState<
-    Record<number, { enabled: boolean; startTime: string; endTime: string }>
-  >(() => {
-    const init: Record<number, { enabled: boolean; startTime: string; endTime: string }> =
-      {};
+  const [bulkStartTime, setBulkStartTime] = useState('09:00');
+  const [bulkEndTime, setBulkEndTime] = useState('18:00');
+  const [slots, setSlots] = useState<Record<number, ScheduleSlotState>>(() => {
+    const init: Record<number, ScheduleSlotState> = {};
     for (let d = 1; d <= 7; d += 1) {
-      init[d] = { enabled: false, startTime: '09:00', endTime: '18:00' };
+      init[d] = emptySlot();
     }
     return init;
   });
@@ -177,11 +204,17 @@ export function BrewSchedulePanel({
     workDate: toDateKey(new Date()),
     startTime: '09:00',
     endTime: '18:00',
+    shiftKind: 'COVER' as BrewShiftKind,
     note: '',
   });
   const [coverSchedules, setCoverSchedules] = useState<BrewSchedule[]>([]);
   const [coverScheduleHint, setCoverScheduleHint] = useState('');
   const [coverAssignments, setCoverAssignments] = useState<Record<string, string>>({});
+  const [monthPeekKey, setMonthPeekKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMonthPeekKey(null);
+  }, [viewMode, anchor]);
 
   const range = useMemo(() => {
     if (viewMode === 'week') {
@@ -249,7 +282,7 @@ export function BrewSchedulePanel({
         setSlots((prev) => {
           const next = { ...prev };
           for (let d = 1; d <= 7; d += 1) {
-            next[d] = { enabled: false, startTime: '09:00', endTime: '18:00' };
+            next[d] = emptySlot();
           }
           mine.forEach((s: BrewSchedule) => {
             next[s.dayOfWeek] = {
@@ -309,6 +342,10 @@ export function BrewSchedulePanel({
   }, [onError, owned, staff.length, storeId, subscribed]);
 
   useEffect(() => {
+    if (coverForm.shiftKind === 'EXTRA') {
+      setCoverScheduleHint('');
+      return;
+    }
     const { originalUserId, workDate } = coverForm;
     if (!originalUserId || !workDate) {
       setCoverScheduleHint('');
@@ -348,6 +385,7 @@ export function BrewSchedulePanel({
   }, [
     coverForm.originalUserId,
     coverForm.workDate,
+    coverForm.shiftKind,
     coverSchedules,
   ]);
 
@@ -398,7 +436,10 @@ export function BrewSchedulePanel({
       }
 
       return occurrences.some((occ) => {
-        if (occ.type !== 'COVER' || occ.userId !== staffUserId) {
+        if (
+          (occ.type !== 'COVER' && occ.type !== 'EXTRA')
+          || occ.userId !== staffUserId
+        ) {
           return false;
         }
         const day = parseDateKey(occ.date);
@@ -475,20 +516,45 @@ export function BrewSchedulePanel({
     }
   };
 
+  const applyBulkTimesToSelectedDays = () => {
+    const selected = Object.entries(slots).filter(([, slot]) => slot.enabled);
+    if (selected.length === 0) {
+      onError('시간을 적용할 요일을 먼저 선택해 주세요.');
+      return;
+    }
+    setSlots((prev) => {
+      const next = { ...prev };
+      for (let d = 1; d <= 7; d += 1) {
+        const slot = next[d] ?? emptySlot();
+        if (slot.enabled) {
+          next[d] = {
+            ...slot,
+            startTime: bulkStartTime,
+            endTime: bulkEndTime,
+          };
+        }
+      }
+      return next;
+    });
+  };
+
   const handleCreateCover = async (e: FormEvent) => {
     e.preventDefault();
+    const isExtra = coverForm.shiftKind === 'EXTRA';
     if (
-      !coverForm.originalUserId
-      || !coverForm.workDate
+      !coverForm.workDate
+      || (!isExtra && !coverForm.originalUserId)
       || (owned && !coverForm.coverUserId)
     ) {
-      onError('대타 대상·날짜를 확인해 주세요.');
+      onError(isExtra ? '추가 근무자와 날짜를 확인해 주세요.' : '대상·날짜를 확인해 주세요.');
       return;
     }
     setSubmittingCover(true);
     try {
       await brewApi.createCover(storeId, {
-        originalUserId: coverForm.originalUserId,
+        ...(isExtra
+          ? {}
+          : { originalUserId: coverForm.originalUserId }),
         ...(owned ? { coverUserId: coverForm.coverUserId } : {}),
         workDate: coverForm.workDate,
         startTime:
@@ -497,11 +563,12 @@ export function BrewSchedulePanel({
             : coverForm.startTime,
         endTime:
           coverForm.endTime.length === 5 ? `${coverForm.endTime}:00` : coverForm.endTime,
+        shiftKind: coverForm.shiftKind,
         note: coverForm.note.trim() || undefined,
       });
       await load();
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '대타 신청에 실패했습니다.'));
+      onError(getErrorMessage(err, '근무 변경 신청에 실패했습니다.'));
     } finally {
       setSubmittingCover(false);
     }
@@ -516,12 +583,41 @@ export function BrewSchedulePanel({
     });
   };
 
+  const handleExportMonthlyJournal = async () => {
+    setExportingJournal(true);
+    try {
+      const from = startOfMonth(anchor);
+      const to = endOfMonth(anchor);
+      const { data } = await brewApi.getCalendar(
+        storeId,
+        toDateKey(from),
+        toDateKey(to),
+      );
+      downloadMonthlyWorkJournal({
+        storeName,
+        year: from.getFullYear(),
+        month: from.getMonth() + 1,
+        occurrences: data.occurrences,
+      });
+    } catch (err: unknown) {
+      onError(getErrorMessage(err, '월간 근무 일지 다운로드에 실패했습니다.'));
+    } finally {
+      setExportingJournal(false);
+    }
+  };
+
+  const journalMonthLabel = `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월`;
+
   const rangeLabel =
     viewMode === 'week'
       ? `${toDateKey(range.from)} ~ ${toDateKey(range.to)}`
-      : `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월`;
+      : journalMonthLabel;
 
-  const otherStaff = staff.filter((s) => s.userId !== coverForm.originalUserId);
+  const otherStaff = staff.filter((s) =>
+    coverForm.shiftKind === 'EXTRA'
+      ? true
+      : s.userId !== coverForm.originalUserId,
+  );
   const availableCoverStaff = otherStaff.filter(
     (s) =>
       !isStaffBusy(s.userId, coverForm.workDate, coverForm.startTime, coverForm.endTime),
@@ -532,8 +628,8 @@ export function BrewSchedulePanel({
       <BrewCard title={owned ? '직원 근무 달력' : '내 근무'}>
         <p className="brew-card-lead">
           {owned
-            ? '매장 전 직원의 근무와 대타를 한 화면에서 봅니다. 종료가 시작보다 이르면 자정 넘김입니다.'
-            : '내 근무와 관련된 대타를 주간·월간으로 확인합니다.'}
+            ? '매장 전 직원의 근무·대체·추가를 한 화면에서 봅니다. 종료가 시작보다 이르면 자정 넘김입니다.'
+            : '내 근무와 관련된 대체·추가를 주간·월간으로 확인합니다.'}
         </p>
         <div className="brew-schedule-toolbar">
           <div className="brew-btn-row brew-schedule-toolbar__modes">
@@ -553,6 +649,17 @@ export function BrewSchedulePanel({
             </BrewButton>
             <BrewButton size="sm" variant="secondary" onClick={() => setAnchor(new Date())}>
               오늘
+            </BrewButton>
+            <BrewButton
+              size="sm"
+              variant="secondary"
+              loading={exportingJournal}
+              title={`${journalMonthLabel} 예정 근무 일지 · 직원별 시간 요약`}
+              onClick={() => {
+                void handleExportMonthlyJournal();
+              }}
+            >
+              월간 일지 엑셀
             </BrewButton>
           </div>
           <div className="brew-schedule-nav">
@@ -599,12 +706,28 @@ export function BrewSchedulePanel({
             ))}
             {range.days.map((day) => {
               const key = toDateKey(day);
-              const items = byDate.get(key) ?? [];
+              const visible = monthVisibleOccurrences(byDate.get(key) ?? []);
+              const preview = visible.slice(0, MONTH_PREVIEW_COUNT);
+              const overflow = visible.length - preview.length;
               const isToday = key === toDateKey(new Date());
+              const peeking = monthPeekKey === key;
               return (
                 <div
                   key={key}
-                  className={`brew-schedule-day${isToday ? ' brew-schedule-day--today' : ''}`}
+                  className={`brew-schedule-day${isToday ? ' brew-schedule-day--today' : ''}${
+                    peeking ? ' is-peek' : ''
+                  }`}
+                  onMouseEnter={() => setMonthPeekKey(key)}
+                  onMouseLeave={() =>
+                    setMonthPeekKey((prev) => (prev === key ? null : prev))
+                  }
+                  onClick={() => {
+                    if (typeof window !== 'undefined'
+                      && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+                      return;
+                    }
+                    setMonthPeekKey((prev) => (prev === key ? null : key));
+                  }}
                 >
                   <div className="brew-schedule-day__head">
                     <span>
@@ -613,19 +736,39 @@ export function BrewSchedulePanel({
                     {isToday ? <span>오늘</span> : null}
                   </div>
                   <ul className="brew-schedule-day__list">
-                    {items.length === 0 ? (
+                    {visible.length === 0 ? (
                       <li className="brew-schedule-day__empty">—</li>
                     ) : (
-                      items.map((occ, idx) => (
+                      preview.map((occ, idx) => (
                         <li
                           key={`${occ.userId}-${occ.type}-${occ.coverId ?? idx}`}
                           className={`brew-schedule-chip brew-schedule-chip--${occ.type.toLowerCase()}`}
                         >
-                          {occurrenceLabel(occ)}
+                          {monthChipLabel(occ)}
                         </li>
                       ))
                     )}
                   </ul>
+                  {overflow > 0 ? (
+                    <p className="brew-schedule-day__more">+{overflow}</p>
+                  ) : null}
+                  {peeking && visible.length > 0 ? (
+                    <div className="brew-schedule-day__popover" role="dialog">
+                      <p className="brew-schedule-day__popover-title">
+                        {day.getMonth() + 1}/{day.getDate()} · {visible.length}명
+                      </p>
+                      <ul className="brew-schedule-day__popover-list">
+                        {visible.map((occ, idx) => (
+                          <li
+                            key={`peek-${occ.userId}-${occ.type}-${occ.coverId ?? idx}`}
+                            className={`brew-schedule-chip brew-schedule-chip--${occ.type.toLowerCase()}`}
+                          >
+                            {monthChipLabel(occ)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -657,21 +800,53 @@ export function BrewSchedulePanel({
                   ))}
                 </select>
               </div>
+              <div className="brew-schedule-bulk">
+                <p className="brew-field__label">선택 요일 일괄 시간</p>
+                <div className="brew-schedule-slot-row brew-schedule-bulk__row">
+                  <input
+                    type="time"
+                    className="brew-field__input brew-schedule-time"
+                    value={bulkStartTime}
+                    onChange={(e) => setBulkStartTime(e.target.value)}
+                    aria-label="일괄 시작 시각"
+                  />
+                  <span>~</span>
+                  <input
+                    type="time"
+                    className="brew-field__input brew-schedule-time"
+                    value={bulkEndTime}
+                    onChange={(e) => setBulkEndTime(e.target.value)}
+                    aria-label="일괄 종료 시각"
+                  />
+                  <BrewButton
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={applyBulkTimesToSelectedDays}
+                  >
+                    선택 요일에 적용
+                  </BrewButton>
+                </div>
+                <p className="brew-field__hint">
+                  체크한 요일에만 위 시간이 들어갑니다. 적용 후에도 요일별로 수정할 수
+                  있습니다.
+                </p>
+              </div>
               <div className="brew-stack">
                 {DAY_LABELS.map((label, i) => {
                   const dow = i + 1;
-                  const slot = slots[dow];
+                  const slot = slots[dow] ?? emptySlot();
                   return (
                     <div key={dow} className="brew-schedule-slot-row">
                       <label className="brew-check">
                         <input
                           type="checkbox"
-                          checked={Boolean(slot?.enabled)}
+                          checked={slot.enabled}
                           onChange={(e) =>
                             setSlots((prev) => ({
                               ...prev,
                               [dow]: {
-                                ...prev[dow],
+                                ...(prev[dow] ?? emptySlot()),
                                 enabled: e.target.checked,
                               },
                             }))
@@ -682,12 +857,15 @@ export function BrewSchedulePanel({
                       <input
                         type="time"
                         className="brew-field__input brew-schedule-time"
-                        value={slot?.startTime ?? '09:00'}
-                        disabled={!slot?.enabled}
+                        value={slot.startTime}
+                        disabled={!slot.enabled}
                         onChange={(e) =>
                           setSlots((prev) => ({
                             ...prev,
-                            [dow]: { ...prev[dow], startTime: e.target.value },
+                            [dow]: {
+                              ...(prev[dow] ?? emptySlot()),
+                              startTime: e.target.value,
+                            },
                           }))
                         }
                       />
@@ -695,12 +873,15 @@ export function BrewSchedulePanel({
                       <input
                         type="time"
                         className="brew-field__input brew-schedule-time"
-                        value={slot?.endTime ?? '18:00'}
-                        disabled={!slot?.enabled}
+                        value={slot.endTime}
+                        disabled={!slot.enabled}
                         onChange={(e) =>
                           setSlots((prev) => ({
                             ...prev,
-                            [dow]: { ...prev[dow], endTime: e.target.value },
+                            [dow]: {
+                              ...(prev[dow] ?? emptySlot()),
+                              endTime: e.target.value,
+                            },
                           }))
                         }
                       />
@@ -720,9 +901,39 @@ export function BrewSchedulePanel({
       ) : null}
 
       {(owned || subscribed) && staff.length > 0 ? (
-        <BrewCard title="대타 신청">
+        <BrewCard title="대체·추가 신청">
           <form className="brew-form-stack" onSubmit={(e) => void handleCreateCover(e)}>
-            {owned ? (
+            <div className="brew-field">
+              <span className="brew-field__label">유형</span>
+              <div className="brew-btn-row">
+                <BrewButton
+                  type="button"
+                  size="sm"
+                  variant={coverForm.shiftKind === 'COVER' ? 'primary' : 'secondary'}
+                  onClick={() =>
+                    setCoverForm((prev) => ({ ...prev, shiftKind: 'COVER' }))
+                  }
+                >
+                  대체
+                </BrewButton>
+                <BrewButton
+                  type="button"
+                  size="sm"
+                  variant={coverForm.shiftKind === 'EXTRA' ? 'primary' : 'secondary'}
+                  onClick={() =>
+                    setCoverForm((prev) => ({ ...prev, shiftKind: 'EXTRA' }))
+                  }
+                >
+                  추가
+                </BrewButton>
+              </div>
+              <p className="brew-field__hint">
+                {coverForm.shiftKind === 'COVER'
+                  ? '원래 근무자 구간은 타임테이블에서 빠지고, 지정된 사람이 대신 근무합니다.'
+                  : '정규 근무가 아닌 별도 시간에 추가 근무자를 지정합니다. 요청 직원은 없습니다.'}
+              </p>
+            </div>
+            {coverForm.shiftKind === 'COVER' && owned ? (
               <div className="brew-field">
                 <label className="brew-field__label" htmlFor="cover-original">
                   원래 근무자
@@ -745,15 +956,21 @@ export function BrewSchedulePanel({
                   ))}
                 </select>
               </div>
-            ) : (
+            ) : null}
+            {coverForm.shiftKind === 'COVER' && !owned ? (
               <p className="brew-card-lead">
-                본인 근무의 대타를 신청하면 업주가 대타자를 지정합니다.
+                본인 근무의 대체를 신청하면 업주가 대체자를 지정합니다.
               </p>
-            )}
+            ) : null}
+            {coverForm.shiftKind === 'EXTRA' && !owned ? (
+              <p className="brew-card-lead">
+                본인 추가 근무를 신청하면 업주 승인 후 반영됩니다.
+              </p>
+            ) : null}
             {owned ? (
               <div className="brew-field">
                 <label className="brew-field__label" htmlFor="cover-user">
-                  대타자
+                  {coverForm.shiftKind === 'COVER' ? '대체자' : '추가 근무자'}
                 </label>
                 <select
                   id="cover-user"
@@ -812,20 +1029,28 @@ export function BrewSchedulePanel({
               onChange={(e) => setCoverForm((prev) => ({ ...prev, note: e.target.value }))}
             />
             <BrewButton type="submit" loading={submittingCover}>
-              {owned ? '대타 지정 (대타자 수락 대기)' : '대타 신청'}
+              {owned
+                ? `${shiftKindLabel(coverForm.shiftKind)} 지정 (수락 대기)`
+                : `${shiftKindLabel(coverForm.shiftKind)} 신청`}
             </BrewButton>
           </form>
         </BrewCard>
       ) : null}
 
-      <BrewCard title="대기 중인 대타" className="brew-schedule-panels__span">
+      <BrewCard title="대체·추가 관리" className="brew-schedule-panels__span">
         {pendingCovers.length === 0 ? (
-          <p className="brew-empty">대기 중인 대타가 없습니다.</p>
+          <p className="brew-empty">대기·승인된 대체·추가가 없습니다.</p>
         ) : (
           <div className="brew-stack">
             {pendingCovers.map((cover) => {
+              const kind = cover.shiftKind ?? 'COVER';
               const canAssign =
-                owned && cover.status === 'PENDING_OWNER';
+                owned && kind === 'COVER' && cover.status === 'PENDING_OWNER';
+              const canOwnerApproveExtra =
+                owned
+                && kind === 'EXTRA'
+                && cover.status === 'PENDING_OWNER'
+                && Boolean(cover.coverUserId);
               const canAccept =
                 userId === cover.coverUserId && cover.status === 'PENDING_COVER';
               const canReject =
@@ -833,18 +1058,23 @@ export function BrewSchedulePanel({
                 || (userId === cover.coverUserId && cover.status === 'PENDING_COVER')
                 || (owned && cover.status === 'PENDING_COVER');
               const canCancel =
-                owned
-                || userId === cover.requestedByUserId;
+                (owned || userId === cover.requestedByUserId)
+                && (cover.status === 'PENDING_OWNER'
+                  || cover.status === 'PENDING_COVER'
+                  || cover.status === 'APPROVED');
+              const title =
+                kind === 'EXTRA'
+                  ? `[추가] ${cover.coverNickname || '추가 근무자'}`
+                  : `[대체] ${cover.originalNickname} → ${cover.coverNickname || '대타자 미지정'}`;
               return (
                 <div key={cover.id} className="brew-search-result">
                   <div>
-                    <p className="brew-store-row__name">
-                      {cover.originalNickname} → {cover.coverNickname || '대타자 미지정'}
-                    </p>
+                    <p className="brew-store-row__name">{title}</p>
                     <p className="brew-store-row__sub">
                       {cover.workDate} {formatTime(cover.startTime)}–
                       {formatTime(cover.endTime)}
-                      {cover.overnight ? ' (익일)' : ''} · {coverStatusLabel(cover.status)}
+                      {cover.overnight ? ' (익일)' : ''} ·{' '}
+                      {coverStatusLabel(cover.status, kind)}
                     </p>
                   </div>
                   <div className="brew-search-result__actions">
@@ -852,7 +1082,7 @@ export function BrewSchedulePanel({
                       <>
                         <select
                           className="brew-field__input"
-                          aria-label={`${cover.originalNickname}의 대타자`}
+                          aria-label={`${cover.originalNickname}의 대체자`}
                           value={coverAssignments[cover.id] ?? ''}
                           onChange={(e) =>
                             setCoverAssignments((prev) => ({
@@ -904,6 +1134,23 @@ export function BrewSchedulePanel({
                         </BrewButton>
                       </>
                     ) : null}
+                    {canOwnerApproveExtra ? (
+                      <BrewButton
+                        size="sm"
+                        onClick={() => {
+                          void (async () => {
+                            try {
+                              await brewApi.acceptCover(cover.id);
+                              await load();
+                            } catch (err: unknown) {
+                              onError(getErrorMessage(err, '승인에 실패했습니다.'));
+                            }
+                          })();
+                        }}
+                      >
+                        승인
+                      </BrewButton>
+                    ) : null}
                     {canAccept ? (
                       <BrewButton
                         size="sm"
@@ -944,6 +1191,17 @@ export function BrewSchedulePanel({
                         size="sm"
                         variant="secondary"
                         onClick={() => {
+                          const isApproved = cover.status === 'APPROVED';
+                          if (
+                            isApproved
+                            && !window.confirm(
+                              kind === 'EXTRA'
+                                ? '승인된 추가 근무를 취소할까요?\n달력에서 해당 근무가 사라집니다.'
+                                : '승인된 대체를 취소할까요?\n원래 근무가 다시 표시됩니다.',
+                            )
+                          ) {
+                            return;
+                          }
                           void (async () => {
                             try {
                               await brewApi.cancelCover(cover.id);

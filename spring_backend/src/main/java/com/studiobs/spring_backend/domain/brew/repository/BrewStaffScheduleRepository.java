@@ -19,4 +19,6 @@ public interface BrewStaffScheduleRepository extends JpaRepository<BrewStaffSche
     );
 
     void deleteByStoreIdAndUserIdAndDayOfWeek(UUID storeId, UUID userId, int dayOfWeek);
+
+    void deleteByStoreIdAndUserId(UUID storeId, UUID userId);
 }

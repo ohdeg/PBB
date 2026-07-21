@@ -12,6 +12,7 @@ import com.studiobs.spring_backend.domain.brew.dto.StaffMemberResponse;
 import com.studiobs.spring_backend.domain.brew.entity.BrewShiftCover;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStaffSchedule;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.repository.BrewShiftCoverRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
@@ -168,7 +169,7 @@ public class BrewScheduleService {
 
         if (!owner) {
             coversInRange = coversInRange.stream()
-                    .filter(c -> c.getOriginalUserId().equals(user.getId())
+                    .filter(c -> user.getId().equals(c.getOriginalUserId())
                             || user.getId().equals(c.getCoverUserId())
                             || c.getRequestedByUserId().equals(user.getId()))
                     .toList();
@@ -193,14 +194,28 @@ public class BrewScheduleService {
                         nicknames.getOrDefault(c.getCoverUserId(), "")))
                 .toList();
 
-        Map<String, BrewShiftCover> approvedByOriginalDate = new HashMap<>();
+        Map<String, BrewShiftCover> approvedCoverByOriginalDate = new HashMap<>();
         for (BrewShiftCover cover : coversInRange) {
-            if (BrewShiftCover.STATUS_APPROVED.equals(cover.getStatus())) {
-                approvedByOriginalDate.put(
+            if (!BrewShiftCover.STATUS_APPROVED.equals(cover.getStatus())) {
+                continue;
+            }
+            // 대체(COVER)만 원래 근무자를 COVERED_OUT 처리. EXTRA는 원 근무 유지.
+            if (BrewShiftCover.KIND_COVER.equals(
+                    cover.getShiftKind() == null ? BrewShiftCover.KIND_COVER : cover.getShiftKind())) {
+                approvedCoverByOriginalDate.put(
                         cover.getOriginalUserId() + "|" + cover.getWorkDate(),
                         cover);
             }
         }
+
+        Map<UUID, BrewStoreSubscription> subsByUser = subscriptionRepository
+                .findByStoreIdOrderByCreatedAtDesc(storeId)
+                .stream()
+                .collect(Collectors.toMap(
+                        BrewStoreSubscription::getSubscriberUserId,
+                        s -> s,
+                        (a, b) -> a
+                ));
 
         List<CalendarOccurrenceResponse> occurrences = new ArrayList<>();
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
@@ -209,7 +224,11 @@ public class BrewScheduleService {
                 if (schedule.getDayOfWeek() != dow) {
                     continue;
                 }
-                BrewShiftCover approved = approvedByOriginalDate.get(
+                BrewStoreSubscription sub = subsByUser.get(schedule.getUserId());
+                if (sub != null && !sub.isActiveOn(date)) {
+                    continue;
+                }
+                BrewShiftCover approved = approvedCoverByOriginalDate.get(
                         schedule.getUserId() + "|" + date);
                 if (approved != null) {
                     occurrences.add(new CalendarOccurrenceResponse(
@@ -250,7 +269,11 @@ public class BrewScheduleService {
             }
             if (owner
                     || user.getId().equals(cover.getCoverUserId())
-                    || cover.getOriginalUserId().equals(user.getId())) {
+                    || user.getId().equals(cover.getOriginalUserId())) {
+                String kind = cover.getShiftKind() == null
+                        ? BrewShiftCover.KIND_COVER
+                        : cover.getShiftKind();
+                String type = BrewShiftCover.KIND_EXTRA.equals(kind) ? "EXTRA" : "COVER";
                 occurrences.add(new CalendarOccurrenceResponse(
                         cover.getWorkDate(),
                         cover.getCoverUserId(),
@@ -258,10 +281,12 @@ public class BrewScheduleService {
                         cover.getStartTime(),
                         cover.getEndTime(),
                         cover.isOvernight(),
-                        "COVER",
+                        type,
                         cover.getId(),
                         cover.getOriginalUserId(),
-                        nicknames.getOrDefault(cover.getOriginalUserId(), "")
+                        cover.getOriginalUserId() == null
+                                ? null
+                                : nicknames.getOrDefault(cover.getOriginalUserId(), "")
                 ));
             }
         }
@@ -302,52 +327,98 @@ public class BrewScheduleService {
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, ex.getMessage());
         }
-        requireSubscriber(storeId, request.originalUserId());
 
+        String shiftKind = normalizeShiftKind(request.shiftKind());
+        boolean isExtra = BrewShiftCover.KIND_EXTRA.equals(shiftKind);
         boolean isOwner = store.getOwnerUserId().equals(actor.getId());
+
+        UUID originalUserId;
+        UUID coverUserId;
         String initiatorType;
         String status;
-        if (isOwner) {
-            if (request.coverUserId() == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "대타자를 선택해 주세요.");
-            }
-            validateCoverUser(
-                    storeId,
-                    request.originalUserId(),
-                    request.coverUserId(),
-                    request.workDate(),
-                    request.startTime(),
-                    request.endTime()
-            );
-            initiatorType = BrewShiftCover.INITIATOR_OWNER;
-            status = BrewShiftCover.STATUS_PENDING_COVER;
-        } else {
-            if (!actor.getId().equals(request.originalUserId())) {
-                throw new BusinessException(
-                        HttpStatus.FORBIDDEN,
-                        "직원은 본인 근무에 대해서만 대타를 신청할 수 있습니다."
-                );
-            }
-            if (request.coverUserId() != null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "직원 신청에서는 업주가 대타자를 지정합니다.");
-            }
-            initiatorType = BrewShiftCover.INITIATOR_EMPLOYEE;
-            status = BrewShiftCover.STATUS_PENDING_OWNER;
-        }
 
-        assertNoActiveCoverConflict(
-                storeId,
-                request.originalUserId(),
-                request.workDate()
-        );
+        if (isExtra) {
+            if (request.originalUserId() != null) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "추가 근무에는 원래 근무자가 없습니다.");
+            }
+            originalUserId = null;
+            if (isOwner) {
+                if (request.coverUserId() == null) {
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "추가 근무자를 선택해 주세요.");
+                }
+                validateCoverUser(
+                        storeId,
+                        null,
+                        request.coverUserId(),
+                        request.workDate(),
+                        request.startTime(),
+                        request.endTime()
+                );
+                coverUserId = request.coverUserId();
+                initiatorType = BrewShiftCover.INITIATOR_OWNER;
+                status = BrewShiftCover.STATUS_PENDING_COVER;
+            } else {
+                if (request.coverUserId() != null && !request.coverUserId().equals(actor.getId())) {
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "직원 추가 근무는 본인만 신청할 수 있습니다.");
+                }
+                validateCoverUser(
+                        storeId,
+                        null,
+                        actor.getId(),
+                        request.workDate(),
+                        request.startTime(),
+                        request.endTime()
+                );
+                coverUserId = actor.getId();
+                initiatorType = BrewShiftCover.INITIATOR_EMPLOYEE;
+                status = BrewShiftCover.STATUS_PENDING_OWNER;
+            }
+        } else {
+            if (request.originalUserId() == null) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "원래 근무자를 선택해 주세요.");
+            }
+            requireSubscriber(storeId, request.originalUserId());
+            originalUserId = request.originalUserId();
+            if (isOwner) {
+                if (request.coverUserId() == null) {
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "대타자를 선택해 주세요.");
+                }
+                validateCoverUser(
+                        storeId,
+                        originalUserId,
+                        request.coverUserId(),
+                        request.workDate(),
+                        request.startTime(),
+                        request.endTime()
+                );
+                coverUserId = request.coverUserId();
+                initiatorType = BrewShiftCover.INITIATOR_OWNER;
+                status = BrewShiftCover.STATUS_PENDING_COVER;
+            } else {
+                if (!actor.getId().equals(originalUserId)) {
+                    throw new BusinessException(
+                            HttpStatus.FORBIDDEN,
+                            "직원은 본인 근무에 대해서만 신청할 수 있습니다."
+                    );
+                }
+                if (request.coverUserId() != null) {
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "직원 신청에서는 업주가 근무자를 지정합니다.");
+                }
+                coverUserId = null;
+                initiatorType = BrewShiftCover.INITIATOR_EMPLOYEE;
+                status = BrewShiftCover.STATUS_PENDING_OWNER;
+            }
+            assertNoActiveCoverConflict(storeId, originalUserId, request.workDate());
+        }
 
         BrewShiftCover cover = coverRepository.save(BrewShiftCover.builder()
                 .storeId(storeId)
-                .originalUserId(request.originalUserId())
-                .coverUserId(request.coverUserId())
+                .originalUserId(originalUserId)
+                .coverUserId(coverUserId)
                 .workDate(request.workDate())
                 .startTime(request.startTime())
                 .endTime(request.endTime())
+                .shiftKind(shiftKind)
                 .initiatorType(initiatorType)
                 .requestedByUserId(actor.getId())
                 .status(status)
@@ -357,6 +428,17 @@ public class BrewScheduleService {
         return toCoverResponse(cover);
     }
 
+    private String normalizeShiftKind(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return BrewShiftCover.KIND_COVER;
+        }
+        String kind = raw.trim().toUpperCase();
+        if (!BrewShiftCover.KIND_COVER.equals(kind) && !BrewShiftCover.KIND_EXTRA.equals(kind)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "근무 종류가 올바르지 않습니다.");
+        }
+        return kind;
+    }
+
     @Transactional
     public CoverResponse assignCover(String email, UUID coverId, AssignCoverRequest request) {
         User owner = requireUser(email);
@@ -364,6 +446,13 @@ public class BrewScheduleService {
         requireOwnedStore(cover.getStoreId(), owner.getId());
         if (!BrewShiftCover.STATUS_PENDING_OWNER.equals(cover.getStatus())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "업주 대타자 지정 대기 상태가 아닙니다.");
+        }
+        if (BrewShiftCover.KIND_EXTRA.equals(
+                cover.getShiftKind() == null ? BrewShiftCover.KIND_COVER : cover.getShiftKind())) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "추가 근무는 담당자 지정 대신 승인하세요."
+            );
         }
         validateCoverUser(
                 cover.getStoreId(),
@@ -379,16 +468,33 @@ public class BrewScheduleService {
 
     @Transactional
     public CoverResponse acceptCover(String email, UUID coverId) {
-        User coverUser = requireUser(email);
+        User actor = requireUser(email);
         BrewShiftCover cover = requireCover(coverId);
-        assertMember(requireStore(cover.getStoreId()), coverUser.getId());
-        if (!coverUser.getId().equals(cover.getCoverUserId())) {
+        BrewStore store = requireStore(cover.getStoreId());
+        assertMember(store, actor.getId());
+        boolean isOwner = store.getOwnerUserId().equals(actor.getId());
+        String kind = cover.getShiftKind() == null ? BrewShiftCover.KIND_COVER : cover.getShiftKind();
+
+        // 직원 추가 근무 신청: 업주가 PENDING_OWNER에서 바로 승인
+        if (BrewShiftCover.KIND_EXTRA.equals(kind)
+                && BrewShiftCover.STATUS_PENDING_OWNER.equals(cover.getStatus())) {
+            if (!isOwner) {
+                throw new BusinessException(HttpStatus.FORBIDDEN, "업주만 추가 근무를 승인할 수 있습니다.");
+            }
+            if (cover.getCoverUserId() == null) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "추가 근무자가 없습니다.");
+            }
+            cover.decide(BrewShiftCover.STATUS_APPROVED, actor.getId());
+            return toCoverResponse(coverRepository.save(cover));
+        }
+
+        if (!actor.getId().equals(cover.getCoverUserId())) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "지정된 대타자만 수락할 수 있습니다.");
         }
         if (!BrewShiftCover.STATUS_PENDING_COVER.equals(cover.getStatus())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "대타자 수락 대기 상태가 아닙니다.");
         }
-        cover.decide(BrewShiftCover.STATUS_APPROVED, coverUser.getId());
+        cover.decide(BrewShiftCover.STATUS_APPROVED, actor.getId());
         return toCoverResponse(coverRepository.save(cover));
     }
 
@@ -425,9 +531,14 @@ public class BrewScheduleService {
         if (!isOwner && !isRequester) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "신청자 또는 업주만 취소할 수 있습니다.");
         }
-        if (!BrewShiftCover.STATUS_PENDING_OWNER.equals(cover.getStatus())
-                && !BrewShiftCover.STATUS_PENDING_COVER.equals(cover.getStatus())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "대기 중인 대타만 취소할 수 있습니다.");
+        String status = cover.getStatus();
+        if (!BrewShiftCover.STATUS_PENDING_OWNER.equals(status)
+                && !BrewShiftCover.STATUS_PENDING_COVER.equals(status)
+                && !BrewShiftCover.STATUS_APPROVED.equals(status)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "대기 중이거나 승인된 대체·추가만 취소할 수 있습니다."
+            );
         }
         cover.cancel(actor.getId());
         return toCoverResponse(coverRepository.save(cover));
@@ -439,16 +550,18 @@ public class BrewScheduleService {
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
         boolean owner = store.getOwnerUserId().equals(user.getId());
+        // 대기 + 승인됨(취소 가능). 거절·취소 완료 건은 제외
         List<BrewShiftCover> covers = coverRepository
                 .findByStoreIdAndStatusInOrderByWorkDateAscStartTimeAsc(
                         storeId,
                         List.of(
                                 BrewShiftCover.STATUS_PENDING_OWNER,
-                                BrewShiftCover.STATUS_PENDING_COVER
+                                BrewShiftCover.STATUS_PENDING_COVER,
+                                BrewShiftCover.STATUS_APPROVED
                         ));
         if (!owner) {
             covers = covers.stream()
-                    .filter(c -> c.getOriginalUserId().equals(user.getId())
+                    .filter(c -> user.getId().equals(c.getOriginalUserId())
                             || user.getId().equals(c.getCoverUserId())
                             || c.getRequestedByUserId().equals(user.getId()))
                     .toList();
@@ -461,6 +574,10 @@ public class BrewScheduleService {
         LocalDateTime now = BrewShiftTimes.nowSeoul();
         LocalDate today = now.toLocalDate();
         LocalDate yesterday = today.minusDays(1);
+
+        BrewStoreSubscription sub = subscriptionRepository
+                .findBySubscriberUserIdAndStoreId(userId, storeId)
+                .orElse(null);
 
         List<BrewShiftCover> asCover = coverRepository
                 .findByStoreIdAndCoverUserIdAndWorkDateInAndStatus(
@@ -484,6 +601,8 @@ public class BrewScheduleService {
                         BrewShiftCover.STATUS_APPROVED
                 );
         Set<LocalDate> coveredOutDates = asOriginalToday.stream()
+                .filter(c -> BrewShiftCover.KIND_COVER.equals(
+                        c.getShiftKind() == null ? BrewShiftCover.KIND_COVER : c.getShiftKind()))
                 .map(BrewShiftCover::getWorkDate)
                 .collect(Collectors.toSet());
 
@@ -491,6 +610,7 @@ public class BrewScheduleService {
                 scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, userId);
         for (BrewStaffSchedule schedule : schedules) {
             if (schedule.getDayOfWeek() == today.getDayOfWeek().getValue()
+                    && (sub == null || sub.isActiveOn(today))
                     && !coveredOutDates.contains(today)
                     && BrewShiftTimes.isWithinShift(
                     now, today, schedule.getStartTime(), schedule.getEndTime())) {
@@ -498,6 +618,7 @@ public class BrewScheduleService {
             }
             if (schedule.isOvernight()
                     && schedule.getDayOfWeek() == yesterday.getDayOfWeek().getValue()
+                    && (sub == null || sub.isActiveOn(yesterday))
                     && !coveredOutDates.contains(yesterday)
                     && BrewShiftTimes.isWithinShift(
                     now, yesterday, schedule.getStartTime(), schedule.getEndTime())) {
@@ -514,7 +635,10 @@ public class BrewScheduleService {
                         originalUserId,
                         workDate,
                         ACTIVE_COVER_STATUSES
-                );
+                ).stream()
+                .filter(c -> BrewShiftCover.KIND_COVER.equals(
+                        c.getShiftKind() == null ? BrewShiftCover.KIND_COVER : c.getShiftKind()))
+                .toList();
         if (!existing.isEmpty()) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
@@ -526,7 +650,7 @@ public class BrewScheduleService {
     private CoverResponse toCoverResponse(BrewShiftCover cover) {
         return CoverResponse.from(
                 cover,
-                nicknameOf(cover.getOriginalUserId()),
+                cover.getOriginalUserId() == null ? "" : nicknameOf(cover.getOriginalUserId()),
                 cover.getCoverUserId() == null ? "" : nicknameOf(cover.getCoverUserId())
         );
     }
@@ -539,7 +663,7 @@ public class BrewScheduleService {
             LocalTime startTime,
             LocalTime endTime
     ) {
-        if (originalUserId.equals(coverUserId)) {
+        if (originalUserId != null && originalUserId.equals(coverUserId)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "본인을 대타로 지정할 수 없습니다.");
         }
         requireSubscriber(storeId, coverUserId);
@@ -550,11 +674,13 @@ public class BrewScheduleService {
         List<LocalDate> nearbyDates =
                 List.of(workDate.minusDays(1), workDate, workDate.plusDays(1));
 
-        // 본인 근무가 다른 대타로 이미 넘어간 날은 근무 없는 것으로 취급
+        // 본인 근무가 다른 대체(COVER)로 이미 넘어간 날은 근무 없는 것으로 취급
         Set<LocalDate> coveredOutDates = coverRepository
                 .findByStoreIdAndOriginalUserIdAndWorkDateInAndStatus(
                         storeId, coverUserId, nearbyDates, BrewShiftCover.STATUS_APPROVED)
                 .stream()
+                .filter(c -> BrewShiftCover.KIND_COVER.equals(
+                        c.getShiftKind() == null ? BrewShiftCover.KIND_COVER : c.getShiftKind()))
                 .map(BrewShiftCover::getWorkDate)
                 .collect(Collectors.toSet());
 
@@ -571,10 +697,10 @@ public class BrewScheduleService {
                 LocalDateTime shiftTo = BrewShiftTimes.rangeEnd(
                         date, schedule.getStartTime(), schedule.getEndTime());
                 if (overlaps(coverFrom, coverTo, shiftFrom, shiftTo)) {
-                    throw new BusinessException(
-                            HttpStatus.CONFLICT,
-                            "해당 시간에 정규 근무가 있는 직원은 대타로 지정할 수 없습니다."
-                    );
+                throw new BusinessException(
+                        HttpStatus.CONFLICT,
+                        "해당 시간에 정규 근무가 있는 직원은 지정할 수 없습니다."
+                );
                 }
             }
         }
@@ -590,7 +716,7 @@ public class BrewScheduleService {
             if (overlaps(coverFrom, coverTo, otherFrom, otherTo)) {
                 throw new BusinessException(
                         HttpStatus.CONFLICT,
-                        "해당 시간에 승인된 다른 대타가 있는 직원은 지정할 수 없습니다."
+                        "해당 시간에 승인된 다른 근무(대체/추가)가 있는 직원은 지정할 수 없습니다."
                 );
             }
         }
@@ -664,5 +790,57 @@ public class BrewScheduleService {
     private BrewShiftCover requireCover(UUID coverId) {
         return coverRepository.findById(coverId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "대타 요청을 찾을 수 없습니다."));
+    }
+
+    /** 퇴사 처리: 정규 근무 삭제 + 퇴사일 이후 연관 대체/추가 삭제 */
+    @Transactional
+    public void purgeStaffMembership(UUID storeId, UUID userId, LocalDate leaveDate) {
+        scheduleRepository.deleteByStoreIdAndUserId(storeId, userId);
+        deleteCoversAfterLeaveDate(storeId, userId, leaveDate);
+    }
+
+    /**
+     * 퇴사일 이후(workDate &gt; leaveDate) 연관 대기·승인 대체/추가를 삭제.
+     * 퇴사일 당일·이전 건은 유지.
+     */
+    @Transactional
+    public void deleteCoversAfterLeaveDate(UUID storeId, UUID userId, LocalDate leaveDate) {
+        List<BrewShiftCover> covers = coverRepository.findInvolvingUserAfterLeaveDate(
+                storeId,
+                userId,
+                leaveDate,
+                List.of(
+                        BrewShiftCover.STATUS_PENDING_OWNER,
+                        BrewShiftCover.STATUS_PENDING_COVER,
+                        BrewShiftCover.STATUS_APPROVED
+                ));
+        if (!covers.isEmpty()) {
+            coverRepository.deleteAll(covers);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public int countCoversAfterLeaveDate(
+            String email,
+            UUID storeId,
+            UUID targetUserId,
+            LocalDate leaveDate
+    ) {
+        User user = requireUser(email);
+        BrewStore store = requireStore(storeId);
+        assertMember(store, user.getId());
+        boolean owner = store.getOwnerUserId().equals(user.getId());
+        if (!owner && !user.getId().equals(targetUserId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "본인 또는 업주만 조회할 수 있습니다.");
+        }
+        return coverRepository.findInvolvingUserAfterLeaveDate(
+                storeId,
+                targetUserId,
+                leaveDate,
+                List.of(
+                        BrewShiftCover.STATUS_PENDING_OWNER,
+                        BrewShiftCover.STATUS_PENDING_COVER,
+                        BrewShiftCover.STATUS_APPROVED
+                )).size();
     }
 }

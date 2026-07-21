@@ -35,7 +35,10 @@ function blockTitle(occ: BrewCalendarOccurrence): string {
     occ.overnight ? ' (익일)' : ''
   }`;
   if (occ.type === 'COVER') {
-    return `${occ.nickname} 대타(${occ.relatedNickname ?? ''})\n${time}`;
+    return `${occ.nickname} 대체(${occ.relatedNickname ?? ''})\n${time}`;
+  }
+  if (occ.type === 'EXTRA') {
+    return `${occ.nickname} 추가\n${time}`;
   }
   return `${occ.nickname}\n${time}`;
 }
@@ -107,8 +110,11 @@ function DayColumn({
                 </p>
                 {segment.occurrence.type === 'COVER' ? (
                   <p className="brew-tt-block__meta">
-                    대타 · {segment.occurrence.relatedNickname}
+                    대체 · {segment.occurrence.relatedNickname}
                   </p>
+                ) : null}
+                {segment.occurrence.type === 'EXTRA' ? (
+                  <p className="brew-tt-block__meta">추가</p>
                 ) : null}
               </>
             ) : null}

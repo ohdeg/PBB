@@ -63,6 +63,10 @@ export function getFeaturedHobby(): HobbyApp {
   return HOBBY_APPS.find((app) => app.id === 'analyze-baseball') ?? HOBBY_APPS[0];
 }
 
+export function getHobbyById(id: string): HobbyApp | undefined {
+  return HOBBY_APPS.find((app) => app.id === id);
+}
+
 export function getHobbiesByCategory(category: string): HobbyApp[] {
   return HOBBY_APPS.filter((app) => app.category === category);
 }

@@ -54,6 +54,20 @@ public class LottoService {
         return LottoDrawResponse.from(saveDrawEntity(request));
     }
 
+    /** 시스템(자동 동기화)용 upsert — DEV 권한 검사 없이 회차를 저장한다. */
+    @Transactional
+    public LottoDrawResponse syncUpsert(UpsertLottoDrawRequest request) {
+        return LottoDrawResponse.from(saveDrawEntity(request));
+    }
+
+    /** 다음으로 동기화해야 할 회차 (저장된 최신 회차 + 1, 없으면 1). */
+    @Transactional(readOnly = true)
+    public int nextRoundToSync() {
+        return drawRepository.findTopByOrderByRoundDesc()
+                .map(draw -> draw.getRound() + 1)
+                .orElse(1);
+    }
+
     @Transactional
     public List<LottoDrawResponse> replaceDraws(String email, ReplaceLottoDrawsRequest request) {
         requireDev(email);

@@ -1,0 +1,85 @@
+# PBB 운영 스택 (집 리눅스 등 자체 호스트)
+# 실행: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# - MySQL / Redis 는 호스트 포트를 노출하지 않음 (내부 네트워크로만 접근, 외부 비공개)
+# - 백엔드는 Cloudflare Tunnel(cloudflared)을 통해서만 인터넷에 노출
+# - 값은 .env.prod 에서 주입 (이 파일과 같은 디렉터리, git 커밋 금지)
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: pbb-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./infra/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    networks:
+      - pbb-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: pbb-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - pbb-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./spring_backend
+    container_name: pbb-backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      # 컨테이너 네트워크 기준 주소로 덮어씀 (.env.prod 값보다 우선)
+      DB_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pbb-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: pbb-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - backend
+    networks:
+      - pbb-net
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  pbb-net:
+    driver: bridge

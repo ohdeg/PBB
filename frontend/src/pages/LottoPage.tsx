@@ -32,6 +32,7 @@ import {
   MIN_MONTE_CARLO_ITERATIONS,
   monteCarloPatternPickNumbers,
   resolveMonteCarloIterations,
+  simulateWeightedDraw,
   type MonteCarloWeightMode,
 } from '../features/lotto/utils/monteCarloLotto';
 import { formatLottoDrawnDateTime } from '../features/lotto/utils/lottoDateFormat';
@@ -44,6 +45,18 @@ import { getErrorMessage } from '../utils/error';
 const SIX_PICK_LOGO_SRC = '/6pick/logo.svg';
 
 type LottoMainTab = 'draw' | 'payout';
+
+/** 번호 생성 방식: 몬테카를로 패턴 반복 vs 단순 무작위 1회 */
+type LottoGenerationMode = 'montecarlo' | 'random';
+
+/** 실제 로또 공 색상 규칙(구간별)의 HEX 값 */
+function getLottoBallHex(n: number): string {
+  if (n <= 10) return '#fbc400'
+  if (n <= 20) return '#69c8f2'
+  if (n <= 30) return '#ff7272'
+  if (n <= 40) return '#aaaaaa'
+  return '#b0d840'
+}
 
 const LottoPayoutCalculator = lazy(() =>
   import('../features/lotto/components/LottoPayoutCalculator').then((m) => ({
@@ -117,6 +130,17 @@ function getMonteCarloStrategyMeta(
   } as const
 }
 
+function getRandomStrategyMeta(useHotCold: boolean, hotColdWindow?: HotColdWindowKey) {
+  const weightLabel = useHotCold
+    ? `Hot/Cold ${hotColdWindow ? getHotColdWindowLabel(hotColdWindow) : '반영'}`
+    : '균등 가중'
+  return {
+    category: `🎰 단순 무작위 (${weightLabel})`,
+    icon: '🎰',
+    color: 'bg-sky-50 text-sky-700',
+  } as const
+}
+
 function getHotColdBadgeLabel(item: LottoHistoryItem): string | null {
   if (item.hotColdApplied == null) return null
   if (!item.hotColdApplied) return 'Hot/Cold 미적용'
@@ -162,6 +186,24 @@ function LottoHistoryMetaBadges({ item }: { item: LottoHistoryItem }) {
 }
 
 const Icons = {
+  Settings: () => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 7h-9" />
+      <path d="M14 17H5" />
+      <circle cx="17" cy="17" r="3" />
+      <circle cx="7" cy="7" r="3" />
+    </svg>
+  ),
   Back: () => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -578,34 +620,20 @@ interface DrawMachinePoolBall {
   color: string
 }
 
-const DRAW_MACHINE_POOL_BALL_COLORS = [
-  '#fdba74',
-  '#93c5fd',
-  '#a7f3d0',
-  '#fca5a5',
-  '#c4b5fd',
-  '#fcd34d',
-  '#86efac',
-  '#f9a8d4',
-  '#99f6e4',
-] as const
-
 const DRAW_MACHINE_POOL_BALLS: DrawMachinePoolBall[] = Array.from(
   { length: 16 },
   (_, index) => {
     const seed = index + 1
+    const number = ((seed * 9 + 5) % 45) + 1
     return {
       id: seed,
-      number: ((seed * 9 + 5) % 45) + 1,
+      number,
       left: 14 + ((seed * 11) % 72),
       bottom: 4 + ((seed * 7) % 22),
       durationSec: 1.8 + (seed % 4) * 0.24,
       delaySec: (seed % 8) * 0.12,
       sizePx: 30 - (seed % 3) * 2,
-      color:
-        DRAW_MACHINE_POOL_BALL_COLORS[
-          seed % DRAW_MACHINE_POOL_BALL_COLORS.length
-        ] as string,
+      color: getLottoBallHex(number),
     }
   },
 )
@@ -719,16 +747,16 @@ function LottoDrawMachine({
   return (
     <div
       ref={machineRef}
-      className="relative mb-6 w-full max-w-full overflow-hidden rounded-[2rem] border border-slate-200/80 bg-slate-100 px-3 pb-5 pt-4 shadow-inner sm:px-4"
+      className="relative mb-6 w-full max-w-full overflow-hidden rounded-[2rem] border border-violet-100 bg-gradient-to-b from-violet-50 via-white to-slate-50 px-3 pb-5 pt-5 shadow-sm sm:px-4"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.88),_rgba(241,245,249,0.45)_45%,_rgba(226,232,240,0.84)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,_rgba(196,181,253,0.28),_rgba(255,255,255,0)_58%)]" />
 
       <div className="relative mx-auto flex min-h-[22rem] w-full max-w-full flex-col items-center">
-        <div className="relative aspect-square h-auto w-[min(16rem,78vw)] max-w-full rounded-full border-[10px] border-slate-400/70 bg-slate-200/70 shadow-[inset_0_14px_30px_rgba(148,163,184,0.35)]">
-          <div className="absolute left-7 top-5 h-8 w-24 -rotate-12 rounded-full bg-white/65 blur-[0.5px]" />
-          <div className="absolute left-10 top-16 h-4 w-4 rounded-full bg-white/60" />
+        <div className="relative aspect-square h-auto w-[min(16rem,78vw)] max-w-full rounded-full border-[10px] border-white/80 bg-gradient-to-br from-white/80 to-violet-100/40 shadow-[inset_0_16px_36px_rgba(139,92,246,0.18),0_10px_30px_-12px_rgba(139,92,246,0.35)] ring-1 ring-violet-200/60">
+          <div className="absolute left-7 top-5 h-9 w-24 -rotate-12 rounded-full bg-white/80 blur-[1px]" />
+          <div className="absolute left-10 top-16 h-4 w-4 rounded-full bg-white/70" />
 
-          <div className="absolute inset-[8%] overflow-hidden rounded-full border border-slate-300 bg-slate-100/60">
+          <div className="absolute inset-[8%] overflow-hidden rounded-full border border-white/70 bg-[radial-gradient(circle_at_50%_35%,_rgba(255,255,255,0.7),_rgba(237,233,254,0.35))]">
             <div className="absolute left-1/2 top-5 h-24 w-2 -translate-x-1/2 rounded-full bg-slate-300/65" />
             <div className="absolute left-1/2 top-24 h-10 w-10 -translate-x-1/2 rounded-full bg-slate-300/85" />
             {DRAW_MACHINE_POOL_BALLS.map((ball) => {
@@ -751,13 +779,13 @@ function LottoDrawMachine({
                   }}
                 >
                   <span
-                    className={`draw-machine-pool-ball inline-flex h-full w-full items-center justify-center rounded-full border border-slate-100/90 text-[10px] font-black text-slate-700 shadow-sm ${
-                      isRolling ? 'opacity-100' : 'opacity-92'
+                    className={`draw-machine-pool-ball inline-flex h-full w-full items-center justify-center rounded-full text-[10px] font-black text-slate-800/80 shadow-[inset_-2px_-3px_5px_rgba(0,0,0,0.12),inset_2px_2px_4px_rgba(255,255,255,0.55)] ${
+                      isRolling ? 'opacity-100' : 'opacity-90'
                     }`}
                     style={{
                       animationDuration: `${ball.durationSec}s`,
                       animationDelay: `${ball.delaySec}s`,
-                      background: ball.color,
+                      background: `radial-gradient(circle at 34% 28%, rgba(255,255,255,0.75), ${ball.color} 62%)`,
                     }}
                   >
                     {ball.number}
@@ -810,8 +838,8 @@ function LottoDrawMachine({
           } ${isShutterOpen ? 'draw-machine-outlet-active' : ''}`}
         />
 
-        <div className="mt-[4.9rem] w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm sm:w-72">
-          <p className="mb-2 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">
+        <div className="mt-[4.9rem] w-full rounded-2xl border border-violet-100 bg-white/95 px-4 py-3 shadow-[0_8px_24px_-16px_rgba(139,92,246,0.5)] sm:w-72">
+          <p className="mb-2 text-center text-[10px] font-black uppercase tracking-widest text-violet-500">
             추첨 결과
           </p>
           <div className="flex min-h-[2.5rem] flex-wrap justify-center gap-1.5">
@@ -958,8 +986,15 @@ export function LottoPage() {
     () => resolveDrawCount(drawCountInput),
     [drawCountInput],
   )
+  /** 세부 추첨 설정 카드 펼침 여부 (기본 접힘 → 추첨기를 히어로로) */
+  const [showSettings, setShowSettings] = useState(false)
+  /** 번호 생성 방식 (몬테카를로 반복 vs 단순 무작위 1회) */
+  const [generationMode, setGenerationMode] =
+    useState<LottoGenerationMode>('random')
+  /** 추첨 번호 풀 유지 여부 (이전 추첨 번호 제외 + 자동 리셋) */
+  const [keepDrawPool, setKeepDrawPool] = useState(false)
   /** 몬테카를로 시뮬레이션에 Hot/Cold 가중치 사용 여부 */
-  const [monteCarloUseHotCold, setMonteCarloUseHotCold] = useState(true)
+  const [monteCarloUseHotCold, setMonteCarloUseHotCold] = useState(false)
   const [monteCarloHotColdWindow, setMonteCarloHotColdWindow] =
     useState<HotColdWindowKey>(DEFAULT_HOT_COLD_WINDOW)
   const [hasAnalyzedData, setHasAnalyzedData] = useState(false)
@@ -1475,6 +1510,17 @@ export function LottoPage() {
     })
   }
 
+  /** 단순 무작위 1회 추첨 (몬테카를로 반복·패턴 점수 없음, Hot/Cold 가중만 반영) */
+  const pickRandomNumbers = (size: number, exclude: number[]): number[] => {
+    return simulateWeightedDraw(size, exclude, {
+      mode: getMonteCarloSimulationMode(),
+      hotNumbers: monteCarloHotColdStats.hotNumbers,
+      coldNumbers: monteCarloHotColdStats.coldNumbers,
+      hasAnalyzedData: monteCarloAppliesHotCold,
+      weights: WEIGHTS,
+    })
+  }
+
   const generateLottoNumbers = async () => {
     if (isRolling) return
     if (preferredNumbers.length >= 6) {
@@ -1483,15 +1529,21 @@ export function LottoPage() {
     }
 
     const gameCount = resolvedDrawCount
+    const isMonteCarlo = generationMode === 'montecarlo'
     setIsRolling(true)
     skipRef.current = false
     setMonteCarloAppearance(null)
 
-    const modeMeta = getMonteCarloStrategyMeta(
-      resolvedMonteCarloIterations,
-      monteCarloAppliesHotCold,
-      monteCarloAppliesHotCold ? monteCarloHotColdWindow : undefined,
-    )
+    const modeMeta = isMonteCarlo
+      ? getMonteCarloStrategyMeta(
+          resolvedMonteCarloIterations,
+          monteCarloAppliesHotCold,
+          monteCarloAppliesHotCold ? monteCarloHotColdWindow : undefined,
+        )
+      : getRandomStrategyMeta(
+          monteCarloAppliesHotCold,
+          monteCarloAppliesHotCold ? monteCarloHotColdWindow : undefined,
+        )
 
     const variablePickCount = 6 - preferredNumbers.length
     const newEntries: LottoHistoryItem[] = []
@@ -1504,6 +1556,7 @@ export function LottoPage() {
 
     for (let gameIndex = 0; gameIndex < gameCount; gameIndex++) {
       const mustResetPool =
+        keepDrawPool &&
         usedPool.size > 0 &&
         shouldAutoResetDrawNumberPool(
           preferredNumbers,
@@ -1515,24 +1568,37 @@ export function LottoPage() {
         usedPool = new Set()
       }
 
-      const patternResult = pickPatternNumbers(variablePickCount, [
-        ...preferredNumbers,
-        ...usedPool,
-      ])
-      const generatedNumbers = patternResult.numbers
+      const excludeForPick = keepDrawPool
+        ? [...preferredNumbers, ...usedPool]
+        : [...preferredNumbers]
+
+      let generatedNumbers: number[]
+      if (isMonteCarlo) {
+        const patternResult = pickPatternNumbers(
+          variablePickCount,
+          excludeForPick,
+        )
+        generatedNumbers = patternResult.numbers
+        if (gameIndex === gameCount - 1) {
+          setMonteCarloAppearance({
+            counts: patternResult.appearanceCounts,
+            iterations: patternResult.iterationsRun,
+            pickedNumbers: [...preferredNumbers, ...patternResult.numbers].sort(
+              (a, b) => a - b,
+            ),
+          })
+        }
+      } else {
+        generatedNumbers = pickRandomNumbers(variablePickCount, excludeForPick)
+      }
+
       const finalNumbers = [...preferredNumbers, ...generatedNumbers].sort(
         (a, b) => a - b,
       )
 
-      generatedNumbers.forEach((num) => {
-        usedPool.add(num)
-      })
-
-      if (gameIndex === gameCount - 1) {
-        setMonteCarloAppearance({
-          counts: patternResult.appearanceCounts,
-          iterations: patternResult.iterationsRun,
-          pickedNumbers: finalNumbers,
+      if (keepDrawPool) {
+        generatedNumbers.forEach((num) => {
+          usedPool.add(num)
         })
       }
 
@@ -1798,7 +1864,7 @@ export function LottoPage() {
               onClick={() => setActiveTab('draw')}
               className={`min-w-0 flex-1 rounded-lg px-2 py-2.5 text-[11px] font-black transition-all sm:px-4 sm:text-xs ${
                 activeTab === 'draw'
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-violet-700 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -1809,7 +1875,7 @@ export function LottoPage() {
               onClick={() => setActiveTab('payout')}
               className={`min-w-0 flex-1 rounded-lg px-2 py-2.5 text-[11px] font-black transition-all sm:px-4 sm:text-xs ${
                 activeTab === 'payout'
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-violet-700 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -1991,7 +2057,7 @@ export function LottoPage() {
                         type="button"
                         onClick={showLatestDraw}
                         disabled={isViewingLatest}
-                        className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         최신 보기
                       </button>
@@ -2210,7 +2276,49 @@ export function LottoPage() {
             )}
           </section>
 
-        <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        {showSettings && (
+          <div
+            className="fixed inset-0 z-30 bg-slate-900/10"
+            onClick={() => setShowSettings(false)}
+            aria-hidden
+          />
+        )}
+        <div className="fixed bottom-5 right-4 z-40 flex flex-col items-end gap-3 sm:right-5">
+          {showSettings && (
+            <div
+              role="dialog"
+              aria-label="추첨 설정"
+              className="w-[min(360px,calc(100vw-2rem))] max-h-[72vh] space-y-4 overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-800">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+                    <Icons.Settings />
+                  </span>
+                  추첨 설정
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(false)}
+                  aria-label="설정 닫기"
+                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex justify-between items-center mb-5">
             <div className="flex flex-col gap-1">
               <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
@@ -2265,10 +2373,124 @@ export function LottoPage() {
           </div>
         </section>
 
-        <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-            {isLottoAdmin && (
-              <>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-amber-900">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-700">
+            생성 방식
+          </p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {(
+              [
+                { key: 'montecarlo', label: '🎲 몬테카를로' },
+                { key: 'random', label: '🎰 단순 무작위' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setGenerationMode(opt.key)}
+                disabled={isRolling}
+                className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${
+                  generationMode === opt.key
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="mb-4 text-[10px] font-bold text-slate-500">
+            {generationMode === 'montecarlo'
+              ? '수천~수만 회 반복 시뮬레이션 후 패턴 점수가 높은 조합을 선별합니다.'
+              : '반복·패턴 점수 없이 무작위로 한 번에 추첨합니다. (빠름)'}
+          </p>
+
+          <div className="mb-4 border-t border-slate-100 pt-3">
+            <p className="mb-2 text-[11px] font-black text-slate-700">
+              Hot/Cold 가중치
+            </p>
+            <button
+              type="button"
+              onClick={() => setMonteCarloUseHotCold((prev) => !prev)}
+              disabled={!hasAnalyzedData}
+              className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                !hasAnalyzedData
+                  ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                  : monteCarloUseHotCold
+                    ? 'border-violet-300 bg-violet-50 text-violet-800'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {monteCarloUseHotCold ? 'Hot/Cold 적용' : 'Hot/Cold 미적용 (균등)'}
+            </button>
+            {monteCarloUseHotCold && hasAnalyzedData && (
+              <div className="mt-3">
+                <p className="mb-2 text-[10px] font-bold text-slate-500">
+                  HOT/COLD 분석 구간
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {HOT_COLD_WINDOW_OPTIONS.map((opt) => (
+                    <button
+                      key={`mc-${opt.key}`}
+                      type="button"
+                      onClick={() => setMonteCarloHotColdWindow(opt.key)}
+                      className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                        monteCarloHotColdWindow === opt.key
+                          ? 'bg-violet-600 text-white shadow-sm'
+                          : 'bg-white text-slate-600 hover:bg-violet-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-[10px] font-bold text-violet-700">
+                  {getHotColdWindowLabel(monteCarloHotColdWindow)} ·{' '}
+                  {monteCarloHotColdStats.appliedDrawCount}회차 기준 Hot/Cold
+                </p>
+              </div>
+            )}
+            <p className="mt-2 text-[10px] font-bold text-slate-500">
+              {!hasAnalyzedData
+                ? '당첨 번호 데이터가 있어야 Hot/Cold를 적용할 수 있습니다.'
+                : monteCarloUseHotCold
+                  ? '선택한 구간의 Hot/Cold를 가중해 번호를 뽑습니다.'
+                  : '1~45 균등 가중으로 번호를 뽑습니다.'}
+            </p>
+          </div>
+
+          <div className="border-t border-slate-100 pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black text-slate-700">
+                  추첨 번호 풀 유지
+                </p>
+                <p className="text-[10px] font-bold text-slate-500">
+                  {keepDrawPool
+                    ? '이전에 나온 번호를 제외하고, 남은 번호가 적으면 자동 리셋합니다.'
+                    : '매 게임 1~45 전체에서 추첨합니다. (게임 간 번호 중복 허용)'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKeepDrawPool((prev) => !prev)}
+                disabled={isRolling}
+                aria-pressed={keepDrawPool}
+                className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${
+                  keepDrawPool
+                    ? 'border-violet-300 bg-violet-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                {keepDrawPool ? '유지 ON' : '유지 OFF'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {isLottoAdmin && generationMode === 'montecarlo' && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-700">
                   몬테카를로 반복 횟수
                 </p>
                 <div className="mb-3 flex flex-wrap gap-1.5">
@@ -2281,8 +2503,8 @@ export function LottoPage() {
                       }
                       className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors ${
                         resolvedMonteCarloIterations === preset
-                          ? 'bg-amber-600 text-white shadow-sm'
-                          : 'bg-white text-amber-900 hover:bg-amber-100'
+                          ? 'bg-violet-600 text-white shadow-sm'
+                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
                       {preset.toLocaleString()}회
@@ -2290,7 +2512,7 @@ export function LottoPage() {
                   ))}
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-amber-800">
+                  <span className="text-[10px] font-bold text-slate-500">
                     직접 입력 (
                     {MIN_MONTE_CARLO_ITERATIONS.toLocaleString()}~
                     {MAX_MONTE_CARLO_ITERATIONS.toLocaleString()}회)
@@ -2325,75 +2547,14 @@ export function LottoPage() {
                         )
                       }
                     }}
-                    className="w-full max-w-[12rem] rounded-xl border border-amber-200 bg-white px-3 py-2 text-center text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full max-w-[12rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </label>
-              </>
-            )}
-            <div
-              className={
-                isLottoAdmin
-                  ? 'mt-4 border-t border-amber-200/80 pt-4'
-                  : undefined
-              }
-            >
-              <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-amber-900">
-                Hot/Cold 가중치
-              </p>
-              <button
-                type="button"
-                onClick={() => setMonteCarloUseHotCold((prev) => !prev)}
-                disabled={!hasAnalyzedData}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
-                  !hasAnalyzedData
-                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                    : monteCarloUseHotCold
-                      ? 'border-violet-300 bg-violet-50 text-violet-800'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {monteCarloUseHotCold ? 'Hot/Cold 적용' : 'Hot/Cold 미적용 (균등)'}
-              </button>
-              {monteCarloUseHotCold && hasAnalyzedData && (
-                <div className="mt-3">
-                  <p className="mb-2 text-[10px] font-bold text-amber-800">
-                    HOT/COLD 분석 구간
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {HOT_COLD_WINDOW_OPTIONS.map((opt) => (
-                      <button
-                        key={`mc-${opt.key}`}
-                        type="button"
-                        onClick={() => setMonteCarloHotColdWindow(opt.key)}
-                        className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                          monteCarloHotColdWindow === opt.key
-                            ? 'bg-violet-600 text-white shadow-sm'
-                            : 'bg-white text-slate-600 hover:bg-violet-50'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[10px] font-bold text-violet-700">
-                    {getHotColdWindowLabel(monteCarloHotColdWindow)} ·{' '}
-                    {monteCarloHotColdStats.appliedDrawCount}회차 기준 Hot/Cold
-                  </p>
-                </div>
-              )}
-              <p className="mt-2 text-[10px] font-bold text-amber-800">
-                {!hasAnalyzedData
-                  ? '당첨 번호 데이터가 있어야 Hot/Cold를 적용할 수 있습니다.'
-                  : monteCarloUseHotCold
-                    ? '시뮬레이션마다 선택한 구간의 Hot/Cold 가중으로 추첨합니다.'
-                    : '시뮬레이션마다 1~45 균등 가중으로 추첨합니다.'}
-              </p>
-            </div>
-            
           </section>
+        )}
 
-        <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
-          <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-blue-900">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-700">
             추첨 게임 수
           </p>
           <div className="mb-3 flex flex-wrap gap-1.5">
@@ -2405,8 +2566,8 @@ export function LottoPage() {
                 disabled={isRolling}
                 className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${
                   resolvedDrawCount === preset
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-blue-900 hover:bg-blue-100'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 {preset}게임
@@ -2414,7 +2575,7 @@ export function LottoPage() {
             ))}
           </div>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-blue-800">
+            <span className="text-[10px] font-bold text-slate-500">
               직접 입력 ({MIN_DRAW_COUNT}~{MAX_DRAW_COUNT}게임)
             </span>
             <input
@@ -2441,10 +2602,22 @@ export function LottoPage() {
                   setDrawCountInput(String(DEFAULT_DRAW_COUNT))
                 }
               }}
-              className="w-full max-w-[12rem] rounded-xl border border-blue-200 bg-white px-3 py-2 text-center text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="w-full max-w-[12rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-50"
             />
           </label>
         </section>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowSettings((v) => !v)}
+            aria-expanded={showSettings}
+            className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 px-5 py-3.5 font-black text-white shadow-[0_14px_30px_-8px_rgba(139,92,246,0.75)] transition-transform hover:from-violet-600 hover:to-fuchsia-700 active:scale-95"
+          >
+            <Icons.Settings />
+            <span className="text-xs">{showSettings ? '닫기' : '추첨 설정'}</span>
+          </button>
+        </div>
 
         <div className="relative">
           {isRolling && (
@@ -2453,7 +2626,7 @@ export function LottoPage() {
               onClick={() => {
                 skipRef.current = true
               }}
-              className="absolute right-5 top-4 z-10 flex items-center justify-center rounded-full border border-indigo-100 bg-white p-2 text-indigo-600 shadow-sm transition-colors hover:bg-indigo-50 sm:gap-1 sm:px-3 sm:py-1.5"
+              className="absolute right-5 top-4 z-10 flex items-center justify-center rounded-full border border-violet-100 bg-white p-2 text-violet-600 shadow-sm transition-colors hover:bg-violet-50 sm:gap-1 sm:px-3 sm:py-1.5"
               title="건너뛰기"
               aria-label="건너뛰기"
             >
@@ -2464,39 +2637,14 @@ export function LottoPage() {
           <LottoDrawMachine currentBalls={currentBalls} isRolling={isRolling} />
         </div>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-          <div className="min-w-0">
-            <p className="text-[11px] font-black text-slate-700">추첨 번호 풀</p>
-            <p className="text-[10px] font-bold text-slate-500">
-              남은 번호 {remainingDrawPoolCount}개
-              {usedDrawNumbers.size > 0 &&
-                ` · 사용됨 ${usedDrawNumbers.size}개`}
-              {remainingDrawPoolCount <= MIN_REMAINING_BEFORE_POOL_RESET &&
-                usedDrawNumbers.size > 0 &&
-                ' · 다음 추첨 시 자동 리셋'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={resetDrawNumberPool}
-            disabled={isRolling || usedDrawNumbers.size === 0}
-            title="사용된 번호 기록 초기화"
-            aria-label="추첨 번호 풀 리셋"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icons.Reset />
-            <span>풀 리셋</span>
-          </button>
-        </div>
-
-        <div className="mb-6">
+        <div className="mb-4">
           <Button
             disabled={isRolling}
             onClick={() => void generateLottoNumbers()}
-            className={`w-full py-4 rounded-2xl font-black text-lg transition-all shadow-md ${
+            className={`w-full rounded-2xl py-4 text-lg font-black transition-all ${
               isRolling
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-[0.98]'
+                ? 'cursor-not-allowed bg-slate-200 text-slate-400 shadow-none'
+                : 'bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-[0_12px_28px_-10px_rgba(139,92,246,0.7)] hover:from-violet-600 hover:to-fuchsia-700 active:scale-[0.98]'
             }`}
           >
             {isRolling ? (
@@ -2508,13 +2656,48 @@ export function LottoPage() {
               </>
             ) : (
               <>
-                <span className="sm:hidden">{`${resolvedDrawCount}게임`}</span>
+                <span className="sm:hidden">{`${resolvedDrawCount}게임 추첨`}</span>
                 <span className="hidden sm:inline">
                   {`${resolvedDrawCount}게임 추첨하기`}
                 </span>
               </>
             )}
           </Button>
+        </div>
+
+        <div
+          className={`mb-6 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm ${
+            keepDrawPool ? '' : 'opacity-60'
+          }`}
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] font-black text-slate-700">추첨 번호 풀</p>
+            <p className="text-[10px] font-bold text-slate-500">
+              {!keepDrawPool ? (
+                '유지 꺼짐 · 매 게임 1~45 전체에서 추첨'
+              ) : (
+                <>
+                  남은 번호 {remainingDrawPoolCount}개
+                  {usedDrawNumbers.size > 0 &&
+                    ` · 사용됨 ${usedDrawNumbers.size}개`}
+                  {remainingDrawPoolCount <= MIN_REMAINING_BEFORE_POOL_RESET &&
+                    usedDrawNumbers.size > 0 &&
+                    ' · 다음 추첨 시 자동 리셋'}
+                </>
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resetDrawNumberPool}
+            disabled={isRolling || !keepDrawPool || usedDrawNumbers.size === 0}
+            title="사용된 번호 기록 초기화"
+            aria-label="추첨 번호 풀 리셋"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icons.Reset />
+            <span>풀 리셋</span>
+          </button>
         </div>
 
         {monteCarloAppearance && !isRolling && (

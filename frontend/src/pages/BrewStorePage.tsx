@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { brewApi } from '../api/brewApi';
 import { BrewBadge } from '../components/brew/BrewBadge';
 import { BrewButton } from '../components/brew/BrewButton';
 import { BrewCard } from '../components/brew/BrewCard';
 import { BrewInput } from '../components/brew/BrewInput';
 import { BrewStoreDeleteDialog } from '../components/brew/BrewStoreDeleteDialog';
+import { BrewJoinApproveModal } from '../components/brew/BrewJoinApproveModal';
+import type { BrewJoinApprovePayload } from '../components/brew/BrewJoinApproveModal';
 import { BrewModal } from '../components/brew/BrewModal';
 import { BrewRecipeNotesEditor } from '../components/brew/BrewRecipeNotesEditor';
 import { BrewRecipeNotesView } from '../components/brew/BrewRecipeNotesView';
@@ -21,6 +23,7 @@ import { useAuthStore } from '../stores/authStore';
 import type {
   BrewJoinRequest,
   BrewMenu,
+  BrewNotice,
   BrewRecipe,
   BrewRecipeContent,
   BrewStockCategory,
@@ -36,13 +39,41 @@ import { getErrorMessage } from '../utils/error';
 
 type Tab = 'menus' | 'stocks' | 'schedule' | 'tools' | 'settings';
 
+const TAB_IDS: readonly Tab[] = ['menus', 'stocks', 'schedule', 'tools', 'settings'];
+
+function parseTabParam(raw: string | null): Tab {
+  if (raw && (TAB_IDS as readonly string[]).includes(raw)) {
+    return raw as Tab;
+  }
+  return 'menus';
+}
+
 export function BrewStorePage() {
   const { storeId = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const accessToken = useAuthStore((state) => state.accessToken);
+  const myUserId = useAuthStore((state) => state.userId);
   const { showSplash, handleSplashFinish } = useVevenoSplash();
 
-  const [tab, setTab] = useState<Tab>('menus');
+  const tab = parseTabParam(searchParams.get('tab'));
+  const setTab = useCallback(
+    (next: Tab) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === 'menus') {
+            params.delete('tab');
+          } else {
+            params.set('tab', next);
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [store, setStore] = useState<BrewStore | null>(null);
   const [menus, setMenus] = useState<BrewMenu[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
@@ -51,6 +82,11 @@ export function BrewStorePage() {
   const [stockCategories, setStockCategories] = useState<BrewStockCategory[]>([]);
   const [joinRequests, setJoinRequests] = useState<BrewJoinRequest[]>([]);
   const [subscribers, setSubscribers] = useState<BrewSubscriber[]>([]);
+  const [notices, setNotices] = useState<BrewNotice[]>([]);
+  const [noticesOpen, setNoticesOpen] = useState(false);
+  const [noticeForm, setNoticeForm] = useState({ title: '', body: '' });
+  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
+  const [savingNotice, setSavingNotice] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,6 +118,24 @@ export function BrewStorePage() {
     stockMinNum: 0,
   });
   const [creatingStock, setCreatingStock] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveTarget, setLeaveTarget] = useState<{
+    userId: string;
+    nickname: string;
+    self: boolean;
+  } | null>(null);
+  const [leaveDate, setLeaveDate] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
+  const [leaving, setLeaving] = useState(false);
+  const [approveTarget, setApproveTarget] = useState<BrewJoinRequest | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [regeneratingCode, setRegeneratingCode] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const loadStore = useCallback(async () => {
     if (!storeId || !accessToken) {
@@ -95,6 +149,16 @@ export function BrewStorePage() {
       setStoreForm({ name: data.name, isPublic: data.isPublic });
       const menusRes = await brewApi.listMenus(storeId);
       setMenus(menusRes.data);
+      if (data.owned || data.subscribed) {
+        try {
+          const noticesRes = await brewApi.listNotices(storeId);
+          setNotices(noticesRes.data);
+        } catch {
+          setNotices([]);
+        }
+      } else {
+        setNotices([]);
+      }
       if (data.canEditStock) {
         const stocksRes = await brewApi.listStocks(storeId);
         setStockCategories(stocksRes.data);
@@ -132,19 +196,25 @@ export function BrewStorePage() {
   }, [store?.name]);
 
   useEffect(() => {
-    if (tab === 'stocks' && store && !store.canEditStock) {
+    if (!store) {
+      return;
+    }
+    if (tab === 'stocks' && !store.canEditStock) {
+      setTab('menus');
+      return;
+    }
+    if (tab === 'schedule' && !store.owned && !store.subscribed) {
+      setTab('menus');
+      return;
+    }
+    if (tab === 'tools' && !store.owned && !store.subscribed) {
+      setTab('menus');
+      return;
+    }
+    if (tab === 'settings' && !store.owned) {
       setTab('menus');
     }
-    if (tab === 'schedule' && store && !store.owned && !store.subscribed) {
-      setTab('menus');
-    }
-    if (tab === 'tools' && store && !store.owned && !store.subscribed) {
-      setTab('menus');
-    }
-    if (tab === 'settings' && store && !store.owned) {
-      setTab('menus');
-    }
-  }, [tab, store]);
+  }, [tab, store, setTab]);
 
   useEffect(() => {
     if (tab !== 'stocks' || !storeId || !accessToken || !store?.canEditStock) {
@@ -161,6 +231,17 @@ export function BrewStorePage() {
   }, [tab, storeId, accessToken, store?.canEditStock]);
 
   useEffect(() => {
+    if (menus.length === 0) {
+      setSelectedMenuId(null);
+      return;
+    }
+    const stillValid = selectedMenuId != null && menus.some((m) => m.id === selectedMenuId);
+    if (!stillValid) {
+      setSelectedMenuId(menus[0].id);
+    }
+  }, [menus, selectedMenuId]);
+
+  useEffect(() => {
     if (!selectedMenuId) {
       setRecipes([]);
       return;
@@ -171,6 +252,10 @@ export function BrewStorePage() {
         const { data } = await brewApi.listRecipes(selectedMenuId);
         if (!cancelled) {
           setRecipes(data);
+          // 목록만 로드. 상세 보기 모달은 열지 않음
+          setRecipeViewOpen(false);
+          setSelectedRecipeId(null);
+          setRecipeForm(EMPTY_RECIPE_CONTENT);
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -210,6 +295,7 @@ export function BrewStorePage() {
     setSelectedMenuId(menu.id);
     setSelectedRecipeId(null);
     setRecipeForm(EMPTY_RECIPE_CONTENT);
+    setRecipeViewOpen(false);
   };
 
   const openMenuEditModal = (menu: BrewMenu) => {
@@ -262,6 +348,7 @@ export function BrewStorePage() {
       if (selectedMenuId === menuId) {
         setSelectedMenuId(null);
         setRecipes([]);
+        setRecipeViewOpen(false);
       }
       setMenuEditOpen(false);
       setEditingMenuId(null);
@@ -467,6 +554,243 @@ export function BrewStorePage() {
     }
   };
 
+  const handleCopyInviteCode = async () => {
+    const code = store?.inviteCode;
+    if (!code) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(code);
+      setCodeCopied(true);
+      window.setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      setError('코드 복사에 실패했습니다.');
+    }
+  };
+
+  const handleRegenerateInviteCode = async () => {
+    if (!store?.owned) {
+      return;
+    }
+    const ok = window.confirm(
+      '가게 코드를 재발급할까요?\n이전 코드로는 더 이상 검색할 수 없습니다.',
+    );
+    if (!ok) {
+      return;
+    }
+    setRegeneratingCode(true);
+    setError('');
+    try {
+      const { data } = await brewApi.regenerateInviteCode(storeId);
+      setStore(data);
+      setCodeCopied(false);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '가게 코드 재발급에 실패했습니다.'));
+    } finally {
+      setRegeneratingCode(false);
+    }
+  };
+
+  const openLeaveDialog = (target: {
+    userId: string;
+    nickname: string;
+    self: boolean;
+  }) => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setLeaveDate(`${y}-${m}-${day}`);
+    setLeaveTarget(target);
+    setLeaveOpen(true);
+  };
+
+  const handleConfirmLeave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!leaveTarget || !leaveDate) {
+      return;
+    }
+    const targetUserId = leaveTarget.self ? myUserId : leaveTarget.userId;
+    if (!targetUserId) {
+      setError('사용자 정보를 확인할 수 없습니다.');
+      return;
+    }
+    setLeaving(true);
+    setError('');
+    try {
+      const { data: coverCount } = await brewApi.countCoversAfterLeave(
+        storeId,
+        targetUserId,
+        leaveDate,
+      );
+      if (coverCount.count > 0) {
+        const ok = window.confirm(
+          `퇴사일(${leaveDate}) 이후에 대체·추가 근무가 ${coverCount.count}건 있습니다.\n확인하면 해당 건이 삭제되고 퇴사가 진행됩니다. 계속할까요?`,
+        );
+        if (!ok) {
+          return;
+        }
+      }
+      if (leaveTarget.self) {
+        await brewApi.unsubscribe(storeId, leaveDate);
+        const today = (() => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })();
+        if (leaveDate < today) {
+          navigate('/hobbies/brew-note');
+          return;
+        }
+        await loadStore();
+      } else {
+        const { data } = await brewApi.resignSubscriber(
+          storeId,
+          leaveTarget.userId,
+          leaveDate,
+        );
+        if (data && 'userId' in data) {
+          setSubscribers((prev) =>
+            prev.map((s) => (s.userId === data.userId ? data : s)),
+          );
+        } else {
+          setSubscribers((prev) =>
+            prev.filter((s) => s.userId !== leaveTarget.userId),
+          );
+        }
+        const { data: subs } = await brewApi.listSubscribers(storeId);
+        setSubscribers(subs);
+      }
+      setLeaveOpen(false);
+      setLeaveTarget(null);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '퇴사 처리에 실패했습니다.'));
+    } finally {
+      setLeaving(false);
+    }
+  };
+
+  const handleClearLeave = async (userId: string, self: boolean) => {
+    setError('');
+    try {
+      if (self) {
+        await brewApi.clearMyLeave(storeId);
+        await loadStore();
+      } else {
+        const { data } = await brewApi.clearSubscriberLeave(storeId, userId);
+        setSubscribers((prev) =>
+          prev.map((s) => (s.userId === data.userId ? data : s)),
+        );
+      }
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '퇴사 예약 취소에 실패했습니다.'));
+    }
+  };
+
+  const handleConfirmApprove = async (payload: BrewJoinApprovePayload) => {
+    if (!approveTarget) {
+      return;
+    }
+    setApproving(true);
+    setError('');
+    try {
+      await brewApi.approveJoin(storeId, approveTarget.userId, payload);
+      setJoinRequests((prev) =>
+        prev.filter((r) => r.userId !== approveTarget.userId),
+      );
+      const { data } = await brewApi.listSubscribers(storeId);
+      setSubscribers(data);
+      setApproveTarget(null);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '승인에 실패했습니다.'));
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const openNotices = () => {
+    setNoticesOpen(true);
+    setEditingNoticeId(null);
+    setNoticeForm({ title: '', body: '' });
+    setError('');
+  };
+
+  const closeNotices = () => {
+    if (savingNotice) {
+      return;
+    }
+    setNoticesOpen(false);
+    setEditingNoticeId(null);
+    setNoticeForm({ title: '', body: '' });
+  };
+
+  const startEditNotice = (notice: BrewNotice) => {
+    setEditingNoticeId(notice.id);
+    setNoticeForm({ title: notice.title, body: notice.body });
+  };
+
+  const handleSaveNotice = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!store?.owned) {
+      return;
+    }
+    const title = noticeForm.title.trim();
+    const body = noticeForm.body.trim();
+    if (!title || !body) {
+      setError('제목과 본문을 입력해 주세요.');
+      return;
+    }
+    setSavingNotice(true);
+    setError('');
+    try {
+      if (editingNoticeId) {
+        const { data } = await brewApi.updateNotice(editingNoticeId, { title, body });
+        setNotices((prev) => prev.map((n) => (n.id === data.id ? data : n)));
+      } else {
+        const { data } = await brewApi.createNotice(storeId, { title, body });
+        setNotices((prev) => [data, ...prev]);
+      }
+      setEditingNoticeId(null);
+      setNoticeForm({ title: '', body: '' });
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '공지 저장에 실패했습니다.'));
+    } finally {
+      setSavingNotice(false);
+    }
+  };
+
+  const handleDeleteNotice = async (noticeId: string) => {
+    if (!store?.owned || !window.confirm('이 공지를 삭제할까요?')) {
+      return;
+    }
+    setSavingNotice(true);
+    setError('');
+    try {
+      await brewApi.deleteNotice(noticeId);
+      setNotices((prev) => prev.filter((n) => n.id !== noticeId));
+      if (editingNoticeId === noticeId) {
+        setEditingNoticeId(null);
+        setNoticeForm({ title: '', body: '' });
+      }
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '공지 삭제에 실패했습니다.'));
+    } finally {
+      setSavingNotice(false);
+    }
+  };
+
+  const formatNoticeDate = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return iso;
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${day} ${hh}:${mm}`;
+  };
+
   const handleDeleteStore = async () => {
     setDeleting(true);
     setError('');
@@ -570,10 +894,45 @@ export function BrewStorePage() {
                   {store.owned ? 'Owner' : store.subscribed ? 'Staff' : 'Guest'}
                   {' · '}
                   <BrewVisibilityBadge isPublic={store.isPublic} />
+                  {store.subscribed && store.leaveDate ? (
+                    <>
+                      {' · '}
+                      <span>퇴사 예정 {store.leaveDate}</span>
+                    </>
+                  ) : null}
                 </p>
               </>
             ) : null}
           </div>
+          {store && (store.owned || store.subscribed) ? (
+            <button
+              type="button"
+              className="brew-notice-icon-btn"
+              aria-label="공지"
+              title="공지"
+              onClick={openNotices}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              {notices.length > 0 ? (
+                <span className="brew-notice-icon-btn__badge">
+                  {notices.length > 99 ? '99+' : notices.length}
+                </span>
+              ) : null}
+            </button>
+          ) : null}
         </div>
 
         {error ? (
@@ -1037,6 +1396,7 @@ export function BrewStorePage() {
             {tab === 'schedule' && (store.owned || store.subscribed) ? (
               <BrewSchedulePanel
                 storeId={storeId}
+                storeName={store.name}
                 owned={store.owned}
                 subscribed={store.subscribed}
                 onError={setError}
@@ -1072,13 +1432,64 @@ export function BrewStorePage() {
                       />
                       공개 가게 (is_public)
                     </label>
+                    <div className="brew-invite-code">
+                      <p className="brew-field__label">가게 코드</p>
+                      <p className="brew-card-lead">
+                        직원에게 공유하면 이름 대신 코드로 정확히 찾을 수 있습니다.
+                        (비공개 가게도 코드로 검색 가능)
+                      </p>
+                      <div className="brew-invite-code__row">
+                        <code
+                          className={
+                            store.inviteCode
+                              ? 'brew-invite-code__value brew-invite-code__value--copyable'
+                              : 'brew-invite-code__value'
+                          }
+                          role={store.inviteCode ? 'button' : undefined}
+                          tabIndex={store.inviteCode ? 0 : undefined}
+                          title={
+                            store.inviteCode
+                              ? codeCopied
+                                ? '복사됨'
+                                : '탭하여 복사'
+                              : undefined
+                          }
+                          aria-label={
+                            store.inviteCode
+                              ? `가게 코드 ${store.inviteCode}, 탭하여 복사`
+                              : undefined
+                          }
+                          onClick={() => {
+                            if (!store.inviteCode) {
+                              return;
+                            }
+                            void handleCopyInviteCode();
+                          }}
+                          onKeyDown={(e) => {
+                            if (!store.inviteCode) {
+                              return;
+                            }
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              void handleCopyInviteCode();
+                            }
+                          }}
+                        >
+                          {store.inviteCode ?? '—'}
+                        </code>
+                      </div>
+                    </div>
                     <div className="brew-btn-row">
                       <BrewButton type="submit">저장/수정</BrewButton>
                       <BrewButton
-                        variant="danger"
-                        onClick={() => setDeleteDialogOpen(true)}
+                        type="button"
+                        variant="secondary"
+                        loading={regeneratingCode}
+                        onClick={() => {
+                          void handleRegenerateInviteCode();
+                        }}
                       >
-                        가게 삭제
+                        재발급
                       </BrewButton>
                     </div>
                   </form>
@@ -1098,20 +1509,7 @@ export function BrewStorePage() {
                           <div className="brew-search-result__actions">
                             <BrewButton
                               size="sm"
-                              onClick={() => {
-                                void (async () => {
-                                  try {
-                                    await brewApi.approveJoin(storeId, req.userId);
-                                    setJoinRequests((prev) =>
-                                      prev.filter((r) => r.userId !== req.userId),
-                                    );
-                                    const { data } = await brewApi.listSubscribers(storeId);
-                                    setSubscribers(data);
-                                  } catch (err: unknown) {
-                                    setError(getErrorMessage(err, '승인에 실패했습니다.'));
-                                  }
-                                })();
-                              }}
+                              onClick={() => setApproveTarget(req)}
                             >
                               승인
                             </BrewButton>
@@ -1139,6 +1537,7 @@ export function BrewStorePage() {
                 <BrewCard title="직원 · 재고 권한">
                   <p className="brew-card-lead">
                     재고 수정 권한을 켠 구독자만 재고 탭이 보이며, 수량·등록을 변경할 수 있습니다.
+                    퇴사일은 마지막 근무일이며, 그다음 날부터 구독·근무가 정리됩니다.
                   </p>
                   {subscribers.length === 0 ? (
                     <p className="brew-empty">구독자가 없습니다.</p>
@@ -1148,46 +1547,223 @@ export function BrewStorePage() {
                         <div key={sub.userId} className="brew-search-result">
                           <div>
                             <p className="brew-store-row__name">{sub.nickname}</p>
-                            <p className="brew-store-row__sub">{sub.email}</p>
+                            <p className="brew-store-row__sub">
+                              {sub.email}
+                              {sub.workStartDate
+                                ? ` · 근무 시작 ${sub.workStartDate}`
+                                : ''}
+                              {sub.leaveDate
+                                ? ` · 퇴사 예정 ${sub.leaveDate}`
+                                : ''}
+                            </p>
                           </div>
-                          <label className="brew-check">
-                            <input
-                              type="checkbox"
-                              checked={sub.canEditStock}
-                              onChange={(e) => {
-                                const next = e.target.checked;
-                                void (async () => {
-                                  try {
-                                    const { data } = await brewApi.updateStockPermission(
-                                      storeId,
-                                      sub.userId,
-                                      next,
-                                    );
-                                    setSubscribers((prev) =>
-                                      prev.map((s) =>
-                                        s.userId === data.userId ? data : s,
-                                      ),
-                                    );
-                                  } catch (err: unknown) {
-                                    setError(
-                                      getErrorMessage(err, '권한 변경에 실패했습니다.'),
-                                    );
-                                  }
-                                })();
-                              }}
-                            />
-                            재고 수정
-                          </label>
+                          <div className="brew-search-result__actions">
+                            <label className="brew-check">
+                              <input
+                                type="checkbox"
+                                checked={sub.canEditStock}
+                                onChange={(e) => {
+                                  const next = e.target.checked;
+                                  void (async () => {
+                                    try {
+                                      const { data } = await brewApi.updateStockPermission(
+                                        storeId,
+                                        sub.userId,
+                                        next,
+                                      );
+                                      setSubscribers((prev) =>
+                                        prev.map((s) =>
+                                          s.userId === data.userId ? data : s,
+                                        ),
+                                      );
+                                    } catch (err: unknown) {
+                                      setError(
+                                        getErrorMessage(err, '권한 변경에 실패했습니다.'),
+                                      );
+                                    }
+                                  })();
+                                }}
+                              />
+                              재고 수정
+                            </label>
+                            {sub.leaveDate ? (
+                              <BrewButton
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  void handleClearLeave(sub.userId, false)
+                                }
+                              >
+                                퇴사 취소
+                              </BrewButton>
+                            ) : (
+                              <BrewButton
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  openLeaveDialog({
+                                    userId: sub.userId,
+                                    nickname: sub.nickname,
+                                    self: false,
+                                  })
+                                }
+                              >
+                                퇴사
+                              </BrewButton>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </BrewCard>
+
+                <div className="brew-btn-row">
+                  <BrewButton
+                    variant="danger"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    가게 삭제
+                  </BrewButton>
+                </div>
               </div>
+            ) : null}
+
+            {tab === 'schedule' && store.subscribed && !store.owned ? (
+              <BrewCard title="가게 나가기">
+                <p className="brew-card-lead">
+                  퇴사일(마지막 근무일)을 지정하면 그날까지 근무할 수 있고, 다음날부터
+                  구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 나갑니다.
+                </p>
+                {store.leaveDate ? (
+                  <div className="brew-btn-row">
+                    <p className="brew-card-lead">퇴사 예정: {store.leaveDate}</p>
+                    <BrewButton
+                      variant="secondary"
+                      onClick={() => void handleClearLeave('', true)}
+                    >
+                      퇴사 예약 취소
+                    </BrewButton>
+                  </div>
+                ) : (
+                  <BrewButton
+                    variant="secondary"
+                    onClick={() =>
+                      openLeaveDialog({
+                        userId: '',
+                        nickname: '나',
+                        self: true,
+                      })
+                    }
+                  >
+                    퇴사일 지정 · 나가기
+                  </BrewButton>
+                )}
+              </BrewCard>
             ) : null}
           </>
         ) : null}
       </div>
+
+      <BrewModal open={noticesOpen} title="공지" onClose={closeNotices}>
+        <div className="brew-stack-lg">
+          {store?.owned ? (
+            <form className="brew-form-stack" onSubmit={(e) => void handleSaveNotice(e)}>
+              <BrewInput
+                label={editingNoticeId ? '제목 수정' : '새 공지 제목'}
+                value={noticeForm.title}
+                onChange={(e) =>
+                  setNoticeForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+                placeholder="공지 제목"
+                disabled={savingNotice}
+              />
+              <div className="brew-field">
+                <label className="brew-field__label" htmlFor="notice-body">
+                  본문
+                </label>
+                <textarea
+                  id="notice-body"
+                  className="brew-field__input brew-notice-body"
+                  rows={5}
+                  value={noticeForm.body}
+                  onChange={(e) =>
+                    setNoticeForm((prev) => ({ ...prev, body: e.target.value }))
+                  }
+                  placeholder="직원에게 전달할 내용"
+                  disabled={savingNotice}
+                />
+              </div>
+              <div className="brew-btn-row">
+                <BrewButton
+                  type="submit"
+                  loading={savingNotice}
+                  disabled={!noticeForm.title.trim() || !noticeForm.body.trim()}
+                >
+                  {editingNoticeId ? '수정 저장' : '공지 등록'}
+                </BrewButton>
+                {editingNoticeId ? (
+                  <BrewButton
+                    type="button"
+                    variant="secondary"
+                    disabled={savingNotice}
+                    onClick={() => {
+                      setEditingNoticeId(null);
+                      setNoticeForm({ title: '', body: '' });
+                    }}
+                  >
+                    작성 취소
+                  </BrewButton>
+                ) : null}
+              </div>
+            </form>
+          ) : null}
+
+          {notices.length === 0 ? (
+            <p className="brew-empty">등록된 공지가 없습니다.</p>
+          ) : (
+            <div className="brew-stack">
+              {notices.map((notice) => (
+                <article key={notice.id} className="brew-notice-item">
+                  <div className="brew-notice-item__head">
+                    <h3 className="brew-notice-item__title">{notice.title}</h3>
+                    <p className="brew-notice-item__meta">
+                      {notice.authorNickname || 'Owner'} · {formatNoticeDate(notice.createdAt)}
+                    </p>
+                  </div>
+                  <p className="brew-notice-item__body">{notice.body}</p>
+                  {store?.owned ? (
+                    <div className="brew-btn-row">
+                      <BrewButton
+                        size="sm"
+                        variant="secondary"
+                        disabled={savingNotice}
+                        onClick={() => startEditNotice(notice)}
+                      >
+                        수정
+                      </BrewButton>
+                      <BrewButton
+                        size="sm"
+                        variant="danger"
+                        disabled={savingNotice}
+                        onClick={() => void handleDeleteNotice(notice.id)}
+                      >
+                        삭제
+                      </BrewButton>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+
+          <div className="brew-modal__actions">
+            <BrewButton variant="secondary" onClick={closeNotices} disabled={savingNotice}>
+              닫기
+            </BrewButton>
+          </div>
+        </div>
+      </BrewModal>
 
       <BrewModal
         open={menuEditOpen}
@@ -1351,6 +1927,62 @@ export function BrewStorePage() {
             </BrewButton>
             <BrewButton type="submit" loading={creatingStock}>
               추가
+            </BrewButton>
+          </div>
+        </form>
+      </BrewModal>
+
+      <BrewJoinApproveModal
+        open={Boolean(approveTarget)}
+        request={approveTarget}
+        loading={approving}
+        onClose={() => {
+          if (!approving) {
+            setApproveTarget(null);
+          }
+        }}
+        onSave={(payload) => {
+          void handleConfirmApprove(payload);
+        }}
+      />
+
+      <BrewModal
+        open={leaveOpen}
+        title={leaveTarget?.self ? '가게 나가기' : `${leaveTarget?.nickname ?? ''} 퇴사`}
+        onClose={() => {
+          if (!leaving) {
+            setLeaveOpen(false);
+            setLeaveTarget(null);
+          }
+        }}
+      >
+        <form className="brew-form-stack" onSubmit={(e) => void handleConfirmLeave(e)}>
+          <p className="brew-card-lead">
+            퇴사일(마지막 근무일)을 선택하세요. 그날까지 근무할 수 있고, 다음날부터
+            구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 처리됩니다.
+          </p>
+          <BrewInput
+            label="퇴사일"
+            id="leave-date"
+            type="date"
+            required
+            value={leaveDate}
+            onChange={(e) => setLeaveDate(e.target.value)}
+          />
+          <div className="brew-btn-row">
+            <BrewButton
+              type="button"
+              variant="secondary"
+              disabled={leaving}
+              onClick={() => {
+                setLeaveOpen(false);
+                setLeaveTarget(null);
+              }}
+            >
+              취소
+            </BrewButton>
+            <BrewButton type="submit" variant="danger" loading={leaving}>
+              {leaveTarget?.self ? '나가기' : '퇴사 처리'}
             </BrewButton>
           </div>
         </form>

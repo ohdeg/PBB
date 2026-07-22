@@ -224,6 +224,38 @@ a:hover {
   font-size: 1.05rem;
 }
 
+.veveno-landing__brand {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 7vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  color: #8b6914;
+}
+
+.veveno-landing__glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, #c4a484 28%, transparent) 0%,
+    transparent 70%
+  );
+}
+
+.veveno-landing__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+.veveno-landing .store-hero h1 {
+  font-size: clamp(1.35rem, 3.2vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-muted);
+}
+
 .store-featured {
   margin-top: 1.75rem;
 }

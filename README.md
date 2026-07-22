@@ -8,7 +8,8 @@
 | 앱 | 경로 | 설명 |
 |----|------|------|
 | iPBT | `/hobbies/ipbt` | 날씨를 보고 야구가 가능한지 보는 앱 |
-| Brew Note | `/hobbies/brew-note` | 커피 레시피·테이스팅 노트 |
+| Veveno | `/hobbies/veveno` | 가게 노트 소개 랜딩 (앱 허브: `/hobbies/veveno/hub`) |
+| 6PICK | `/hobbies/lotto` | 로또 번호 생성·세금 계산 |
 | Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 
 공통 기능: 회원가입(약관 동의 포함) · 로그인 · JWT 인증 · PBB 스플래시 · 프로필

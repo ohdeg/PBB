@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { AuthLayout, FormField } from '../components/AuthForm';
 import { useAuthStore } from '../stores/authStore';
 import { getErrorMessage } from '../utils/error';
 import { isValidEmail } from '../utils/validation';
 
+function resolvePostLoginPath(from: unknown): string {
+  if (typeof from !== 'string' || !from.startsWith('/') || from.startsWith('//')) {
+    return '/';
+  }
+  return from;
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
 
   const [email, setEmail] = useState('');
@@ -38,7 +46,8 @@ export function LoginPage() {
         password,
       });
       setAccessToken(data.accessToken);
-      void navigate('/');
+      const state = location.state as { from?: unknown } | null;
+      void navigate(resolvePostLoginPath(state?.from));
     } catch (error: unknown) {
       setFormError(
         getErrorMessage(error, '이메일 혹은 비밀번호가 일치하지 않습니다.'),

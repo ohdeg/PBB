@@ -33,4 +33,9 @@ export const INDEXABLE_PAGE_SEO: readonly IndexablePageSeo[] = [
     description:
       'MusicXML/MXL 악보를 열고 메트로놈·조옮김·자동 스크롤로 연습',
   },
+  {
+    path: '/hobbies/veveno',
+    title: 'Veveno · PBB',
+    description: '메뉴·재고·근무를 한곳에 남기는 가벼운 매장 노트',
+  },
 ] as const;

@@ -273,7 +273,7 @@ export function BrewStorePage() {
       <Navigate
         to="/login"
         replace
-        state={{ from: `/hobbies/brew-note/stores/${storeId}` }}
+        state={{ from: `/hobbies/veveno/stores/${storeId}` }}
       />
     );
   }
@@ -638,7 +638,7 @@ export function BrewStorePage() {
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         })();
         if (leaveDate < today) {
-          navigate('/hobbies/brew-note');
+          navigate('/hobbies/veveno/hub');
           return;
         }
         await loadStore();
@@ -797,7 +797,7 @@ export function BrewStorePage() {
     try {
       await brewApi.deleteStore(storeId);
       setDeleteDialogOpen(false);
-      void navigate('/hobbies/brew-note');
+      void navigate('/hobbies/veveno/hub');
     } catch (err: unknown) {
       setError(getErrorMessage(err, '가게 삭제에 실패했습니다.'));
     } finally {
@@ -884,7 +884,7 @@ export function BrewStorePage() {
       <div className="brew-shell__inner brew-shell__inner--wide">
         <div className="brew-detail-head">
           <div>
-            <Link to="/hobbies/brew-note" className="brew-shell__back">
+            <Link to="/hobbies/veveno/hub" className="brew-shell__back">
               ← Veveno
             </Link>
             {store ? (

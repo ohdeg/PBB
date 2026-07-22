@@ -6,8 +6,8 @@ FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9
 > FigJam은 Design처럼 페이지가 없어 **기능별 섹션**으로 분리해 두었습니다.  
 > 좌측 레이어/섹션 목록에서 `0.~7.` 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
-> 취미 앱(iPBT / 6PICK / Score Viewer)은 **비로그인 진입 가능**.  
-> Veveno·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
+> 취미 앱(iPBT / 6PICK / Score Viewer)과 **Veveno 소개 랜딩**(`/hobbies/veveno`)은 **비로그인 진입 가능**.  
+> Veveno **허브·가게**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
 
 ---
 
@@ -160,7 +160,7 @@ flowchart LR
     home --> music[음악]
     featured --> target[선택된 앱 경로]
     sports --> baseball[/hobbies/ipbt]
-    life --> brew[/hobbies/brew-note]
+    life --> brew[/hobbies/veveno]
     life --> lotto[/hobbies/lotto]
     music --> score[/hobbies/score-viewer]
 ```
@@ -187,23 +187,25 @@ flowchart LR
 FigJam §8~8-3 + Notion DB 스키마 기준.  
 결제(PG/카드) §8-4·8-5는 스키마 미정의로 **미구현**.
 
-### 8-0. 진입 (로그인 필수)
+### 8-0. 진입 (공개 랜딩 → 로그인 후 허브)
 
-진입 시 **Veveno 스플래시**(앱 외부에서 진입할 때)를 표시한 뒤 허브/가게 상세로 전환.
+홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO). **시작하기** 후 로그인되면 허브로 이동.
 
 ```mermaid
 flowchart LR
-    home([홈]) --> brew[Veveno]
-    brew --> auth{로그인?}
-    auth -->|"아니오"| login([/login])
-    auth -->|"예"| splash[Veveno 스플래시]
-    splash --> hub[허브]
+    home([홈]) --> landing[/hobbies/veveno 랜딩]
+    landing -->|"시작하기 · 로그인됨"| hub[허브]
+    landing -->|"시작하기 · 비로그인"| login([/login])
+    login --> hub
     hub --> register[업장 등록]
     hub --> myStores[내 가게]
     hub --> subs[구독 중]
     hub --> public[공개 가게 · 가입 신청]
     hub --> codeSearch[가게 코드 검색]
 ```
+
+진입 시 허브/가게에서는 **Veveno 스플래시**(앱 외부에서 진입할 때)를 표시한 뒤 본 화면으로 전환.
+옛 경로 `/hobbies/brew-note` → 랜딩, `/hobbies/brew-note/stores/:id` → `/hobbies/veveno/stores/:id` 리다이렉트.
 
 - 설정(owner): **가게 코드** 표시·복사·재발급 (`invite_code` 8자 UNIQUE)
 - 허브 검색: 이름 부분일치 + 8자 영숫자면 코드 정확 일치(비공개 포함)
@@ -326,9 +328,11 @@ flowchart LR
 - `brew_store_subscriptions.work_start_date`: 첫 근무일. 달력·근무 중 판정은 이 날짜부터 (`leave_date`까지)
 
 라우트:
-- `/hobbies/brew-note` — 허브 (로그인 필수)
-- `/hobbies/brew-note/stores/:storeId` — 메뉴 / 재고 / 근무 / 도구 / 설정 (+ 헤더 공지). 탭은 `?tab=` 로 유지(새로고침 시 유지)
+- `/hobbies/veveno` — 공개 소개 랜딩 (SEO)
+- `/hobbies/veveno/hub` — 허브 (로그인 필수)
+- `/hobbies/veveno/stores/:storeId` — 가게(메뉴·재고·근무·도구·설정·공지). 탭은 `?tab=` 로 유지(새로고침 시 유지)
 - 메뉴 탭 **카테고리(메뉴) 목록**: 일반 클릭은 선택(레시피 조회), **편집** 모드에서 클릭 시 이름 수정·삭제 모달
+- 하위 호환: `/hobbies/brew-note` → 랜딩, `/hobbies/brew-note/stores/:id` → veveno stores
 
 ---
 
@@ -437,8 +441,9 @@ flowchart LR
 | `/profile` | 프로필 · 로그아웃 | **필수** |
 | `/profile/change-password` | 비밀번호 변경 (로그인) | **필수** |
 | `/hobbies/ipbt` | iPBT (오늘 야구 경기가 있을까?) | 선택 |
-| `/hobbies/brew-note` | Veveno 허브 | **필수** |
-| `/hobbies/brew-note/stores/:storeId` | 가게(메뉴·재고·근무·도구·설정·공지) | **필수** |
+| `/hobbies/veveno` | Veveno 소개 랜딩 | 불필요 (SEO) |
+| `/hobbies/veveno/hub` | Veveno 허브 | **필수** |
+| `/hobbies/veveno/stores/:storeId` | 가게(메뉴·재고·근무·도구·설정·공지) | **필수** |
 | `/hobbies/lotto` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
 | `/hobbies/score-viewer` | 악보 보관함 | 선택 |
 | `/hobbies/score-viewer/:id` | 악보 연습 뷰어 | 선택 |

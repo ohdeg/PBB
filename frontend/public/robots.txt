@@ -3,13 +3,15 @@ Allow: /
 Allow: /hobbies/ipbt
 Allow: /hobbies/lotto
 Allow: /hobbies/score-viewer
+Allow: /hobbies/veveno
 
 Disallow: /login
 Disallow: /signup
 Disallow: /find-email
 Disallow: /reset-password
 Disallow: /profile
-Disallow: /hobbies/brew-note
+Disallow: /hobbies/veveno/hub
+Disallow: /hobbies/veveno/stores
 Disallow: /maintenance
 Disallow: /error
 

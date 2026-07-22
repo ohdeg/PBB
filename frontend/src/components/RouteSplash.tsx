@@ -7,7 +7,7 @@ const ROUTE_SPLASH_MS = 650;
 /**
  * 실제 pathname/search 가 바뀔 때만 스플래시를 한 번 표시합니다.
  * 마운트·StrictMode 재실행에서는 경로가 같으면 건너뜁니다.
- * 6PICK(`/hobbies/lotto`)·Veveno(`/hobbies/brew-note`)는
+ * 6PICK(`/hobbies/lotto`)·Veveno hub/stores는
  * 앱 전용 스플래시를 쓰므로 여기서는 생략합니다.
  */
 export function RouteSplash() {
@@ -24,8 +24,10 @@ export function RouteSplash() {
     previousKeyRef.current = locationKey;
 
     if (
-      location.pathname.startsWith('/hobbies/lotto') ||
-      location.pathname.startsWith('/hobbies/brew-note')
+      location.pathname.startsWith('/hobbies/lotto')
+      || location.pathname.startsWith('/hobbies/veveno/hub')
+      || location.pathname.startsWith('/hobbies/veveno/stores')
+      || location.pathname.startsWith('/hobbies/brew-note')
     ) {
       setVisible(false);
       return;

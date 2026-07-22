@@ -86,7 +86,7 @@ export function BrewNotePage() {
   }, [panel]);
 
   if (!accessToken) {
-    return <Navigate to="/login" replace state={{ from: '/hobbies/brew-note' }} />;
+    return <Navigate to="/login" replace state={{ from: '/hobbies/veveno/hub' }} />;
   }
 
   const openPanel = (next: HubPanel) => {
@@ -133,7 +133,7 @@ export function BrewNotePage() {
     setError('');
     try {
       const { data } = await brewApi.createStore({ name, isPublic });
-      void navigate(`/hobbies/brew-note/stores/${data.id}`);
+      void navigate(`/hobbies/veveno/stores/${data.id}`);
     } catch (err: unknown) {
       setError(getErrorMessage(err, '가게 등록에 실패했습니다.'));
     } finally {
@@ -223,7 +223,7 @@ export function BrewNotePage() {
                       key={store.id}
                       name={store.name}
                       onClick={() => {
-                        void navigate(`/hobbies/brew-note/stores/${store.id}`);
+                        void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
                       badge={<BrewVisibilityBadge isPublic={store.isPublic} />}
                     />
@@ -245,7 +245,7 @@ export function BrewNotePage() {
                       key={store.id}
                       name={store.name}
                       onClick={() => {
-                        void navigate(`/hobbies/brew-note/stores/${store.id}`);
+                        void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
                       badge={<BrewVisibilityBadge isPublic={store.isPublic} />}
                     />
@@ -321,7 +321,7 @@ export function BrewNotePage() {
                               variant="secondary"
                               disabled={!canOpen}
                               onClick={() => {
-                                void navigate(`/hobbies/brew-note/stores/${store.id}`);
+                                void navigate(`/hobbies/veveno/stores/${store.id}`);
                               }}
                             >
                               열기

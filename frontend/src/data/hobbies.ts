@@ -27,12 +27,12 @@ export const HOBBY_APPS: HobbyApp[] = [
     available: true,
   },
   {
-    id: 'brew-note',
+    id: 'veveno',
     name: 'Veveno',
     subtitle: '가게 노트',
     description: '메뉴·재고·근무를 한곳에 남기는 가벼운 매장 노트',
     category: '라이프',
-    path: '/hobbies/brew-note',
+    path: '/hobbies/veveno',
     accent: '#c4a484',
     available: true,
   },
@@ -64,7 +64,12 @@ export function getFeaturedHobby(): HobbyApp {
 }
 
 export function getHobbyById(id: string): HobbyApp | undefined {
-  const resolvedId = id === 'analyze-baseball' ? 'ipbt' : id;
+  const resolvedId =
+    id === 'analyze-baseball'
+      ? 'ipbt'
+      : id === 'brew-note'
+        ? 'veveno'
+        : id;
   return HOBBY_APPS.find((app) => app.id === resolvedId);
 }
 

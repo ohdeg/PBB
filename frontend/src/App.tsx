@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { bootstrapAuth } from './api/axios';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { AppShell } from './components/AppShell';
@@ -24,15 +24,23 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ScoreLibraryPage } from './pages/ScoreLibraryPage';
 import { ScoreViewerPage } from './pages/ScoreViewerPage';
 import { SignupPage } from './pages/SignupPage';
+import { VevenoLandingPage } from './pages/VevenoLandingPage';
 
 const MIN_BOOT_SPLASH_MS = 700;
 
-/** 앱 전용 스플래시를 쓰는 경로 — PBB boot 스플래시 생략 */
+/** 앱 전용 스플래시를 쓰는 경로 — PBB boot 스플래시 생략 (공개 랜딩 제외) */
 function usesAppOwnedSplash(pathname: string): boolean {
   return (
-    pathname.startsWith('/hobbies/brew-note')
+    pathname.startsWith('/hobbies/veveno/hub')
+    || pathname.startsWith('/hobbies/veveno/stores')
+    || pathname.startsWith('/hobbies/brew-note')
     || pathname.startsWith('/hobbies/lotto')
   );
+}
+
+function LegacyBrewStoreRedirect() {
+  const { storeId } = useParams<{ storeId: string }>();
+  return <Navigate to={`/hobbies/veveno/stores/${storeId ?? ''}`} replace />;
 }
 
 export default function App() {
@@ -93,10 +101,19 @@ export default function App() {
                 path="/hobbies/analyze-baseball"
                 element={<Navigate to="/hobbies/ipbt" replace />}
               />
-              <Route path="/hobbies/brew-note" element={<BrewNotePage />} />
+              <Route path="/hobbies/veveno" element={<VevenoLandingPage />} />
+              <Route path="/hobbies/veveno/hub" element={<BrewNotePage />} />
+              <Route
+                path="/hobbies/veveno/stores/:storeId"
+                element={<BrewStorePage />}
+              />
+              <Route
+                path="/hobbies/brew-note"
+                element={<Navigate to="/hobbies/veveno" replace />}
+              />
               <Route
                 path="/hobbies/brew-note/stores/:storeId"
-                element={<BrewStorePage />}
+                element={<LegacyBrewStoreRedirect />}
               />
               <Route path="/hobbies/lotto" element={<LottoPage />} />
               <Route path="/hobbies/score-viewer" element={<ScoreLibraryPage />} />

@@ -957,14 +957,6 @@ export function LottoPage() {
     setShowSplash(false);
   }, []);
 
-  useEffect(() => {
-    const previousTitle = document.title;
-    document.title = '6PICK';
-    return () => {
-      document.title = previousTitle;
-    };
-  }, []);
-
   const [history, setHistory] = useState<LottoHistoryItem[]>([])
   const [historyTargetRound, setHistoryTargetRound] = useState<number | null>(
     null,

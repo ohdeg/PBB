@@ -6,7 +6,7 @@ FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9
 > FigJam은 Design처럼 페이지가 없어 **기능별 섹션**으로 분리해 두었습니다.  
 > 좌측 레이어/섹션 목록에서 `0.~7.` 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
-> 취미 앱(Analyze Baseball / 6PICK / Score Viewer)은 **비로그인 진입 가능**.  
+> 취미 앱(iPBT / 6PICK / Score Viewer)은 **비로그인 진입 가능**.  
 > Veveno·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
 
 ---
@@ -20,7 +20,7 @@ flowchart LR
     boot --> ready[앱 준비 완료]
     ready --> home[홈]
 
-    home --> baseball[Analyze Baseball]
+    home --> baseball[iPBT]
     home --> brew[Veveno]
     home --> lotto[6PICK]
     home --> score[Score Viewer]
@@ -159,26 +159,26 @@ flowchart LR
     home --> life[라이프]
     home --> music[음악]
     featured --> target[선택된 앱 경로]
-    sports --> baseball[/hobbies/analyze-baseball]
+    sports --> baseball[/hobbies/ipbt]
     life --> brew[/hobbies/brew-note]
     life --> lotto[/hobbies/lotto]
     music --> score[/hobbies/score-viewer]
 ```
 
-메인 상단 추천 영역은 공개 API `GET /api/v1/config/featured-app`로 앱 id 목록(`appIds`, 최대 5)을 받아 **캐러셀**로 렌더 — 5초 자동 로테이션 + 좌우 화살표·터치 스와이프·dots (1개면 단일 카드, `prefers-reduced-motion` 시 자동 전환 off). 조회 실패·미설정 시 기본 `analyze-baseball` 폴백. 값은 dev가 프로필에서 설정.
+메인 상단 추천 영역은 공개 API `GET /api/v1/config/featured-app`로 앱 id 목록(`appIds`, 최대 5)을 받아 **캐러셀**로 렌더 — 5초 자동 로테이션 + 좌우 화살표·터치 스와이프·dots (1개면 단일 카드, `prefers-reduced-motion` 시 자동 전환 off). 조회 실패·미설정 시 프론트 기본 `ipbt` 폴백(백엔드 폴백 id는 추후 동기화). 값은 dev가 프로필에서 설정.
 
 ---
 
-## 7. Analyze Baseball
+## 7. iPBT
 
 ```mermaid
 flowchart LR
-    enter([진입]) --> board[분석 보드]
+    enter([진입]) --> board[보드]
     board --> empty[표시할 데이터 없음]
     enter --> back[메인]
 ```
 
-현재 UI 스캐폴드 단계.
+현재 UI 스캐폴드 단계. 날씨로 야구 가능 여부 판정은 미구현.
 
 ---
 
@@ -436,7 +436,7 @@ flowchart LR
 | `/reset-password` | 비밀번호 재설정 | 불필요 |
 | `/profile` | 프로필 · 로그아웃 | **필수** |
 | `/profile/change-password` | 비밀번호 변경 (로그인) | **필수** |
-| `/hobbies/analyze-baseball` | 야구 분석 | 선택 |
+| `/hobbies/ipbt` | iPBT (오늘 야구 경기가 있을까?) | 선택 |
 | `/hobbies/brew-note` | Veveno 허브 | **필수** |
 | `/hobbies/brew-note/stores/:storeId` | 가게(메뉴·재고·근무·도구·설정·공지) | **필수** |
 | `/hobbies/lotto` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |

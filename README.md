@@ -7,7 +7,7 @@
 
 | 앱 | 경로 | 설명 |
 |----|------|------|
-| Analyze Baseball | `/hobbies/analyze-baseball` | 야구 데이터 분석 워크스페이스 |
+| iPBT | `/hobbies/ipbt` | 날씨를 보고 야구가 가능한지 보는 앱 |
 | Brew Note | `/hobbies/brew-note` | 커피 레시피·테이스팅 노트 |
 | Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 

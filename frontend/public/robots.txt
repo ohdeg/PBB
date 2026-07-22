@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Allow: /hobbies/ipbt
+Allow: /hobbies/lotto
+Allow: /hobbies/score-viewer
+
+Disallow: /login
+Disallow: /signup
+Disallow: /find-email
+Disallow: /reset-password
+Disallow: /profile
+Disallow: /hobbies/brew-note
+Disallow: /maintenance
+Disallow: /error
+
+Sitemap: https://app.pbbstudio.com/sitemap.xml

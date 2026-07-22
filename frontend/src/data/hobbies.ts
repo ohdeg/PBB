@@ -17,12 +17,12 @@ export type HobbyCategory = (typeof HOBBY_CATEGORIES)[number];
 
 export const HOBBY_APPS: HobbyApp[] = [
   {
-    id: 'analyze-baseball',
-    name: 'Analyze Baseball',
-    subtitle: '야구 분석',
-    description: '타격·투구·수비 데이터를 읽고 구조적으로 분석하는 워크스페이스',
+    id: 'ipbt',
+    name: 'iPBT',
+    subtitle: '오늘 야구 경기가 있을까?',
+    description: '날씨를 보고 야구가 가능한지 보는 앱',
     category: '스포츠',
-    path: '/hobbies/analyze-baseball',
+    path: '/hobbies/ipbt',
     accent: '#34c759',
     available: true,
   },
@@ -60,11 +60,12 @@ export const HOBBY_APPS: HobbyApp[] = [
 ];
 
 export function getFeaturedHobby(): HobbyApp {
-  return HOBBY_APPS.find((app) => app.id === 'analyze-baseball') ?? HOBBY_APPS[0];
+  return HOBBY_APPS.find((app) => app.id === 'ipbt') ?? HOBBY_APPS[0];
 }
 
 export function getHobbyById(id: string): HobbyApp | undefined {
-  return HOBBY_APPS.find((app) => app.id === id);
+  const resolvedId = id === 'analyze-baseball' ? 'ipbt' : id;
+  return HOBBY_APPS.find((app) => app.id === resolvedId);
 }
 
 export function getHobbiesByCategory(category: string): HobbyApp[] {

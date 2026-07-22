@@ -6,6 +6,7 @@ import { AppShell } from './components/AppShell';
 import { RouteSplash } from './components/RouteSplash';
 import { SplashScreen } from './components/SplashScreen';
 import { StatusView } from './components/StatusView';
+import { PageSeo } from './hooks/usePageSeo';
 import { useAppStatusStore } from './stores/appStatusStore';
 import { AnalysisPage } from './pages/AnalysisPage';
 import { ErrorPage } from './pages/ErrorPage';
@@ -80,13 +81,18 @@ export default function App() {
       ) : null}
       {appReady ? (
         <AppErrorBoundary>
+          <PageSeo />
           <RouteSplash />
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/maintenance" element={<MaintenancePage />} />
               <Route path="/error" element={<ErrorPage />} />
-              <Route path="/hobbies/analyze-baseball" element={<AnalysisPage />} />
+              <Route path="/hobbies/ipbt" element={<AnalysisPage />} />
+              <Route
+                path="/hobbies/analyze-baseball"
+                element={<Navigate to="/hobbies/ipbt" replace />}
+              />
               <Route path="/hobbies/brew-note" element={<BrewNotePage />} />
               <Route
                 path="/hobbies/brew-note/stores/:storeId"
@@ -97,11 +103,11 @@ export default function App() {
               <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route
                 path="/hobbies/pbb"
-                element={<Navigate to="/hobbies/analyze-baseball" replace />}
+                element={<Navigate to="/hobbies/ipbt" replace />}
               />
               <Route
                 path="/analysis"
-                element={<Navigate to="/hobbies/analyze-baseball" replace />}
+                element={<Navigate to="/hobbies/ipbt" replace />}
               />
               <Route path="/profile" element={<ProfilePage />} />
               <Route

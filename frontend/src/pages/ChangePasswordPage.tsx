@@ -31,6 +31,9 @@ export function ChangePasswordPage() {
   const [loading, setLoading] = useState(false);
 
   if (!accessToken) {
+    if (useAuthStore.getState().suppressLoginRedirect) {
+      return null;
+    }
     return <Navigate to="/login" replace />;
   }
 

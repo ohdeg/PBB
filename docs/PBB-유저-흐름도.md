@@ -143,8 +143,8 @@ flowchart LR
     featuredSet --> featuredSave[PUT /api/v1/dev/featured-app · appIds]
 ```
 
-헤더에서도 로그아웃 가능 (로그아웃 후 현재 페이지 유지).  
-탈퇴: `DELETE /api/v1/auth/account` + `{ password }`. Veveno **소유·구독** 가게가 있으면 삭제 안내 확인 후 비밀번호 단계 — 탈퇴 시 CASCADE로 함께 정리.  
+헤더에서도 로그아웃 가능. Veveno(허브·가게)에서는 **Veveno 랜딩**(`/hobbies/veveno`), 그 외는 **홈 `/`**으로 이동. 직전 경로는 `state.from`에 남겨 재로그인 시 복귀. 로그아웃 중에는 페이지 가드의 `/login` 리다이렉트를 잠시 억제한다.  
+탈퇴: `DELETE /api/v1/auth/account` + `{ password }`. Veveno **소유·구독** 가게가 있으면 삭제 안내 확인 후 비밀번호 단계 — 탈퇴 시 CASCADE로 함께 정리. 완료 후 **홈 `/`**.  
 **dev 전용**: 프로필 dev 패널에서 메인 추천 앱을 **추가 → 드래그(또는 ↑↓)로 순서 지정 → ×로 삭제**, 최대 5개(가득 찬 상태에서 추가하면 마지막 항목이 밀려남). `PUT /api/v1/dev/featured-app`(`{ appIds }`)로 저장 → 전역(`app_config.featured_app_id`, CSV)에 반영. 모든 사용자 메인 상단 캐러셀에 노출되며 여러 개면 자동 로테이션.
 
 ---
@@ -189,12 +189,15 @@ FigJam §8~8-3 + Notion DB 스키마 기준.
 
 ### 8-0. 진입 (공개 랜딩 → 로그인 후 허브)
 
-홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO). **시작하기** 후 로그인되면 허브로 이동.
+홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO).  
+**로그인 + 소유·직원(구독) 가게가 1개 이상**이면 랜딩을 건너뛰고 허브(`/hub`)로 이동(가게 1개여도 허브).  
+그 외는 랜딩을 보고 **시작하기** → 로그인 또는 허브.
 
 ```mermaid
 flowchart LR
     home([홈]) --> landing[/hobbies/veveno 랜딩]
-    landing -->|"시작하기 · 로그인됨"| hub[허브]
+    landing -->|"로그인 · 가게 있음"| hub[허브]
+    landing -->|"시작하기 · 로그인 · 가게 없음"| hub
     landing -->|"시작하기 · 비로그인"| login([/login])
     login --> hub
     hub --> register[업장 등록]

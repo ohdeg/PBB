@@ -224,36 +224,290 @@ a:hover {
   font-size: 1.05rem;
 }
 
-.veveno-landing__brand {
-  margin: 0 0 0.35rem;
-  font-family: var(--font-display);
-  font-size: clamp(2.4rem, 7vw, 3.5rem);
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
-  color: #8b6914;
+/* —— Veveno 공개 랜딩 —— */
+.veveno-landing {
+  --vl-paper: #f7f3ee;
+  --vl-paper-deep: #efe8df;
+  --vl-foam: #fffcf8;
+  --vl-ink: #2c2825;
+  --vl-ink-soft: #5c554e;
+  --vl-mute: #8a8178;
+  --vl-line: #e6ddd3;
+  --vl-accent: #c4a484;
+  --vl-accent-deep: #a88968;
+  --vl-accent-soft: #f3ebe3;
+  --vl-display: 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --vl-body: 'Outfit', 'Pretendard', sans-serif;
+
+  margin: -0.25rem -1.5rem 0;
+  padding: 0 1.5rem 4rem;
+  min-height: calc(100vh - var(--header-h) - 2rem);
+  color: var(--vl-ink);
+  font-family: var(--vl-body);
+  background:
+    radial-gradient(
+      ellipse 70% 45% at 12% 0%,
+      color-mix(in srgb, var(--vl-accent) 18%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(180deg, #faf7f3 0%, var(--vl-paper) 42%, #f3ece4 100%);
+  animation: page-enter 0.45s var(--ease-out);
 }
 
-.veveno-landing__glow {
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, #c4a484 28%, transparent) 0%,
-    transparent 70%
-  );
+.veveno-landing--gate {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - var(--header-h) - 2rem);
+}
+
+.veveno-landing__gate-copy {
+  margin: 0;
+  color: var(--vl-mute);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.veveno-landing__inner {
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.veveno-landing__hero {
+  padding: 2.25rem 0 2.75rem;
+}
+
+.veveno-landing__kicker {
+  margin: 0 0 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vl-accent-deep);
+}
+
+.veveno-landing__brand {
+  margin: 0;
+  font-family: var(--vl-display);
+  font-size: clamp(3rem, 10vw, 4.25rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  color: var(--vl-ink);
+}
+
+.veveno-landing__headline {
+  margin: 0.85rem 0 0;
+  max-width: 18ch;
+  font-family: var(--vl-display);
+  font-size: clamp(1.55rem, 4.2vw, 2.1rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  color: var(--vl-ink-soft);
+}
+
+.veveno-landing__lead {
+  margin: 1rem 0 0;
+  max-width: 34rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--vl-mute);
 }
 
 .veveno-landing__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 
-.veveno-landing .store-hero h1 {
-  font-size: clamp(1.35rem, 3.2vw, 1.75rem);
-  font-weight: 600;
+.veveno-landing__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.85rem;
+  padding: 0.7rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out);
+}
+
+.veveno-landing__btn--primary {
+  background: var(--vl-ink);
+  color: var(--vl-foam);
+}
+
+.veveno-landing__btn--primary:hover {
+  background: var(--vl-accent-deep);
+  transform: translateY(-1px);
+}
+
+.veveno-landing__btn--ghost {
+  background: transparent;
+  border-color: var(--vl-line);
+  color: var(--vl-ink-soft);
+}
+
+.veveno-landing__btn--ghost:hover {
+  border-color: var(--vl-accent);
+  background: var(--vl-accent-soft);
+  color: var(--vl-ink);
+  text-decoration: none;
+}
+
+.veveno-landing__section {
+  padding: 2.25rem 0;
+  border-top: 1px solid var(--vl-line);
+}
+
+.veveno-landing__section-label {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vl-accent-deep);
+}
+
+.veveno-landing__section-title {
+  margin: 0 0 1.5rem;
+  font-family: var(--vl-display);
+  font-size: clamp(1.45rem, 3.5vw, 1.85rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--vl-ink);
+}
+
+.veveno-landing__features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.35rem 1.5rem;
+}
+
+.veveno-landing__feature-label {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vl-accent-deep);
+}
+
+.veveno-landing__feature-title {
+  margin: 0;
+  font-family: var(--vl-display);
+  font-size: 1.15rem;
+  font-weight: 500;
   letter-spacing: -0.02em;
-  color: var(--text-muted);
+  color: var(--vl-ink);
+}
+
+.veveno-landing__feature-body {
+  margin: 0.4rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--vl-mute);
+}
+
+.veveno-landing__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.veveno-landing__step {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.veveno-landing__step-num {
+  font-family: var(--vl-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--vl-accent);
+}
+
+.veveno-landing__step-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--vl-ink);
+}
+
+.veveno-landing__step-body {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--vl-mute);
+}
+
+.veveno-landing__closing {
+  margin-top: 0.5rem;
+  padding: 2rem 0 0.5rem;
+  border-top: 1px solid var(--vl-line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.veveno-landing__closing-copy {
+  margin: 0;
+  max-width: 22rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--vl-ink-soft);
+}
+
+@media (max-width: 640px) {
+  .veveno-landing {
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+  }
+
+  .veveno-landing__features {
+    grid-template-columns: 1fr;
+  }
+
+  .veveno-landing__closing {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .veveno-landing__closing .veveno-landing__btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veveno-landing {
+    animation: none;
+  }
+
+  .veveno-landing__btn--primary:hover {
+    transform: none;
+  }
 }
 
 .store-featured {

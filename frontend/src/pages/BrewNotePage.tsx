@@ -86,6 +86,9 @@ export function BrewNotePage() {
   }, [panel]);
 
   if (!accessToken) {
+    if (useAuthStore.getState().suppressLoginRedirect) {
+      return null;
+    }
     return <Navigate to="/login" replace state={{ from: '/hobbies/veveno/hub' }} />;
   }
 

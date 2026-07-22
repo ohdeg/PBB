@@ -8,7 +8,10 @@ interface AuthState {
   email: string | null;
   userId: string | null;
   userClass: ParsedUserClass | null;
+  /** 로그아웃 직후 가드가 /login으로 덮어쓰지 않게 함 */
+  suppressLoginRedirect: boolean;
   setAccessToken: (token: string | null) => void;
+  setSuppressLoginRedirect: (value: boolean) => void;
   clearAuth: () => void;
 }
 
@@ -18,6 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   email: null,
   userId: null,
   userClass: null,
+  suppressLoginRedirect: false,
   setAccessToken: (token) => {
     if (!token) {
       set({
@@ -37,8 +41,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       email: payload?.sub ?? null,
       userId: payload?.userId ?? null,
       userClass: parseUserClass(payload?.userClass),
+      suppressLoginRedirect: false,
     });
   },
+  setSuppressLoginRedirect: (value) => set({ suppressLoginRedirect: value }),
   clearAuth: () =>
     set({
       accessToken: null,

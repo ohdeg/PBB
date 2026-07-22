@@ -269,6 +269,9 @@ export function BrewStorePage() {
   }, [selectedMenuId]);
 
   if (!accessToken) {
+    if (useAuthStore.getState().suppressLoginRedirect) {
+      return null;
+    }
     return (
       <Navigate
         to="/login"

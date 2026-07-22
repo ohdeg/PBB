@@ -112,6 +112,9 @@ export function ProfilePage() {
   }, [accessToken, userClass]);
 
   if (!accessToken) {
+    if (useAuthStore.getState().suppressLoginRedirect) {
+      return null;
+    }
     return <Navigate to="/login" replace />;
   }
 
@@ -243,8 +246,9 @@ export function ProfilePage() {
     setWithdrawError('');
     try {
       await authApi.deleteAccount({ password: withdrawPassword });
+      useAuthStore.getState().setSuppressLoginRedirect(true);
+      void navigate('/', { replace: true });
       clearAuth();
-      navigate('/login', { replace: true });
     } catch (error: unknown) {
       setWithdrawError(getErrorMessage(error, '회원 탈퇴에 실패했습니다.'));
     } finally {

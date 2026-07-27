@@ -15,6 +15,7 @@ import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
 import com.studiobs.spring_backend.domain.auth.support.RefreshTokenCookieFactory;
 import com.studiobs.spring_backend.global.common.MessageResponse;
 import com.studiobs.spring_backend.global.config.CookieProperties;
+import com.studiobs.spring_backend.global.web.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -42,15 +43,21 @@ public class AuthController {
 
     @PostMapping("/email/request")
     @ResponseStatus(HttpStatus.OK)
-    public MessageResponse requestSignupEmail(@Valid @RequestBody EmailRequest request) {
-        authService.requestSignupEmail(request);
+    public MessageResponse requestSignupEmail(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody EmailRequest request
+    ) {
+        authService.requestSignupEmail(request, ClientIpResolver.resolve(httpRequest));
         return new MessageResponse("인증 코드를 이메일로 발송했습니다.");
     }
 
     @PostMapping("/email/verify")
     @ResponseStatus(HttpStatus.OK)
-    public MessageResponse verifySignupEmail(@Valid @RequestBody EmailVerifyRequest request) {
-        authService.verifySignupEmail(request);
+    public MessageResponse verifySignupEmail(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody EmailVerifyRequest request
+    ) {
+        authService.verifySignupEmail(request, ClientIpResolver.resolve(httpRequest));
         return new MessageResponse("이메일 인증이 완료되었습니다.");
     }
 
@@ -62,8 +69,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        IssuedTokens tokens = authService.login(request);
+    public ResponseEntity<TokenResponse> login(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody LoginRequest request
+    ) {
+        IssuedTokens tokens = authService.login(request, ClientIpResolver.resolve(httpRequest));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
                         refreshTokenCookieFactory.create(tokens.refreshToken()).toString())
@@ -101,15 +111,21 @@ public class AuthController {
 
     @PostMapping("/password/request")
     @ResponseStatus(HttpStatus.OK)
-    public MessageResponse requestPasswordReset(@Valid @RequestBody EmailRequest request) {
-        authService.requestPasswordReset(request);
+    public MessageResponse requestPasswordReset(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody EmailRequest request
+    ) {
+        authService.requestPasswordReset(request, ClientIpResolver.resolve(httpRequest));
         return new MessageResponse("인증 코드를 이메일로 발송했습니다.");
     }
 
     @PostMapping("/password/verify")
     @ResponseStatus(HttpStatus.OK)
-    public MessageResponse verifyPasswordReset(@Valid @RequestBody EmailVerifyRequest request) {
-        authService.verifyPasswordReset(request);
+    public MessageResponse verifyPasswordReset(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody EmailVerifyRequest request
+    ) {
+        authService.verifyPasswordReset(request, ClientIpResolver.resolve(httpRequest));
         return new MessageResponse("이메일 인증이 완료되었습니다.");
     }
 
@@ -124,7 +140,7 @@ public class AuthController {
     @ResponseStatus(HttpStatus.OK)
     public MessageResponse requestPasswordChange(HttpServletRequest request) {
         String email = accessTokenResolver.requireEmail(request);
-        authService.requestPasswordChange(email);
+        authService.requestPasswordChange(email, ClientIpResolver.resolve(request));
         return new MessageResponse("인증 코드를 이메일로 발송했습니다.");
     }
 
@@ -135,7 +151,7 @@ public class AuthController {
             @Valid @RequestBody PasswordChangeVerifyRequest body
     ) {
         String email = accessTokenResolver.requireEmail(request);
-        authService.verifyPasswordChange(email, body.code());
+        authService.verifyPasswordChange(email, body.code(), ClientIpResolver.resolve(request));
         return new MessageResponse("이메일 인증이 완료되었습니다.");
     }
 

@@ -1,0 +1,25 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  mail:
+    host: localhost
+    port: 25
+  task:
+    scheduling:
+      enabled: false
+
+app:
+  mail:
+    mock: true
+  cookie:
+    secure: false
+    same-site: Strict
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  jwt:
+    secret: test-only-secret-key-must-be-long-enough-for-hs256-signing!!
+  r2:
+    enabled: false

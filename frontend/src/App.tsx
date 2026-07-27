@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { bootstrapAuth } from './api/axios';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -8,23 +8,47 @@ import { SplashScreen } from './components/SplashScreen';
 import { StatusView } from './components/StatusView';
 import { PageSeo } from './hooks/usePageSeo';
 import { useAppStatusStore } from './stores/appStatusStore';
-import { AnalysisPage } from './pages/AnalysisPage';
 import { ErrorPage } from './pages/ErrorPage';
 import { MaintenancePage } from './pages/MaintenancePage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { BrewNotePage } from './pages/BrewNotePage';
-import { BrewStorePage } from './pages/BrewStorePage';
-import { LottoPage } from './pages/LottoPage';
 import { FindEmailPage } from './pages/FindEmailPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import { ScoreLibraryPage } from './pages/ScoreLibraryPage';
-import { ScoreViewerPage } from './pages/ScoreViewerPage';
 import { SignupPage } from './pages/SignupPage';
-import { VevenoLandingPage } from './pages/VevenoLandingPage';
+
+const VevenoLandingPage = lazy(() =>
+  import('./pages/VevenoLandingPage').then((module) => ({
+    default: module.VevenoLandingPage,
+  })),
+);
+const VevenoPage = lazy(() =>
+  import('./pages/VevenoPage').then((module) => ({
+    default: module.VevenoPage,
+  })),
+);
+const VevenoStorePage = lazy(() =>
+  import('./pages/VevenoStorePage').then((module) => ({
+    default: module.VevenoStorePage,
+  })),
+);
+const LottoPage = lazy(() =>
+  import('./pages/LottoPage').then((module) => ({
+    default: module.LottoPage,
+  })),
+);
+const ScoreLibraryPage = lazy(() =>
+  import('./pages/ScoreLibraryPage').then((module) => ({
+    default: module.ScoreLibraryPage,
+  })),
+);
+const ScoreViewerPage = lazy(() =>
+  import('./pages/ScoreViewerPage').then((module) => ({
+    default: module.ScoreViewerPage,
+  })),
+);
 
 const MIN_BOOT_SPLASH_MS = 700;
 
@@ -91,21 +115,25 @@ export default function App() {
         <AppErrorBoundary>
           <PageSeo />
           <RouteSplash />
-          <Routes>
-            <Route element={<AppShell />}>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Routes>
+              <Route element={<AppShell />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/maintenance" element={<MaintenancePage />} />
               <Route path="/error" element={<ErrorPage />} />
-              <Route path="/hobbies/ipbt" element={<AnalysisPage />} />
+              <Route
+                path="/hobbies/ipbt/*"
+                element={<Navigate to="/" replace />}
+              />
               <Route
                 path="/hobbies/analyze-baseball"
-                element={<Navigate to="/hobbies/ipbt" replace />}
+                element={<Navigate to="/" replace />}
               />
               <Route path="/hobbies/veveno" element={<VevenoLandingPage />} />
-              <Route path="/hobbies/veveno/hub" element={<BrewNotePage />} />
+              <Route path="/hobbies/veveno/hub" element={<VevenoPage />} />
               <Route
                 path="/hobbies/veveno/stores/:storeId"
-                element={<BrewStorePage />}
+                element={<VevenoStorePage />}
               />
               <Route
                 path="/hobbies/brew-note"
@@ -120,11 +148,11 @@ export default function App() {
               <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route
                 path="/hobbies/pbb"
-                element={<Navigate to="/hobbies/ipbt" replace />}
+                element={<Navigate to="/" replace />}
               />
               <Route
                 path="/analysis"
-                element={<Navigate to="/hobbies/ipbt" replace />}
+                element={<Navigate to="/" replace />}
               />
               <Route path="/profile" element={<ProfilePage />} />
               <Route
@@ -132,16 +160,25 @@ export default function App() {
                 element={<ChangePasswordPage />}
               />
               <Route path="*" element={<NotFoundPage />} />
-            </Route>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/find-email" element={<FindEmailPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-          </Routes>
+              </Route>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/find-email" element={<FindEmailPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+            </Routes>
+          </Suspense>
           <MaintenanceGate />
         </AppErrorBoundary>
       ) : null}
     </>
+  );
+}
+
+function RouteLoadingFallback() {
+  return (
+    <div className="route-loading-fallback" role="status" aria-live="polite">
+      페이지를 불러오는 중입니다.
+    </div>
   );
 }
 

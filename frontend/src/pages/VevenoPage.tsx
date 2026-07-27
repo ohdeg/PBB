@@ -2,23 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { brewApi } from '../api/brewApi';
-import { BrewBadge } from '../components/brew/BrewBadge';
-import { BrewButton } from '../components/brew/BrewButton';
-import { BrewCard } from '../components/brew/BrewCard';
+import { VevenoBadge } from '../components/veveno/VevenoBadge';
+import { VevenoButton } from '../components/veveno/VevenoButton';
+import { VevenoCard } from '../components/veveno/VevenoCard';
 import {
   VevenoSplashScreen,
   useVevenoSplash,
-} from '../components/brew/VevenoSplashScreen';
-import { BrewInput } from '../components/brew/BrewInput';
-import { BrewStoreRow } from '../components/brew/BrewStoreRow';
-import { BrewVisibilityBadge } from '../components/brew/BrewVisibilityBadge';
+} from '../components/veveno/VevenoSplashScreen';
+import { VevenoInput } from '../components/veveno/VevenoInput';
+import { VevenoStoreRow } from '../components/veveno/VevenoStoreRow';
+import { VevenoVisibilityBadge } from '../components/veveno/VevenoVisibilityBadge';
 import { useAuthStore } from '../stores/authStore';
 import type { BrewStore } from '../types/brew';
 import { getErrorMessage } from '../utils/error';
 
 type HubPanel = 'none' | 'find' | 'create';
 
-export function BrewNotePage() {
+export function VevenoPage() {
   const navigate = useNavigate();
   const accessToken = useAuthStore((state) => state.accessToken);
   const { showSplash, handleSplashFinish } = useVevenoSplash();
@@ -191,10 +191,10 @@ export function BrewNotePage() {
           <p className="brew-shell__hero-brand">Veveno</p>
           <p>메뉴·재고·근무를 한곳에 남겨 두는 가벼운 가게 노트</p>
           <div className="brew-hero-cta">
-            <BrewButton onClick={() => openPanel('create')}>가게 등록</BrewButton>
-            <BrewButton variant="secondary" onClick={() => openPanel('find')}>
+            <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+            <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
               가게 찾기
-            </BrewButton>
+            </VevenoButton>
           </div>
         </header>
 
@@ -218,46 +218,46 @@ export function BrewNotePage() {
         <div className="brew-hub-grid">
           <section className="brew-section">
             <p className="brew-section__label">My stores</p>
-            <BrewCard title="내 가게">
+            <VevenoCard title="내 가게">
               {hasOwned ? (
                 <div className="brew-stack">
                   {myStores.map((store) => (
-                    <BrewStoreRow
+                    <VevenoStoreRow
                       key={store.id}
                       name={store.name}
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
-                      badge={<BrewVisibilityBadge isPublic={store.isPublic} />}
+                      badge={<VevenoVisibilityBadge isPublic={store.isPublic} />}
                     />
                   ))}
                 </div>
               ) : (
                 <p className="brew-empty">등록된 가게가 없습니다.</p>
               )}
-            </BrewCard>
+            </VevenoCard>
           </section>
 
           <section className="brew-section">
             <p className="brew-section__label">Subscribed</p>
-            <BrewCard title="근무 가게">
+            <VevenoCard title="근무 가게">
               {hasSubs ? (
                 <div className="brew-stack">
                   {subscriptions.map((store) => (
-                    <BrewStoreRow
+                    <VevenoStoreRow
                       key={store.id}
                       name={store.name}
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
-                      badge={<BrewVisibilityBadge isPublic={store.isPublic} />}
+                      badge={<VevenoVisibilityBadge isPublic={store.isPublic} />}
                     />
                   ))}
                 </div>
               ) : (
                 <p className="brew-empty">근무 중인 가게가 없습니다.</p>
               )}
-            </BrewCard>
+            </VevenoCard>
           </section>
         </div>
 
@@ -267,28 +267,28 @@ export function BrewNotePage() {
               <p className="brew-section__label">
                 {panel === 'find' ? 'Find a café' : 'Open yours'}
               </p>
-              <BrewButton size="sm" variant="ghost" onClick={() => setPanel('none')}>
+              <VevenoButton size="sm" variant="ghost" onClick={() => setPanel('none')}>
                 닫기
-              </BrewButton>
+              </VevenoButton>
             </div>
 
             {panel === 'find' ? (
-              <BrewCard title="가게 검색 · 가입">
+              <VevenoCard title="가게 검색 · 가입">
                 <p className="brew-card-lead">
                   가게 이름 또는 가게 코드(8자)로 찾아 가입을 신청합니다. 동명이 있을 때는
                   코드를 쓰면 정확히 찾을 수 있습니다.
                 </p>
                 <div className="brew-search-row">
-                  <BrewInput
+                  <VevenoInput
                     value={joinQuery}
                     onChange={(e) => setJoinQuery(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
                     placeholder="가게 이름 또는 코드"
                     autoComplete="off"
                   />
-                  <BrewButton onClick={() => void handleSearch()} loading={searching}>
+                  <VevenoButton onClick={() => void handleSearch()} loading={searching}>
                     검색
-                  </BrewButton>
+                  </VevenoButton>
                 </div>
 
                 {searchMessage ? (
@@ -304,12 +304,12 @@ export function BrewNotePage() {
                           <div>
                             <div className="brew-store-row__title-row">
                               <p className="brew-store-row__name">{store.name}</p>
-                              <BrewVisibilityBadge isPublic={store.isPublic} />
+                              <VevenoVisibilityBadge isPublic={store.isPublic} />
                               {store.owned ? (
-                                <BrewBadge variant="info">내 가게</BrewBadge>
+                                <VevenoBadge variant="info">내 가게</VevenoBadge>
                               ) : null}
                               {store.subscribed ? (
-                                <BrewBadge variant="success">구독 중</BrewBadge>
+                                <VevenoBadge variant="success">구독 중</VevenoBadge>
                               ) : null}
                             </div>
                             {!canOpen ? (
@@ -319,7 +319,7 @@ export function BrewNotePage() {
                             ) : null}
                           </div>
                           <div className="brew-search-result__actions">
-                            <BrewButton
+                            <VevenoButton
                               size="sm"
                               variant="secondary"
                               disabled={!canOpen}
@@ -328,9 +328,9 @@ export function BrewNotePage() {
                               }}
                             >
                               열기
-                            </BrewButton>
+                            </VevenoButton>
                             {!store.owned && !store.subscribed ? (
-                              <BrewButton
+                              <VevenoButton
                                 size="sm"
                                 loading={joiningStoreId === store.id}
                                 onClick={() => {
@@ -338,7 +338,7 @@ export function BrewNotePage() {
                                 }}
                               >
                                 가입 신청
-                              </BrewButton>
+                              </VevenoButton>
                             ) : null}
                           </div>
                         </div>
@@ -346,14 +346,14 @@ export function BrewNotePage() {
                     })}
                   </div>
                 ) : null}
-              </BrewCard>
+              </VevenoCard>
             ) : (
-              <BrewCard title="가게 등록">
+              <VevenoCard title="가게 등록">
                 <p className="brew-card-lead">
                   이름과 공개 여부만 정하면 새 노트를 시작할 수 있습니다.
                 </p>
                 <form className="brew-form-stack" onSubmit={handleCreateStore}>
-                  <BrewInput
+                  <VevenoInput
                     label="가게 이름"
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
@@ -370,11 +370,11 @@ export function BrewNotePage() {
                     />
                     공개 가게
                   </label>
-                  <BrewButton type="submit" loading={creating}>
+                  <VevenoButton type="submit" loading={creating}>
                     가게 생성
-                  </BrewButton>
+                  </VevenoButton>
                 </form>
-              </BrewCard>
+              </VevenoCard>
             )}
           </section>
         ) : null}

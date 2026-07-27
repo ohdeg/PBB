@@ -31,12 +31,14 @@ public class AuthService {
 
     private final UserService userService;
     private final AuthRedisService authRedisService;
+    private final AuthRateLimitService authRateLimitService;
     private final MailService mailService;
     private final JwtTokenProvider jwtTokenProvider;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public void requestSignupEmail(EmailRequest request) {
+    public void requestSignupEmail(EmailRequest request, String clientIp) {
         String email = normalizeEmail(request.email());
+        authRateLimitService.checkEmailSend(email, clientIp);
 
         if (userService.existsByEmail(email)) {
             throw new BusinessException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.");
@@ -47,8 +49,9 @@ public class AuthService {
         mailService.sendVerificationCode(email, code);
     }
 
-    public void verifySignupEmail(EmailVerifyRequest request) {
+    public void verifySignupEmail(EmailVerifyRequest request, String clientIp) {
         String email = normalizeEmail(request.email());
+        authRateLimitService.checkEmailVerify(email, clientIp);
         String code = request.code().trim();
 
         String savedCode = authRedisService.getSignupCode(email)
@@ -123,8 +126,9 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public IssuedTokens login(LoginRequest request) {
+    public IssuedTokens login(LoginRequest request, String clientIp) {
         String email = normalizeEmail(request.email());
+        authRateLimitService.checkLogin(email, clientIp);
 
         User user = userService.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(
@@ -197,8 +201,9 @@ public class AuthService {
         userService.delete(user);
     }
 
-    public void requestPasswordChange(String email) {
+    public void requestPasswordChange(String email, String clientIp) {
         String normalized = normalizeEmail(email);
+        authRateLimitService.checkEmailSend(normalized, clientIp);
         if (userService.findByEmail(normalized).isEmpty()) {
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
         }
@@ -209,8 +214,9 @@ public class AuthService {
         mailService.sendVerificationCode(normalized, code);
     }
 
-    public void verifyPasswordChange(String email, String code) {
+    public void verifyPasswordChange(String email, String code, String clientIp) {
         String normalized = normalizeEmail(email);
+        authRateLimitService.checkEmailVerify(normalized, clientIp);
         String trimmedCode = code.trim();
 
         String savedCode = authRedisService.getPasswordChangeCode(normalized)
@@ -253,8 +259,9 @@ public class AuthService {
         authRedisService.deleteRefreshToken(normalized);
     }
 
-    public void requestPasswordReset(EmailRequest request) {
+    public void requestPasswordReset(EmailRequest request, String clientIp) {
         String email = normalizeEmail(request.email());
+        authRateLimitService.checkEmailSend(email, clientIp);
 
         if (userService.findByEmail(email).isEmpty()) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "가입된 이메일이 아닙니다.");
@@ -266,8 +273,9 @@ public class AuthService {
         mailService.sendVerificationCode(email, code);
     }
 
-    public void verifyPasswordReset(EmailVerifyRequest request) {
+    public void verifyPasswordReset(EmailVerifyRequest request, String clientIp) {
         String email = normalizeEmail(request.email());
+        authRateLimitService.checkEmailVerify(email, clientIp);
         String code = request.code().trim();
 
         String savedCode = authRedisService.getPasswordResetCode(email)

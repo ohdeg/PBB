@@ -1,7 +1,10 @@
 package com.studiobs.spring_backend.global.config;
 
+import com.studiobs.spring_backend.global.security.JwtAuthenticationFilter;
 import java.util.Arrays;
 import java.util.List;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +16,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -30,21 +35,67 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter
+    ) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) ->
+                                response.sendError(HttpStatus.UNAUTHORIZED.value()))
+                        .accessDeniedHandler((request, response, exception) ->
+                                response.sendError(HttpStatus.FORBIDDEN.value())))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/account").authenticated()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/auth/password/change/request",
+                                "/api/v1/auth/password/change/verify"
+                        ).authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/password/change")
+                                .authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/config/**").permitAll()
-                        .requestMatchers("/api/v1/dev/**").permitAll()
-                        .requestMatchers("/api/v1/brew/**").permitAll()
-                        .requestMatchers("/api/v1/lotto/**").permitAll()
-                        .anyRequest().authenticated());
+                        .requestMatchers(HttpMethod.GET, "/api/v1/config/**").permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/lotto/draws",
+                                "/api/v1/lotto/draws/latest",
+                                "/api/v1/brew/stores/public",
+                                "/api/v1/brew/stores/search"
+                        ).permitAll()
+                        .requestMatchers(publicBrewStoreReadMatcher()).permitAll()
+                        .requestMatchers("/api/v1/dev/**").hasRole("DEV")
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/lotto/draws",
+                                "/api/v1/lotto/draws/replace"
+                        ).hasRole("DEV")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/lotto/draws/*")
+                                .hasRole("DEV")
+                        .requestMatchers("/api/v1/**").authenticated()
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private static RegexRequestMatcher publicBrewStoreReadMatcher() {
+        String uuid = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+                + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+        String pattern = "^/api/v1/brew/(stores/" + uuid
+                + "(?:/menus)?|menus/" + uuid + "/recipes)$";
+        return new RegexRequestMatcher(pattern, HttpMethod.GET.name());
     }
 
     @Bean

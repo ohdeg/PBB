@@ -1,13 +1,13 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
-interface BrewInputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface VevenoInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
 }
 
-export const BrewInput = forwardRef<HTMLInputElement, BrewInputProps>(
-  function BrewInput({ label, error, hint, className = '', id, ...props }, ref) {
+export const VevenoInput = forwardRef<HTMLInputElement, VevenoInputProps>(
+  function VevenoInput({ label, error, hint, className = '', id, ...props }, ref) {
     const inputId = id ?? (label ? label.replace(/\s/g, '-').toLowerCase() : undefined);
 
     return (

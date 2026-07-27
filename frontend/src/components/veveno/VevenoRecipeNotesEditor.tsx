@@ -5,9 +5,9 @@ import {
   outdentSelection,
   toggleBulletOnSelection,
   toggleNumberedOnSelection,
-} from './brewNotesList';
+} from './vevenoNotesList';
 
-interface BrewRecipeNotesEditorProps {
+interface VevenoRecipeNotesEditorProps {
   id: string;
   value: string;
   onChange: (value: string) => void;
@@ -16,14 +16,14 @@ interface BrewRecipeNotesEditorProps {
   disabled?: boolean;
 }
 
-export function BrewRecipeNotesEditor({
+export function VevenoRecipeNotesEditor({
   id,
   value,
   onChange,
   placeholder = '추출·원두·테이스팅 메모',
   rows = 8,
   disabled = false,
-}: BrewRecipeNotesEditorProps) {
+}: VevenoRecipeNotesEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
 

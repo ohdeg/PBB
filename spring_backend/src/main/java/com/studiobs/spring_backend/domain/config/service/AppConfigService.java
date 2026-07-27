@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AppConfigService {
 
     public static final String KEY_FEATURED_APP_ID = "featured_app_id";
-    public static final String DEFAULT_FEATURED_APP_ID = "analyze-baseball";
+    public static final String DEFAULT_FEATURED_APP_ID = "veveno";
     public static final int MAX_FEATURED_APPS = 5;
 
     private final AppConfigRepository appConfigRepository;

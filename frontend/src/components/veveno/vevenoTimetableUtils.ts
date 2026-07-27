@@ -1,8 +1,8 @@
 import type { BrewCalendarOccurrence } from '../../types/brew';
 
-export const BREW_HOUR_HEIGHT_PX = 48;
+export const VEVENO_HOUR_HEIGHT_PX = 48;
 
-export interface BrewStaffColor {
+export interface VevenoStaffColor {
   bg: string;
   border: string;
   text: string;
@@ -14,13 +14,13 @@ export interface BrewStaffColor {
  */
 const STAFF_COLOR_HUES = [25, 55, 95, 140, 175, 205, 235, 265, 300, 340] as const;
 
-const STAFF_COLOR_PALETTE: readonly BrewStaffColor[] = STAFF_COLOR_HUES.map((hue) => ({
+const STAFF_COLOR_PALETTE: readonly VevenoStaffColor[] = STAFF_COLOR_HUES.map((hue) => ({
   bg: `hsla(${hue}, 45%, 48%, 0.26)`,
   border: `hsla(${hue}, 48%, 36%, 0.6)`,
   text: `hsl(${hue}, 50%, 24%)`,
 }));
 
-export interface BrewTimetableRange {
+export interface VevenoTimetableRange {
   startHour: number;
   endHour: number;
   startMinutes: number;
@@ -29,7 +29,7 @@ export interface BrewTimetableRange {
 }
 
 /** 한 근무를 겹침 구간에 따라 쪼갠 세로 조각 */
-export interface BrewTimetableSegment {
+export interface VevenoTimetableSegment {
   occurrence: BrewCalendarOccurrence;
   top: number;
   height: number;
@@ -90,7 +90,7 @@ function formatHourLabel(hour: number): string {
   return `익일 ${String(hour - 24).padStart(2, '0')}:00`;
 }
 
-function buildRange(startHour: number, endHour: number): BrewTimetableRange {
+function buildRange(startHour: number, endHour: number): VevenoTimetableRange {
   const hourLabels = Array.from({ length: endHour - startHour }, (_, index) =>
     formatHourLabel(startHour + index),
   );
@@ -98,7 +98,7 @@ function buildRange(startHour: number, endHour: number): BrewTimetableRange {
     startHour,
     endHour,
     startMinutes: startHour * 60,
-    totalHeight: hourLabels.length * BREW_HOUR_HEIGHT_PX,
+    totalHeight: hourLabels.length * VEVENO_HOUR_HEIGHT_PX,
     hourLabels,
   };
 }
@@ -112,7 +112,7 @@ function hashUserId(userId: string): number {
 }
 
 /** userId → 고정 색 (해시만 사용, 로컬 스토리지 불필요) */
-export function getBrewStaffColor(userId: string): BrewStaffColor {
+export function getVevenoStaffColor(userId: string): VevenoStaffColor {
   return STAFF_COLOR_PALETTE[hashUserId(userId) % STAFF_COLOR_PALETTE.length]!;
 }
 
@@ -121,8 +121,8 @@ export function getBrewStaffColor(userId: string): BrewStaffColor {
  * 해시 슬롯이 이미 쓰였으면 다음 빈 슬롯으로 밀어낸다(정렬된 명단 기준이라 결정적).
  * 인원이 팔레트(10색)를 넘으면 그때부터는 색이 재사용된다.
  */
-export function buildBrewStaffColorMap(userIds: string[]): Map<string, BrewStaffColor> {
-  const map = new Map<string, BrewStaffColor>();
+export function buildVevenoStaffColorMap(userIds: string[]): Map<string, VevenoStaffColor> {
+  const map = new Map<string, VevenoStaffColor>();
   const used = new Set<number>();
   const sorted = [...new Set(userIds)].sort();
   for (const id of sorted) {
@@ -139,9 +139,9 @@ export function buildBrewStaffColorMap(userIds: string[]): Map<string, BrewStaff
 }
 
 /** 주간 표시 시간 범위 (근무/대타 기준, 기본 08–22) */
-export function getBrewWeekTimetableRange(
+export function getVevenoWeekTimetableRange(
   occurrences: BrewCalendarOccurrence[],
-): BrewTimetableRange {
+): VevenoTimetableRange {
   let minStart = Infinity;
   let maxEnd = -Infinity;
 
@@ -171,10 +171,10 @@ export function getBrewWeekTimetableRange(
  * 겹치는 구간만 폭을 나누고, 혼자인 구간은 전체 폭.
  * 시작·종료 시각을 경계로 세로 세그먼트를 만든다.
  */
-export function layoutBrewDayTimetableBlocks(
+export function layoutVevenoDayTimetableBlocks(
   occurrences: BrewCalendarOccurrence[],
-  range: BrewTimetableRange,
-): BrewTimetableSegment[] {
+  range: VevenoTimetableRange,
+): VevenoTimetableSegment[] {
   const items = expandWorkSpans(occurrences);
 
   if (items.length === 0) {
@@ -216,7 +216,7 @@ export function layoutBrewDayTimetableBlocks(
   }
 
   // 같은 근무의 인접 세그먼트 중 폭·열이 같으면 병합
-  const segments: BrewTimetableSegment[] = [];
+  const segments: VevenoTimetableSegment[] = [];
 
   for (const item of items) {
     const rawParts: { start: number; end: number; column: number; columnCount: number }[] = [];
@@ -249,10 +249,10 @@ export function layoutBrewDayTimetableBlocks(
     }
 
     merged.forEach((part, index) => {
-      const top = ((part.start - range.startMinutes) / 60) * BREW_HOUR_HEIGHT_PX;
+      const top = ((part.start - range.startMinutes) / 60) * VEVENO_HOUR_HEIGHT_PX;
       const height = Math.max(
         4,
-        ((part.end - part.start) / 60) * BREW_HOUR_HEIGHT_PX - (index === merged.length - 1 ? 2 : 0),
+        ((part.end - part.start) / 60) * VEVENO_HOUR_HEIGHT_PX - (index === merged.length - 1 ? 2 : 0),
       );
       const widthPercent = 100 / part.columnCount;
       segments.push({

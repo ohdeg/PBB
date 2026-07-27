@@ -11,21 +11,11 @@ export interface HobbyApp {
   iconSrc?: string;
 }
 
-export const HOBBY_CATEGORIES = ['스포츠', '라이프', '음악'] as const;
+export const HOBBY_CATEGORIES = ['라이프', '음악'] as const;
 
 export type HobbyCategory = (typeof HOBBY_CATEGORIES)[number];
 
 export const HOBBY_APPS: HobbyApp[] = [
-  {
-    id: 'ipbt',
-    name: 'iPBT',
-    subtitle: '오늘 야구 경기가 있을까?',
-    description: '날씨를 보고 야구가 가능한지 보는 앱',
-    category: '스포츠',
-    path: '/hobbies/ipbt',
-    accent: '#34c759',
-    available: true,
-  },
   {
     id: 'veveno',
     name: 'Veveno',
@@ -36,7 +26,7 @@ export const HOBBY_APPS: HobbyApp[] = [
     accent: '#c4a484',
     available: true,
   },
-    {
+  {
     id: 'lotto',
     name: '6PICK',
     subtitle: '로또 번호',
@@ -60,16 +50,11 @@ export const HOBBY_APPS: HobbyApp[] = [
 ];
 
 export function getFeaturedHobby(): HobbyApp {
-  return HOBBY_APPS.find((app) => app.id === 'ipbt') ?? HOBBY_APPS[0];
+  return HOBBY_APPS.find((app) => app.id === 'veveno') ?? HOBBY_APPS[0];
 }
 
 export function getHobbyById(id: string): HobbyApp | undefined {
-  const resolvedId =
-    id === 'analyze-baseball'
-      ? 'ipbt'
-      : id === 'brew-note'
-        ? 'veveno'
-        : id;
+  const resolvedId = id === 'brew-note' ? 'veveno' : id;
   return HOBBY_APPS.find((app) => app.id === resolvedId);
 }
 

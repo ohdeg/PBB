@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BrewInput } from './BrewInput';
+import { VevenoInput } from './VevenoInput';
 
 type UnitKind = 'mass' | 'volume' | 'temp' | 'scale';
 
@@ -52,7 +52,7 @@ function formatNumber(n: number): string {
   return n.toPrecision(3);
 }
 
-export function BrewUnitConverter() {
+export function VevenoUnitConverter() {
   const [kind, setKind] = useState<UnitKind>('mass');
   const [amount, setAmount] = useState('100');
   const [fromId, setFromId] = useState('g');
@@ -124,7 +124,7 @@ export function BrewUnitConverter() {
       </div>
 
       <div className="brew-unit-grid">
-        <BrewInput
+        <VevenoInput
           id="brew-unit-amount"
           label={kind === 'temp' ? '온도' : kind === 'scale' ? '기준 값' : '값'}
           inputMode="decimal"
@@ -147,7 +147,7 @@ export function BrewUnitConverter() {
         ) : null}
 
         {kind === 'scale' ? (
-          <BrewInput
+          <VevenoInput
             id="brew-unit-scale"
             label="배율"
             inputMode="decimal"

@@ -87,6 +87,15 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.route-loading-fallback {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: var(--text-muted);
+  background: var(--bg);
+  font-size: 0.95rem;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
   color: var(--text);
@@ -965,42 +974,6 @@ a:hover {
   letter-spacing: 0.08em;
   color: var(--text);
 }
-
-.analysis-main {
-  max-width: 720px;
-  margin-inline: auto;
-}
-
-.analysis-main h1 {
-  margin: 0 0 0.4rem;
-  font-family: var(--font-display);
-  font-size: clamp(1.7rem, 4vw, 2.25rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.analysis-lead {
-  color: var(--text-muted);
-  max-width: 36rem;
-}
-
-.analysis-panel {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
-
-.analysis-panel h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.analysis-panel p {
-  margin: 0;
-  color: var(--text-muted);
-}
-
 
 .empty-state {
   margin: 0;
@@ -2789,8 +2762,35 @@ a:hover {
   margin-bottom: 1rem;
 }
 
+.brew-schedule-toolbar__top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  gap: 0.5rem;
+}
+
 .brew-schedule-toolbar__modes {
+  grid-column: 2;
   justify-content: center;
+}
+
+.brew-schedule-toolbar__export {
+  grid-column: 3;
+  justify-self: end;
+}
+
+@media (max-width: 640px) {
+  .brew-schedule-toolbar__top {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .brew-schedule-toolbar__modes,
+  .brew-schedule-toolbar__export {
+    grid-column: 1;
+    justify-self: center;
+  }
 }
 
 .brew-schedule-nav {

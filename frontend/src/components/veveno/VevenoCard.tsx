@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 
-interface BrewCardProps {
+interface VevenoCardProps {
   title?: string;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
 }
 
-export function BrewCard({ title, action, children, className = '' }: BrewCardProps) {
+export function VevenoCard({ title, action, children, className = '' }: VevenoCardProps) {
   return (
     <section className={`brew-card ${className}`.trim()}>
       {title || action ? (

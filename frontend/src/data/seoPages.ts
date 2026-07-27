@@ -17,11 +17,6 @@ export const INDEXABLE_PAGE_SEO: readonly IndexablePageSeo[] = [
     description: "취미 앱을 골라 시작하는 Play beom's BAG",
   },
   {
-    path: '/hobbies/ipbt',
-    title: 'iPBT · PBB',
-    description: '날씨를 보고 오늘 야구가 가능한지 보는 앱',
-  },
-  {
     path: '/hobbies/lotto',
     title: '6PICK · PBB',
     description:

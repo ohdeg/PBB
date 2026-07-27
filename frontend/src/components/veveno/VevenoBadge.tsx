@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 
-interface BrewBadgeProps {
+interface VevenoBadgeProps {
   children: ReactNode;
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info';
 }
 
-export function BrewBadge({ children, variant = 'default' }: BrewBadgeProps) {
+export function VevenoBadge({ children, variant = 'default' }: VevenoBadgeProps) {
   return (
     <span className={`brew-badge brew-badge--${variant}`}>{children}</span>
   );

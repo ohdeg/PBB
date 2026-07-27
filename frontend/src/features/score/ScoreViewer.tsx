@@ -14,15 +14,8 @@ import PlaybackControls from './components/PlaybackControls';
 import { FirstUseGuide } from './ui/FirstUseGuide';
 import { useTranslation } from './i18n/LanguageContext';
 import {
-  buildMeasureWindows,
   clampMeasureRange,
-  computePlayheadHighlight,
-  createPlayheadHighlightLookup,
-  getCountInDurationMs,
   getElapsedMsForMeasure,
-  getMetronomeBeatContext,
-  getPlaybackStepByElapsed,
-  getSectionPlaybackBounds,
   parseTimeSignatureFromMusicXml,
 } from './utils/measureTiming';
 import { collectMetronomeClickEvents } from './utils/metronomeBeatEvents';
@@ -47,11 +40,16 @@ import {
 } from './types/tempoChange';
 import type { AnnotationBrushSizes, AnnotationToolMode } from './types/scoreAnnotation';
 import {
+  createPracticeSettingsDraft,
+  type PracticeSettingsDraft,
+} from './types/scorePractice';
+import {
   loadAnnotationBrushSizes,
   normalizeAnnotationBrushSizes,
   saveAnnotationBrushSizes,
 } from './constants/annotationBrush';
-import { useScorePlaybackStore } from './store/scorePlaybackStore';
+import { useScorePlaybackController } from './hooks/useScorePlaybackController';
+import { useScorePlaybackDerived } from './hooks/useScorePlaybackDerived';
 
 interface ScoreViewerProps {
   scoreId: string;
@@ -61,45 +59,6 @@ const BPM_STORAGE_KEY = 'music-viewer:last-bpm';
 const MEASURES_PER_LINE_STORAGE_KEY = 'music-viewer:last-measures-per-line';
 const SCORE_VIEWER_GUIDE_SEEN_KEY = 'music-viewer:guide:score-viewer-seen';
 const USER_SCROLL_INTERRUPT_TOUCH_THRESHOLD_PX = 10;
-
-interface PracticeSettingsDraft {
-  bpm: number;
-  beatsPerMeasure: number;
-  beatType: number;
-  measuresPerLine: number;
-  isAutoScroll: boolean;
-  isMetronomeEnabled: boolean;
-  isMeasureHighlightEnabled: boolean;
-  startMeasure: number;
-  endMeasure: number;
-  isRepeatMode: boolean;
-  transposeSemitones: number;
-  beatStrengths: BeatStrengthLevel[];
-  beatSubdivisions: BeatSubdivisionId[];
-  tempoChanges: TempoChange[];
-}
-
-const createPracticeSettingsDraft = (values: {
-  bpm: number;
-  beatsPerMeasure: number;
-  beatType: number;
-  measuresPerLine: number;
-  isAutoScroll: boolean;
-  isMetronomeEnabled: boolean;
-  isMeasureHighlightEnabled: boolean;
-  startMeasure: number;
-  endMeasure: number;
-  isRepeatMode: boolean;
-  transposeSemitones: number;
-  beatStrengths: BeatStrengthLevel[];
-  beatSubdivisions: BeatSubdivisionId[];
-  tempoChanges: TempoChange[];
-}): PracticeSettingsDraft => ({
-  ...values,
-  beatStrengths: [...values.beatStrengths],
-  beatSubdivisions: [...values.beatSubdivisions],
-  tempoChanges: [...values.tempoChanges],
-});
 
 export function ScoreViewer({ scoreId }: ScoreViewerProps) {
   const t = useTranslation();
@@ -193,32 +152,34 @@ export function ScoreViewer({ scoreId }: ScoreViewerProps) {
   const isIpad = isIpadLikeDevice();
   const isAnnotationToolActive = annotationTool !== 'none';
 
-  const bpm = useScorePlaybackStore((state) => state.bpm);
-  const beatsPerMeasure = useScorePlaybackStore((state) => state.beatsPerMeasure);
-  const beatType = useScorePlaybackStore((state) => state.beatType);
-  const isPlaying = useScorePlaybackStore((state) => state.isPlaying);
-  const elapsedMs = useScorePlaybackStore((state) => state.elapsedMs);
-  const currentMeasureIndex = useScorePlaybackStore((state) => state.currentMeasureIndex);
-  const isAutoScroll = useScorePlaybackStore((state) => state.isAutoScroll);
-  const isMetronomeEnabled = useScorePlaybackStore((state) => state.isMetronomeEnabled);
-  const isMeasureHighlightEnabled = useScorePlaybackStore((state) => state.isMeasureHighlightEnabled);
-  const measuresPerLine = useScorePlaybackStore((state) => state.measuresPerLine);
-  const scrollSmoothing = useScorePlaybackStore((state) => state.scrollSmoothing);
-  const autoScrollMode = useScorePlaybackStore((state) => state.autoScrollMode);
-  const beatStrengths = useScorePlaybackStore((state) => state.beatStrengths);
-  const beatSubdivisions = useScorePlaybackStore((state) => state.beatSubdivisions);
-  const setBpm = useScorePlaybackStore((state) => state.setBpm);
-  const setTimeSignature = useScorePlaybackStore((state) => state.setTimeSignature);
-  const setPlaying = useScorePlaybackStore((state) => state.setPlaying);
-  const setElapsedMs = useScorePlaybackStore((state) => state.setElapsedMs);
-  const setCurrentMeasureIndex = useScorePlaybackStore((state) => state.setCurrentMeasureIndex);
-  const setAutoScroll = useScorePlaybackStore((state) => state.setAutoScroll);
-  const setMetronomeEnabled = useScorePlaybackStore((state) => state.setMetronomeEnabled);
-  const setMeasureHighlightEnabled = useScorePlaybackStore((state) => state.setMeasureHighlightEnabled);
-  const setMeasuresPerLine = useScorePlaybackStore((state) => state.setMeasuresPerLine);
-  const setBeatStrengthAt = useScorePlaybackStore((state) => state.setBeatStrengthAt);
-  const setBeatSubdivisionAt = useScorePlaybackStore((state) => state.setBeatSubdivisionAt);
-  const resetPlayback = useScorePlaybackStore((state) => state.resetPlayback);
+  const {
+    bpm,
+    beatsPerMeasure,
+    beatType,
+    isPlaying,
+    elapsedMs,
+    currentMeasureIndex,
+    isAutoScroll,
+    isMetronomeEnabled,
+    isMeasureHighlightEnabled,
+    measuresPerLine,
+    scrollSmoothing,
+    autoScrollMode,
+    beatStrengths,
+    beatSubdivisions,
+    setBpm,
+    setTimeSignature,
+    setPlaying,
+    setElapsedMs,
+    setCurrentMeasureIndex,
+    setAutoScroll,
+    setMetronomeEnabled,
+    setMeasureHighlightEnabled,
+    setMeasuresPerLine,
+    setBeatStrengthAt,
+    setBeatSubdivisionAt,
+    resetPlayback,
+  } = useScorePlaybackController();
 
   const timeSignature = useMemo(
     () => ({ beatsPerMeasure, beatType }),
@@ -332,25 +293,40 @@ export function ScoreViewer({ scoreId }: ScoreViewerProps) {
     setTimeSignature(parseTimeSignatureFromMusicXml(musicXml));
   }, [musicXml, setTimeSignature]);
 
-  const windows = useMemo(
-    () => buildMeasureWindows(snapshot.timings, snapshot.playbackSequence, bpm, tempoChanges),
-    [snapshot.timings, snapshot.playbackSequence, bpm, tempoChanges],
-  );
-
-  const totalMeasures = Math.max(snapshot.timings.length, 1);
-
-  const practiceRange = useMemo(
-    () => clampMeasureRange(startMeasure, endMeasure, totalMeasures),
-    [startMeasure, endMeasure, totalMeasures],
-  );
-
-  const sectionStartIndex = practiceRange.startMeasure - 1;
-  const sectionEndIndex = practiceRange.endMeasure - 1;
-
-  const { startMs: sectionStartMs, endMs: sectionEndMs } = useMemo(
-    () => getSectionPlaybackBounds(windows, sectionStartIndex, sectionEndIndex),
-    [windows, sectionStartIndex, sectionEndIndex],
-  );
+  const {
+    windows,
+    totalMeasures,
+    practiceRange,
+    sectionStartIndex,
+    sectionStartMs,
+    sectionEndMs,
+    isImmersive,
+    draftPracticeRange,
+    totalPlaybackSteps,
+    countInWindow,
+    countInMetronomeWindows,
+    countInDurationMs,
+    positionHighlight,
+    selectionHighlight,
+    playbackStepIndex,
+    activePlaybackSignature,
+    activeBeatIndex,
+    displayMeasureNumber,
+  } = useScorePlaybackDerived({
+    snapshot,
+    bpm,
+    tempoChanges,
+    startMeasure,
+    endMeasure,
+    settingsDraft,
+    currentMeasureIndex,
+    rangeSelectionStartMeasure,
+    isPlaying,
+    isCountingIn,
+    elapsedMs,
+    countInElapsedMs,
+    timeSignature,
+  });
 
   useEffect(() => {
     if (totalMeasures <= 0) return;
@@ -361,30 +337,6 @@ export function ScoreViewer({ scoreId }: ScoreViewerProps) {
       return previous;
     });
   }, [totalMeasures, scoreId]);
-
-  const isImmersive = isPlaying || isCountingIn;
-
-  const draftPracticeRange = useMemo(
-    () =>
-      clampMeasureRange(settingsDraft.startMeasure, settingsDraft.endMeasure, totalMeasures),
-    [settingsDraft.startMeasure, settingsDraft.endMeasure, totalMeasures],
-  );
-
-  const totalPlaybackSteps = Math.max(snapshot.playbackSequence.length, 1);
-
-  const countInWindow = useMemo(() => {
-    if (windows.length === 0) return null;
-    return (
-      windows.find((window) => window.measureIndex === currentMeasureIndex) ?? windows[0]
-    );
-  }, [windows, currentMeasureIndex]);
-
-  const countInMetronomeWindows = useMemo(() => {
-    if (!countInWindow) return [];
-    return [{ ...countInWindow, startMs: 0, playbackStepIndex: 0 }];
-  }, [countInWindow]);
-
-  const countInDurationMs = countInWindow ? getCountInDurationMs(countInWindow) : 0;
 
   countInAudioRef.current = {
     enabled: isMetronomeEnabled,
@@ -406,85 +358,6 @@ export function ScoreViewer({ scoreId }: ScoreViewerProps) {
     beatStrengths,
     beatSubdivisions,
   };
-
-  const highlightElapsedMs = useMemo(() => {
-    if (isCountingIn) {
-      return getElapsedMsForMeasure(windows, currentMeasureIndex);
-    }
-    return elapsedMs;
-  }, [isCountingIn, windows, currentMeasureIndex, elapsedMs]);
-
-  const playheadHighlightLookup = useMemo(
-    () => createPlayheadHighlightLookup(snapshot.measureLayoutsInContainer, windows),
-    [snapshot.measureLayoutsInContainer, windows],
-  );
-
-  const positionHighlight = useMemo(
-    () =>
-      computePlayheadHighlight(
-        snapshot.measureLayoutsInContainer,
-        windows,
-        highlightElapsedMs,
-        playheadHighlightLookup,
-      ),
-    [snapshot.measureLayoutsInContainer, windows, highlightElapsedMs, playheadHighlightLookup],
-  );
-
-  const selectionHighlight = useMemo(() => {
-    if (rangeSelectionStartMeasure === null) return null;
-    if (snapshot.measureLayoutsInContainer.length === 0 || windows.length === 0) return null;
-
-    const measureIndex = rangeSelectionStartMeasure - 1;
-    const selectionElapsedMs = getElapsedMsForMeasure(windows, measureIndex);
-    return computePlayheadHighlight(
-      snapshot.measureLayoutsInContainer,
-      windows,
-      selectionElapsedMs,
-      playheadHighlightLookup,
-    );
-  }, [rangeSelectionStartMeasure, snapshot.measureLayoutsInContainer, windows, playheadHighlightLookup]);
-
-  const playbackStepIndex = useMemo(
-    () => getPlaybackStepByElapsed(windows, highlightElapsedMs),
-    [windows, highlightElapsedMs],
-  );
-
-  const activePlaybackSignature = useMemo(() => {
-    const activeWindow = windows[playbackStepIndex];
-    if (!activeWindow) return timeSignature;
-    return {
-      beatsPerMeasure: activeWindow.beatsPerMeasure,
-      beatType: activeWindow.beatType,
-    };
-  }, [windows, playbackStepIndex, timeSignature]);
-
-  const activeBeatIndex = useMemo(() => {
-    if (!(isPlaying || isCountingIn)) return null;
-    const metronomeContext = getMetronomeBeatContext(
-      isCountingIn ? countInMetronomeWindows : windows,
-      isCountingIn ? countInElapsedMs : elapsedMs,
-      bpm,
-      isCountingIn
-        ? (countInWindow?.beatsPerMeasure ?? activePlaybackSignature.beatsPerMeasure)
-        : activePlaybackSignature.beatsPerMeasure,
-    );
-    return metronomeContext.beatInMeasure;
-  }, [
-    windows,
-    countInMetronomeWindows,
-    countInWindow,
-    isPlaying,
-    isCountingIn,
-    countInElapsedMs,
-    elapsedMs,
-    bpm,
-    activePlaybackSignature.beatsPerMeasure,
-  ]);
-
-  const displayMeasureNumber = useMemo(() => {
-    const timing = snapshot.timings[currentMeasureIndex];
-    return timing?.measureNumber ?? currentMeasureIndex + 1;
-  }, [snapshot.timings, currentMeasureIndex]);
 
   useEffect(() => {
     metronomeRef.current = new MetronomeAudio();

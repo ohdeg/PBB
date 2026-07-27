@@ -1,13 +1,13 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-interface BrewButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface VevenoButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   children: ReactNode;
 }
 
-export function BrewButton({
+export function VevenoButton({
   variant = 'primary',
   size = 'md',
   loading = false,
@@ -16,7 +16,7 @@ export function BrewButton({
   children,
   type = 'button',
   ...props
-}: BrewButtonProps) {
+}: VevenoButtonProps) {
   const classes = [
     'brew-btn',
     `brew-btn--${variant}`,

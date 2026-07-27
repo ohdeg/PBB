@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
-Allow: /hobbies/ipbt
 Allow: /hobbies/lotto
 Allow: /hobbies/score-viewer
 Allow: /hobbies/veveno

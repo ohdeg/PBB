@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { BrewBadge } from './BrewBadge';
+import { VevenoBadge } from './VevenoBadge';
 
-interface BrewStoreRowProps {
+interface VevenoStoreRowProps {
   name: string;
   subtitle?: string;
   badge?: ReactNode;
@@ -10,14 +10,14 @@ interface BrewStoreRowProps {
   trailing?: ReactNode;
 }
 
-export function BrewStoreRow({
+export function VevenoStoreRow({
   name,
   subtitle,
   badge,
   selected = false,
   onClick,
   trailing,
-}: BrewStoreRowProps) {
+}: VevenoStoreRowProps) {
   const className = [
     'brew-store-row',
     selected ? 'is-selected' : '',
@@ -32,7 +32,7 @@ export function BrewStoreRow({
         <div className="brew-store-row__main">
           <div className="brew-store-row__title-row">
             <p className="brew-store-row__name">{name}</p>
-            {selected ? <BrewBadge variant="info">선택</BrewBadge> : null}
+            {selected ? <VevenoBadge variant="info">선택</VevenoBadge> : null}
           </div>
           {subtitle ? <p className="brew-store-row__sub">{subtitle}</p> : null}
         </div>

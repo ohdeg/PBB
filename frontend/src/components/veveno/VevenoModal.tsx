@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
-interface BrewModalProps {
+interface VevenoModalProps {
   open: boolean;
   title: string;
   onClose: () => void;
@@ -8,13 +8,13 @@ interface BrewModalProps {
   closeOnBackdrop?: boolean;
 }
 
-export function BrewModal({
+export function VevenoModal({
   open,
   title,
   onClose,
   children,
   closeOnBackdrop = true,
-}: BrewModalProps) {
+}: VevenoModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
 

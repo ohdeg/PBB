@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { BrewCalendarOccurrence } from '../../types/brew';
 import {
-  BREW_HOUR_HEIGHT_PX,
-  buildBrewStaffColorMap,
-  getBrewStaffColor,
-  getBrewWeekTimetableRange,
-  layoutBrewDayTimetableBlocks,
+  VEVENO_HOUR_HEIGHT_PX,
+  buildVevenoStaffColorMap,
+  getVevenoStaffColor,
+  getVevenoWeekTimetableRange,
+  layoutVevenoDayTimetableBlocks,
   occurrencesForDate,
-  type BrewStaffColor,
-  type BrewTimetableSegment,
-} from './brewTimetableUtils';
+  type VevenoStaffColor,
+  type VevenoTimetableSegment,
+} from './vevenoTimetableUtils';
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
-interface BrewWeekTimelineViewProps {
+interface VevenoWeekTimelineViewProps {
   days: Date[];
   occurrences: BrewCalendarOccurrence[];
   staffUserIds: string[];
@@ -43,7 +43,7 @@ function blockTitle(occ: BrewCalendarOccurrence): string {
   return `${occ.nickname}\n${time}`;
 }
 
-function segmentClassName(segment: BrewTimetableSegment): string {
+function segmentClassName(segment: VevenoTimetableSegment): string {
   const parts = [
     'brew-tt-block',
     `brew-tt-block--${segment.occurrence.type.toLowerCase()}`,
@@ -67,10 +67,10 @@ function DayColumn({
   dayOccurrences: BrewCalendarOccurrence[];
   rangeHeight: number;
   hourCount: number;
-  range: ReturnType<typeof getBrewWeekTimetableRange>;
-  colorMap: Map<string, BrewStaffColor>;
+  range: ReturnType<typeof getVevenoWeekTimetableRange>;
+  colorMap: Map<string, VevenoStaffColor>;
 }) {
-  const segments = layoutBrewDayTimetableBlocks(dayOccurrences, range);
+  const segments = layoutVevenoDayTimetableBlocks(dayOccurrences, range);
 
   return (
     <div className="brew-tt-day" style={{ height: rangeHeight }}>
@@ -78,13 +78,13 @@ function DayColumn({
         <div
           key={hourIndex}
           className="brew-tt-hour-line"
-          style={{ top: hourIndex * BREW_HOUR_HEIGHT_PX, height: BREW_HOUR_HEIGHT_PX }}
+          style={{ top: hourIndex * VEVENO_HOUR_HEIGHT_PX, height: VEVENO_HOUR_HEIGHT_PX }}
         />
       ))}
       {segments.map((segment) => {
         const color =
           colorMap.get(segment.occurrence.userId)
-          ?? getBrewStaffColor(segment.occurrence.userId);
+          ?? getVevenoStaffColor(segment.occurrence.userId);
         return (
           <div
             key={segment.layoutKey}
@@ -125,14 +125,14 @@ function DayColumn({
   );
 }
 
-export default function BrewWeekTimelineView({
+export default function VevenoWeekTimelineView({
   days,
   occurrences,
   staffUserIds,
-}: BrewWeekTimelineViewProps) {
+}: VevenoWeekTimelineViewProps) {
   const colorMap = useMemo(
     () =>
-      buildBrewStaffColorMap([
+      buildVevenoStaffColorMap([
         ...staffUserIds,
         ...occurrences.map((occ) => occ.userId),
       ]),
@@ -155,7 +155,7 @@ export default function BrewWeekTimelineView({
   }, [dayKeys, days, selectedKey, todayKey]);
 
   const range = useMemo(
-    () => getBrewWeekTimetableRange(occurrences),
+    () => getVevenoWeekTimetableRange(occurrences),
     [occurrences],
   );
 
@@ -200,7 +200,7 @@ export default function BrewWeekTimelineView({
                       key={label}
                       className="brew-tt-gutter__hour"
                       style={{
-                        height: BREW_HOUR_HEIGHT_PX,
+                        height: VEVENO_HOUR_HEIGHT_PX,
                         paddingTop: index === 0 ? 4 : 0,
                       }}
                     >
@@ -252,7 +252,7 @@ export default function BrewWeekTimelineView({
                   key={label}
                   className="brew-tt-gutter__hour"
                   style={{
-                    height: BREW_HOUR_HEIGHT_PX,
+                    height: VEVENO_HOUR_HEIGHT_PX,
                     paddingTop: index === 0 ? 4 : 0,
                   }}
                 >

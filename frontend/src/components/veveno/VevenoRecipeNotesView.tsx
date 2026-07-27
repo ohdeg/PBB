@@ -1,6 +1,6 @@
-import { parseNotesToBlocks } from './brewNotesList';
+import { parseNotesToBlocks } from './vevenoNotesList';
 
-interface BrewRecipeNotesViewProps {
+interface VevenoRecipeNotesViewProps {
   notes: string;
 }
 
@@ -10,7 +10,7 @@ function bulletMarker(level: number): string {
   return BULLET_MARKERS[Math.min(level, BULLET_MARKERS.length - 1)] ?? '•';
 }
 
-export function BrewRecipeNotesView({ notes }: BrewRecipeNotesViewProps) {
+export function VevenoRecipeNotesView({ notes }: VevenoRecipeNotesViewProps) {
   const blocks = parseNotesToBlocks(notes);
 
   if (blocks.length === 0) {

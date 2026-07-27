@@ -10,22 +10,22 @@ import type {
   BrewShiftKind,
 } from '../../types/brew';
 import { getErrorMessage } from '../../utils/error';
-import { BrewButton } from './BrewButton';
-import { BrewCard } from './BrewCard';
-import { BrewInput } from './BrewInput';
-import { downloadMonthlyWorkJournal } from './brewMonthlyJournalExport';
-import BrewWeekTimelineView from './BrewWeekTimelineView';
+import { VevenoButton } from './VevenoButton';
+import { VevenoCard } from './VevenoCard';
+import { VevenoInput } from './VevenoInput';
+import { downloadMonthlyWorkJournal } from './vevenoMonthlyJournalExport';
+import VevenoWeekTimelineView from './VevenoWeekTimelineView';
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 type ViewMode = 'week' | 'month';
 
-interface BrewStaffMember {
+interface VevenoStaffMember {
   userId: string;
   nickname: string;
 }
 
-interface BrewSchedulePanelProps {
+interface VevenoSchedulePanelProps {
   storeId: string;
   storeName: string;
   owned: boolean;
@@ -169,19 +169,19 @@ function coverStatusLabel(status: string, kind: BrewShiftKind = 'COVER'): string
   }
 }
 
-export function BrewSchedulePanel({
+export function VevenoSchedulePanel({
   storeId,
   storeName,
   owned,
   subscribed,
   onError,
-}: BrewSchedulePanelProps) {
+}: VevenoSchedulePanelProps) {
   const userId = useAuthStore((s) => s.userId);
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchor, setAnchor] = useState(() => new Date());
   const [occurrences, setOccurrences] = useState<BrewCalendarOccurrence[]>([]);
   const [pendingCovers, setPendingCovers] = useState<BrewCover[]>([]);
-  const [staff, setStaff] = useState<BrewStaffMember[]>([]);
+  const [staff, setStaff] = useState<VevenoStaffMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [exportingJournal, setExportingJournal] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -625,42 +625,46 @@ export function BrewSchedulePanel({
 
   return (
     <div className="brew-stack-lg">
-      <BrewCard title={owned ? '직원 근무 달력' : '내 근무'}>
+      <VevenoCard title={owned ? '직원 근무 달력' : '내 근무'}>
         <p className="brew-card-lead">
           {owned
             ? '매장 전 직원의 근무·대체·추가를 한 화면에서 봅니다. 종료가 시작보다 이르면 자정 넘김입니다.'
             : '내 근무와 관련된 대체·추가를 주간·월간으로 확인합니다.'}
         </p>
         <div className="brew-schedule-toolbar">
-          <div className="brew-btn-row brew-schedule-toolbar__modes">
-            <BrewButton
-              size="sm"
-              variant={viewMode === 'week' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('week')}
-            >
-              주간
-            </BrewButton>
-            <BrewButton
-              size="sm"
-              variant={viewMode === 'month' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('month')}
-            >
-              월간
-            </BrewButton>
-            <BrewButton size="sm" variant="secondary" onClick={() => setAnchor(new Date())}>
-              오늘
-            </BrewButton>
-            <BrewButton
-              size="sm"
-              variant="secondary"
-              loading={exportingJournal}
-              title={`${journalMonthLabel} 예정 근무 일지 · 직원별 시간 요약`}
-              onClick={() => {
-                void handleExportMonthlyJournal();
-              }}
-            >
-              월간 일지 엑셀
-            </BrewButton>
+          <div className="brew-schedule-toolbar__top">
+            <div className="brew-btn-row brew-schedule-toolbar__modes">
+              <VevenoButton
+                size="sm"
+                variant={viewMode === 'week' ? 'primary' : 'secondary'}
+                onClick={() => setViewMode('week')}
+              >
+                주간
+              </VevenoButton>
+              <VevenoButton
+                size="sm"
+                variant={viewMode === 'month' ? 'primary' : 'secondary'}
+                onClick={() => setViewMode('month')}
+              >
+                월간
+              </VevenoButton>
+              <VevenoButton size="sm" variant="secondary" onClick={() => setAnchor(new Date())}>
+                오늘
+              </VevenoButton>
+            </div>
+            <div className="brew-schedule-toolbar__export">
+              <VevenoButton
+                size="sm"
+                variant="secondary"
+                loading={exportingJournal}
+                title={`${journalMonthLabel} 예정 근무 일지 · 직원별 시간 요약`}
+                onClick={() => {
+                  void handleExportMonthlyJournal();
+                }}
+              >
+                근무표 다운로드
+              </VevenoButton>
+            </div>
           </div>
           <div className="brew-schedule-nav">
             <button
@@ -685,7 +689,7 @@ export function BrewSchedulePanel({
         {loading ? (
           <p className="brew-empty">불러오는 중…</p>
         ) : viewMode === 'week' ? (
-          <BrewWeekTimelineView
+          <VevenoWeekTimelineView
             days={range.days}
             occurrences={occurrences}
             staffUserIds={staff.map((s) => s.userId)}
@@ -774,11 +778,11 @@ export function BrewSchedulePanel({
             })}
           </div>
         )}
-      </BrewCard>
+      </VevenoCard>
 
       <div className="brew-schedule-panels">
       {owned ? (
-        <BrewCard title="정규 근무 지정">
+        <VevenoCard title="정규 근무 지정">
           {staff.length === 0 ? (
             <p className="brew-empty">직원이 없습니다. 가입 승인 후 지정할 수 있습니다.</p>
           ) : (
@@ -818,14 +822,14 @@ export function BrewSchedulePanel({
                     onChange={(e) => setBulkEndTime(e.target.value)}
                     aria-label="일괄 종료 시각"
                   />
-                  <BrewButton
+                  <VevenoButton
                     type="button"
                     size="sm"
                     variant="secondary"
                     onClick={applyBulkTimesToSelectedDays}
                   >
                     선택 요일에 적용
-                  </BrewButton>
+                  </VevenoButton>
                 </div>
                 <p className="brew-field__hint">
                   체크한 요일에만 위 시간이 들어갑니다. 적용 후에도 요일별로 수정할 수
@@ -892,21 +896,21 @@ export function BrewSchedulePanel({
               <p className="brew-card-lead">
                 종료 시각이 시작보다 이르면 자정 넘김(예: 22:00~06:00)으로 저장됩니다.
               </p>
-              <BrewButton type="submit" loading={savingSchedule}>
+              <VevenoButton type="submit" loading={savingSchedule}>
                 근무 저장
-              </BrewButton>
+              </VevenoButton>
             </form>
           )}
-        </BrewCard>
+        </VevenoCard>
       ) : null}
 
       {(owned || subscribed) && staff.length > 0 ? (
-        <BrewCard title="대체·추가 신청">
+        <VevenoCard title="대체·추가 신청">
           <form className="brew-form-stack" onSubmit={(e) => void handleCreateCover(e)}>
             <div className="brew-field">
               <span className="brew-field__label">유형</span>
               <div className="brew-btn-row">
-                <BrewButton
+                <VevenoButton
                   type="button"
                   size="sm"
                   variant={coverForm.shiftKind === 'COVER' ? 'primary' : 'secondary'}
@@ -915,8 +919,8 @@ export function BrewSchedulePanel({
                   }
                 >
                   대체
-                </BrewButton>
-                <BrewButton
+                </VevenoButton>
+                <VevenoButton
                   type="button"
                   size="sm"
                   variant={coverForm.shiftKind === 'EXTRA' ? 'primary' : 'secondary'}
@@ -925,7 +929,7 @@ export function BrewSchedulePanel({
                   }
                 >
                   추가
-                </BrewButton>
+                </VevenoButton>
               </div>
               <p className="brew-field__hint">
                 {coverForm.shiftKind === 'COVER'
@@ -994,7 +998,7 @@ export function BrewSchedulePanel({
                 ) : null}
               </div>
             ) : null}
-            <BrewInput
+            <VevenoInput
               label="날짜"
               type="date"
               value={coverForm.workDate}
@@ -1003,7 +1007,7 @@ export function BrewSchedulePanel({
               }
             />
             <div className="brew-schedule-slot-row">
-              <BrewInput
+              <VevenoInput
                 label="시작"
                 type="time"
                 value={coverForm.startTime}
@@ -1011,7 +1015,7 @@ export function BrewSchedulePanel({
                   setCoverForm((prev) => ({ ...prev, startTime: e.target.value }))
                 }
               />
-              <BrewInput
+              <VevenoInput
                 label="종료"
                 type="time"
                 value={coverForm.endTime}
@@ -1023,21 +1027,21 @@ export function BrewSchedulePanel({
             {coverScheduleHint ? (
               <p className="brew-card-lead">{coverScheduleHint}</p>
             ) : null}
-            <BrewInput
+            <VevenoInput
               label="메모 (선택)"
               value={coverForm.note}
               onChange={(e) => setCoverForm((prev) => ({ ...prev, note: e.target.value }))}
             />
-            <BrewButton type="submit" loading={submittingCover}>
+            <VevenoButton type="submit" loading={submittingCover}>
               {owned
                 ? `${shiftKindLabel(coverForm.shiftKind)} 지정 (수락 대기)`
                 : `${shiftKindLabel(coverForm.shiftKind)} 신청`}
-            </BrewButton>
+            </VevenoButton>
           </form>
-        </BrewCard>
+        </VevenoCard>
       ) : null}
 
-      <BrewCard title="대체·추가 관리" className="brew-schedule-panels__span">
+      <VevenoCard title="대체·추가 관리" className="brew-schedule-panels__span">
         {pendingCovers.length === 0 ? (
           <p className="brew-empty">대기·승인된 대체·추가가 없습니다.</p>
         ) : (
@@ -1109,7 +1113,7 @@ export function BrewSchedulePanel({
                               </option>
                             ))}
                         </select>
-                        <BrewButton
+                        <VevenoButton
                           size="sm"
                           disabled={!coverAssignments[cover.id]}
                           onClick={() => {
@@ -1131,11 +1135,11 @@ export function BrewSchedulePanel({
                           }}
                         >
                           지정
-                        </BrewButton>
+                        </VevenoButton>
                       </>
                     ) : null}
                     {canOwnerApproveExtra ? (
-                      <BrewButton
+                      <VevenoButton
                         size="sm"
                         onClick={() => {
                           void (async () => {
@@ -1149,10 +1153,10 @@ export function BrewSchedulePanel({
                         }}
                       >
                         승인
-                      </BrewButton>
+                      </VevenoButton>
                     ) : null}
                     {canAccept ? (
-                      <BrewButton
+                      <VevenoButton
                         size="sm"
                         onClick={() => {
                           void (async () => {
@@ -1166,10 +1170,10 @@ export function BrewSchedulePanel({
                         }}
                       >
                         수락
-                      </BrewButton>
+                      </VevenoButton>
                     ) : null}
                     {canReject ? (
-                      <BrewButton
+                      <VevenoButton
                         size="sm"
                         variant="secondary"
                         onClick={() => {
@@ -1184,10 +1188,10 @@ export function BrewSchedulePanel({
                         }}
                       >
                         거절
-                      </BrewButton>
+                      </VevenoButton>
                     ) : null}
                     {canCancel ? (
-                      <BrewButton
+                      <VevenoButton
                         size="sm"
                         variant="secondary"
                         onClick={() => {
@@ -1213,7 +1217,7 @@ export function BrewSchedulePanel({
                         }}
                       >
                         취소
-                      </BrewButton>
+                      </VevenoButton>
                     ) : null}
                   </div>
                 </div>
@@ -1221,7 +1225,7 @@ export function BrewSchedulePanel({
             })}
           </div>
         )}
-      </BrewCard>
+      </VevenoCard>
       </div>
     </div>
   );

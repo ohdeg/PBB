@@ -1,31 +1,31 @@
-export type BrewTimerRunStatus = 'idle' | 'running' | 'paused' | 'done';
+export type VevenoTimerRunStatus = 'idle' | 'running' | 'paused' | 'done';
 
-export interface BrewTimerStep {
+export interface VevenoTimerStep {
   id: string;
   name: string;
   durationMs: number;
 }
 
-export interface BrewTimer {
+export interface VevenoTimer {
   id: string;
   name: string;
-  steps: BrewTimerStep[];
+  steps: VevenoTimerStep[];
   currentStepIndex: number;
   remainingMs: number;
-  status: BrewTimerRunStatus;
+  status: VevenoTimerRunStatus;
   endsAt: number | null;
   acknowledged: boolean;
 }
 
-interface BrewTimerState {
-  timers: BrewTimer[];
+interface VevenoTimerState {
+  timers: VevenoTimer[];
 }
 
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
 
-let state: BrewTimerState = {
+let state: VevenoTimerState = {
   timers: [],
 };
 
@@ -267,18 +267,18 @@ function syncFromClock(): void {
   ensureTick();
 }
 
-export function getBrewTimerState(): BrewTimerState {
+export function getVevenoTimerState(): VevenoTimerState {
   return state;
 }
 
-export function subscribeBrewTimers(listener: Listener): () => void {
+export function subscribeVevenoTimers(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function addBrewTimer(
+export function addVevenoTimer(
   name: string,
   steps: { name: string; durationMs: number }[],
 ): void {
@@ -309,7 +309,7 @@ export function addBrewTimer(
   emit();
 }
 
-export function startBrewTimer(id: string): void {
+export function startVevenoTimer(id: string): void {
   unlockTimerAudio();
   stopCompletionAlarm(id);
   const now = Date.now();
@@ -347,7 +347,7 @@ export function startBrewTimer(id: string): void {
   ensureTick();
 }
 
-export function pauseBrewTimer(id: string): void {
+export function pauseVevenoTimer(id: string): void {
   syncFromClock();
   state = {
     timers: state.timers.map((timer) => {
@@ -363,7 +363,7 @@ export function pauseBrewTimer(id: string): void {
   stopTickIfIdle();
 }
 
-export function resetBrewTimer(id: string): void {
+export function resetVevenoTimer(id: string): void {
   stopCompletionAlarm(id);
   state = {
     timers: state.timers.map((timer) => {
@@ -383,7 +383,7 @@ export function resetBrewTimer(id: string): void {
   stopTickIfIdle();
 }
 
-export function removeBrewTimer(id: string): void {
+export function removeVevenoTimer(id: string): void {
   stopCompletionAlarm(id);
   state = {
     timers: state.timers.filter((timer) => timer.id !== id),
@@ -392,7 +392,7 @@ export function removeBrewTimer(id: string): void {
   stopTickIfIdle();
 }
 
-export function duplicateBrewTimer(id: string): void {
+export function duplicateVevenoTimer(id: string): void {
   const source = state.timers.find((timer) => timer.id === id);
   if (!source) return;
 
@@ -421,7 +421,7 @@ export function duplicateBrewTimer(id: string): void {
   emit();
 }
 
-export function updateBrewTimer(
+export function updateVevenoTimer(
   id: string,
   name: string,
   steps: { name: string; durationMs: number }[],
@@ -455,7 +455,7 @@ export function updateBrewTimer(
   stopTickIfIdle();
 }
 
-export function acknowledgeBrewTimer(id: string): void {
+export function acknowledgeVevenoTimer(id: string): void {
   stopCompletionAlarm(id);
   state = {
     timers: state.timers.map((timer) =>

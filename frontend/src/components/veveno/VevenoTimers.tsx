@@ -9,22 +9,22 @@ import type { FormEvent, ReactNode } from 'react';
 import { brewApi } from '../../api/brewApi';
 import type { BrewTimerPreset, BrewTimerPresetStep } from '../../types/brew';
 import { getErrorMessage } from '../../utils/error';
-import { BrewButton } from './BrewButton';
-import { BrewInput } from './BrewInput';
-import type { BrewTimer } from './brewTimerStore';
+import { VevenoButton } from './VevenoButton';
+import { VevenoInput } from './VevenoInput';
+import type { VevenoTimer } from './vevenoTimerStore';
 import {
-  acknowledgeBrewTimer,
-  addBrewTimer,
-  duplicateBrewTimer,
+  acknowledgeVevenoTimer,
+  addVevenoTimer,
+  duplicateVevenoTimer,
   formatTimerMs,
-  getBrewTimerState,
-  pauseBrewTimer,
-  removeBrewTimer,
-  resetBrewTimer,
-  startBrewTimer,
-  subscribeBrewTimers,
-  updateBrewTimer,
-} from './brewTimerStore';
+  getVevenoTimerState,
+  pauseVevenoTimer,
+  removeVevenoTimer,
+  resetVevenoTimer,
+  startVevenoTimer,
+  subscribeVevenoTimers,
+  updateVevenoTimer,
+} from './vevenoTimerStore';
 
 function parseDurationToMs(minutes: string, seconds: string): number {
   const m = Math.max(0, Math.floor(Number(minutes) || 0));
@@ -49,7 +49,7 @@ interface DraftStep {
 
 type SaveTarget = 'personal' | 'store';
 
-interface BrewTimersProps {
+interface VevenoTimersProps {
   storeId: string;
 }
 
@@ -60,7 +60,7 @@ interface MenuAction {
   disabled?: boolean;
 }
 
-function BrewActionMenu({ actions }: { actions: MenuAction[] }) {
+function VevenoActionMenu({ actions }: { actions: MenuAction[] }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -114,14 +114,14 @@ function BrewActionMenu({ actions }: { actions: MenuAction[] }) {
   );
 }
 
-interface BrewIconButtonProps {
+interface VevenoIconButtonProps {
   label: string;
   onClick: () => void;
   primary?: boolean;
   children: ReactNode;
 }
 
-function BrewIconButton({ label, onClick, primary, children }: BrewIconButtonProps) {
+function VevenoIconButton({ label, onClick, primary, children }: VevenoIconButtonProps) {
   return (
     <button
       type="button"
@@ -181,7 +181,7 @@ function stepsToDraft(steps: BrewTimerPresetStep[]): DraftStep[] {
   });
 }
 
-function timerToDraftSteps(timer: BrewTimer): DraftStep[] {
+function timerToDraftSteps(timer: VevenoTimer): DraftStep[] {
   return timer.steps.map((step) => {
     const parts = msToDraftParts(step.durationMs);
     return {
@@ -202,11 +202,11 @@ function collectStepsFromDraft(draftSteps: DraftStep[]): BrewTimerPresetStep[] {
     .filter((step) => step.durationMs >= 1000);
 }
 
-export function BrewTimers({ storeId }: BrewTimersProps) {
+export function VevenoTimers({ storeId }: VevenoTimersProps) {
   const snapshot = useSyncExternalStore(
-    subscribeBrewTimers,
-    getBrewTimerState,
-    getBrewTimerState,
+    subscribeVevenoTimers,
+    getVevenoTimerState,
+    getVevenoTimerState,
   );
 
   const [timerName, setTimerName] = useState('');
@@ -256,7 +256,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
     setEditingPreset(null);
   };
 
-  const beginEdit = (timer: BrewTimer) => {
+  const beginEdit = (timer: VevenoTimer) => {
     setEditingId(timer.id);
     setEditingPreset(null);
     setTimerName(timer.name);
@@ -281,7 +281,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
   };
 
   const applyPresetAsTimer = (preset: BrewTimerPreset) => {
-    addBrewTimer(preset.name, preset.steps);
+    addVevenoTimer(preset.name, preset.steps);
   };
 
   const handleSubmit = (event: FormEvent) => {
@@ -290,12 +290,12 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
     if (steps.length === 0) return;
 
     if (editingId) {
-      updateBrewTimer(editingId, timerName, steps);
+      updateVevenoTimer(editingId, timerName, steps);
       setEditingId(null);
       return;
     }
 
-    addBrewTimer(timerName, steps);
+    addVevenoTimer(timerName, steps);
     setTimerName('');
     setDraftSteps([newDraftStep('1단계', '15', '0')]);
     setEditingPreset(null);
@@ -335,7 +335,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
   };
 
   const handleSaveTimerAsPreset = async (
-    timer: BrewTimer,
+    timer: VevenoTimer,
     target: SaveTarget,
   ) => {
     setPresetBusy(true);
@@ -400,13 +400,13 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                 </p>
               </div>
               <div className="brew-preset-card__actions">
-                <BrewButton
+                <VevenoButton
                   size="sm"
                   onClick={() => applyPresetAsTimer(preset)}
                 >
                   타이머 추가
-                </BrewButton>
-                <BrewActionMenu
+                </VevenoButton>
+                <VevenoActionMenu
                   actions={[
                     {
                       label: '폼으로 불러오기',
@@ -450,7 +450,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
           </p>
         ) : null}
         <form className="brew-timer-form" onSubmit={handleSubmit}>
-          <BrewInput
+          <VevenoInput
             id="brew-timer-name"
             label="이름"
             value={timerName}
@@ -460,7 +460,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
           <div className="brew-chain-drafts">
             {draftSteps.map((step, index) => (
               <div key={step.id} className="brew-chain-draft">
-                <BrewInput
+                <VevenoInput
                   id={`timer-step-name-${step.id}`}
                   label={
                     draftSteps.length === 1
@@ -479,7 +479,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                   placeholder={draftSteps.length === 1 ? '예: 추출' : undefined}
                 />
                 <div className="brew-timer-duration">
-                  <BrewInput
+                  <VevenoInput
                     id={`timer-step-min-${step.id}`}
                     label="분"
                     inputMode="numeric"
@@ -493,7 +493,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                       );
                     }}
                   />
-                  <BrewInput
+                  <VevenoInput
                     id={`timer-step-sec-${step.id}`}
                     label="초"
                     inputMode="numeric"
@@ -509,7 +509,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                   />
                 </div>
                 {draftSteps.length > 1 ? (
-                  <BrewButton
+                  <VevenoButton
                     size="sm"
                     variant="ghost"
                     onClick={() =>
@@ -519,13 +519,13 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                     }
                   >
                     단계 삭제
-                  </BrewButton>
+                  </VevenoButton>
                 ) : null}
               </div>
             ))}
           </div>
           <div className="brew-timer-form__row">
-            <BrewButton
+            <VevenoButton
               type="button"
               variant="secondary"
               size="sm"
@@ -537,17 +537,17 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
               }
             >
               단계 추가
-            </BrewButton>
+            </VevenoButton>
             <div className="brew-timer-form__row-end">
               {editingId || editingPreset ? (
-                <BrewButton
+                <VevenoButton
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={cancelEdit}
                 >
                   취소
-                </BrewButton>
+                </VevenoButton>
               ) : null}
               {!editingPreset ? (
                 <select
@@ -564,7 +564,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                   <option value="store">이 가게</option>
                 </select>
               ) : null}
-              <BrewButton
+              <VevenoButton
                 type="button"
                 variant="secondary"
                 loading={presetBusy}
@@ -573,11 +573,11 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                 }}
               >
                 {editingPreset ? '프리셋 저장' : '프리셋으로 저장'}
-              </BrewButton>
+              </VevenoButton>
               {!editingPreset ? (
-                <BrewButton type="submit">
+                <VevenoButton type="submit">
                   {editingId ? '타이머 저장' : '타이머 추가'}
-                </BrewButton>
+                </VevenoButton>
               ) : null}
             </div>
           </div>
@@ -609,7 +609,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                 >
                   <div className="brew-timer-card__head">
                     <p className="brew-timer-card__name">{timer.name}</p>
-                    <BrewActionMenu
+                    <VevenoActionMenu
                       actions={[
                         {
                           label: '수정',
@@ -617,7 +617,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                         },
                         {
                           label: '복제',
-                          onSelect: () => duplicateBrewTimer(timer.id),
+                          onSelect: () => duplicateVevenoTimer(timer.id),
                         },
                         {
                           label: '내 프리셋으로 저장',
@@ -640,7 +640,7 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                             if (editingId === timer.id) {
                               cancelEdit();
                             }
-                            removeBrewTimer(timer.id);
+                            removeVevenoTimer(timer.id);
                           },
                         },
                       ]}
@@ -693,35 +693,35 @@ export function BrewTimers({ storeId }: BrewTimersProps) {
                   ) : null}
                   <div className="brew-timer-card__actions">
                     {timer.status === 'done' && !timer.acknowledged ? (
-                      <BrewButton
+                      <VevenoButton
                         size="sm"
-                        onClick={() => acknowledgeBrewTimer(timer.id)}
+                        onClick={() => acknowledgeVevenoTimer(timer.id)}
                       >
                         완료
-                      </BrewButton>
+                      </VevenoButton>
                     ) : timer.status === 'running' ? (
-                      <BrewIconButton
+                      <VevenoIconButton
                         label="일시정지"
                         primary
-                        onClick={() => pauseBrewTimer(timer.id)}
+                        onClick={() => pauseVevenoTimer(timer.id)}
                       >
                         <PauseIcon />
-                      </BrewIconButton>
+                      </VevenoIconButton>
                     ) : (
-                      <BrewIconButton
+                      <VevenoIconButton
                         label={timer.status === 'done' ? '다시 시작' : '시작'}
                         primary
-                        onClick={() => startBrewTimer(timer.id)}
+                        onClick={() => startVevenoTimer(timer.id)}
                       >
                         <PlayIcon />
-                      </BrewIconButton>
+                      </VevenoIconButton>
                     )}
-                    <BrewIconButton
+                    <VevenoIconButton
                       label="정지 (처음으로)"
-                      onClick={() => resetBrewTimer(timer.id)}
+                      onClick={() => resetVevenoTimer(timer.id)}
                     >
                       <StopIcon />
-                    </BrewIconButton>
+                    </VevenoIconButton>
                   </div>
                 </li>
               );

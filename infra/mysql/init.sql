@@ -40,9 +40,9 @@ CREATE TABLE IF NOT EXISTS app_config (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='전역 앱 설정 (dev 관리)';
 
--- 기본 추천 앱 (미설정 시 백엔드가 analyze-baseball로 폴백하므로 선택 사항)
+-- 기본 추천 앱 (미설정 시 백엔드가 veveno로 폴백하므로 선택 사항)
 INSERT INTO app_config (config_key, config_value)
-VALUES ('featured_app_id', 'analyze-baseball')
+VALUES ('featured_app_id', 'veveno')
 ON DUPLICATE KEY UPDATE config_value = config_value;
 
 -- Brew Note schema (Notion 기준)

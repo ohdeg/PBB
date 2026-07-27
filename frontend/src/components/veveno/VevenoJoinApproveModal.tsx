@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { BrewJoinRequest, BrewScheduleSlotInput } from '../../types/brew';
-import { BrewButton } from './BrewButton';
-import { BrewInput } from './BrewInput';
-import { BrewModal } from './BrewModal';
+import { VevenoButton } from './VevenoButton';
+import { VevenoInput } from './VevenoInput';
+import { VevenoModal } from './VevenoModal';
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
@@ -33,27 +33,27 @@ function initialSlots(): Record<number, DaySlot> {
   return slots;
 }
 
-export interface BrewJoinApprovePayload {
+export interface VevenoJoinApprovePayload {
   canEditStock: boolean;
   workStartDate: string | null;
   slots: BrewScheduleSlotInput[];
 }
 
-interface BrewJoinApproveModalProps {
+interface VevenoJoinApproveModalProps {
   open: boolean;
   request: BrewJoinRequest | null;
   loading: boolean;
   onClose: () => void;
-  onSave: (payload: BrewJoinApprovePayload) => void;
+  onSave: (payload: VevenoJoinApprovePayload) => void;
 }
 
-export function BrewJoinApproveModal({
+export function VevenoJoinApproveModal({
   open,
   request,
   loading,
   onClose,
   onSave,
-}: BrewJoinApproveModalProps) {
+}: VevenoJoinApproveModalProps) {
   const [canEditStock, setCanEditStock] = useState(false);
   const [workStartDate, setWorkStartDate] = useState(todayKey);
   const [bulkStartTime, setBulkStartTime] = useState('09:00');
@@ -117,7 +117,7 @@ export function BrewJoinApproveModal({
   };
 
   return (
-    <BrewModal
+    <VevenoModal
       open={open}
       title="가입 승인"
       onClose={() => {
@@ -131,7 +131,7 @@ export function BrewJoinApproveModal({
           <p className="brew-card-lead">
             {request.nickname} ({request.email}) 승인 시 근무·재고 권한을 함께 저장합니다.
           </p>
-          <BrewInput
+          <VevenoInput
             label="근무 시작일"
             id="join-work-start"
             type="date"
@@ -168,14 +168,14 @@ export function BrewJoinApproveModal({
                   onChange={(e) => setBulkEndTime(e.target.value)}
                   aria-label="일괄 종료 시각"
                 />
-                <BrewButton
+                <VevenoButton
                   type="button"
                   size="sm"
                   variant="secondary"
                   onClick={applyBulkTimesToSelectedDays}
                 >
                   선택 요일에 적용
-                </BrewButton>
+                </VevenoButton>
               </div>
               <p className="brew-field__hint">
                 요일을 체크한 뒤 적용하면 같은 시간이 들어갑니다.
@@ -248,21 +248,21 @@ export function BrewJoinApproveModal({
             근무 탭에서 지정할 수 있습니다.
           </p>
           <div className="brew-btn-row">
-            <BrewButton
+            <VevenoButton
               type="button"
               variant="secondary"
               disabled={loading}
               onClick={onClose}
             >
               취소
-            </BrewButton>
-            <BrewButton type="submit" loading={loading}>
+            </VevenoButton>
+            <VevenoButton type="submit" loading={loading}>
               저장 · 승인
-            </BrewButton>
+            </VevenoButton>
           </div>
         </form>
       ) : null}
-    </BrewModal>
+    </VevenoModal>
   );
 }
 

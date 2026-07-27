@@ -2,28 +2,31 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { brewApi } from '../api/brewApi';
-import { BrewBadge } from '../components/brew/BrewBadge';
-import { BrewButton } from '../components/brew/BrewButton';
-import { BrewCard } from '../components/brew/BrewCard';
-import { BrewInput } from '../components/brew/BrewInput';
-import { BrewStoreDeleteDialog } from '../components/brew/BrewStoreDeleteDialog';
-import { BrewJoinApproveModal } from '../components/brew/BrewJoinApproveModal';
-import type { BrewJoinApprovePayload } from '../components/brew/BrewJoinApproveModal';
-import { BrewModal } from '../components/brew/BrewModal';
-import { BrewRecipeNotesEditor } from '../components/brew/BrewRecipeNotesEditor';
-import { BrewRecipeNotesView } from '../components/brew/BrewRecipeNotesView';
-import { BrewSchedulePanel } from '../components/brew/BrewSchedulePanel';
-import { BrewToolsPanel } from '../components/brew/BrewToolsPanel';
+import { VevenoButton } from '../components/veveno/VevenoButton';
+import { VevenoCard } from '../components/veveno/VevenoCard';
+import { VevenoInput } from '../components/veveno/VevenoInput';
+import { VevenoStoreDeleteDialog } from '../components/veveno/VevenoStoreDeleteDialog';
+import { VevenoJoinApproveModal } from '../components/veveno/VevenoJoinApproveModal';
+import type { VevenoJoinApprovePayload } from '../components/veveno/VevenoJoinApproveModal';
+import { VevenoModal } from '../components/veveno/VevenoModal';
+import { VevenoRecipeNotesEditor } from '../components/veveno/VevenoRecipeNotesEditor';
+import { VevenoRecipeNotesView } from '../components/veveno/VevenoRecipeNotesView';
+import { VevenoSchedulePanel } from '../components/veveno/VevenoSchedulePanel';
+import { VevenoStoreStocksPanel } from '../components/veveno/VevenoStoreStocksPanel';
+import { VevenoToolsPanel } from '../components/veveno/VevenoToolsPanel';
 import {
   VevenoSplashScreen,
   useVevenoSplash,
-} from '../components/brew/VevenoSplashScreen';
-import { BrewVisibilityBadge } from '../components/brew/BrewVisibilityBadge';
+} from '../components/veveno/VevenoSplashScreen';
+import { VevenoVisibilityBadge } from '../components/veveno/VevenoVisibilityBadge';
 import { useAuthStore } from '../stores/authStore';
+import {
+  formatVevenoNoticeDate as formatNoticeDate,
+  useVevenoNotices,
+} from '../hooks/useVevenoNotices';
 import type {
   BrewJoinRequest,
   BrewMenu,
-  BrewNotice,
   BrewRecipe,
   BrewRecipeContent,
   BrewStockCategory,
@@ -48,7 +51,7 @@ function parseTabParam(raw: string | null): Tab {
   return 'menus';
 }
 
-export function BrewStorePage() {
+export function VevenoStorePage() {
   const { storeId = '' } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -82,42 +85,24 @@ export function BrewStorePage() {
   const [stockCategories, setStockCategories] = useState<BrewStockCategory[]>([]);
   const [joinRequests, setJoinRequests] = useState<BrewJoinRequest[]>([]);
   const [subscribers, setSubscribers] = useState<BrewSubscriber[]>([]);
-  const [notices, setNotices] = useState<BrewNotice[]>([]);
-  const [noticesOpen, setNoticesOpen] = useState(false);
-  const [noticeForm, setNoticeForm] = useState({ title: '', body: '' });
-  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
-  const [savingNotice, setSavingNotice] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [stockCreateOpen, setStockCreateOpen] = useState(false);
   const [recipeEditMode, setRecipeEditMode] = useState(false);
   const [menuEditMode, setMenuEditMode] = useState(false);
-  const [categoryEditMode, setCategoryEditMode] = useState(false);
   const [menuEditOpen, setMenuEditOpen] = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
   const [editingMenuName, setEditingMenuName] = useState('');
   const [savingMenu, setSavingMenu] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [recipeViewOpen, setRecipeViewOpen] = useState(false);
   const [viewRecipeContent, setViewRecipeContent] =
     useState<BrewRecipeContent>(EMPTY_RECIPE_CONTENT);
 
   const [menuName, setMenuName] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
-  const [stockSearch, setStockSearch] = useState('');
-  const [categoryName, setCategoryName] = useState('');
   const [recipeForm, setRecipeForm] = useState<BrewRecipeContent>(EMPTY_RECIPE_CONTENT);
   const [storeForm, setStoreForm] = useState({ name: '', isPublic: false });
-  const [stockForm, setStockForm] = useState({
-    categoryKey: '',
-    customCategoryName: '',
-    stockName: '',
-    stockNum: 0,
-    stockMinNum: 0,
-  });
-  const [creatingStock, setCreatingStock] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<{
     userId: string;
@@ -136,6 +121,21 @@ export function BrewStorePage() {
   const [approving, setApproving] = useState(false);
   const [regeneratingCode, setRegeneratingCode] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const {
+    notices,
+    setNotices,
+    noticesOpen,
+    noticeForm,
+    setNoticeForm,
+    editingNoticeId,
+    savingNotice,
+    openNotices,
+    closeNotices,
+    startEditNotice,
+    cancelNoticeEdit,
+    handleSaveNotice,
+    handleDeleteNotice,
+  } = useVevenoNotices({ store, storeId, setError });
 
   const loadStore = useCallback(async () => {
     if (!storeId || !accessToken) {
@@ -181,7 +181,7 @@ export function BrewStorePage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, storeId]);
+  }, [accessToken, storeId, setNotices]);
 
   useEffect(() => {
     void loadStore();
@@ -267,6 +267,31 @@ export function BrewStorePage() {
       cancelled = true;
     };
   }, [selectedMenuId]);
+
+  const selectedRecipe = recipes.find((r) => r.id === selectedRecipeId) ?? null;
+  const canEditStock = Boolean(store?.canEditStock);
+
+  const normalizedMenuSearch = menuSearch.trim().toLowerCase();
+
+  const filteredMenus = useMemo(() => {
+    if (!normalizedMenuSearch) {
+      return menus;
+    }
+    return menus.filter((menu) => menu.name.toLowerCase().includes(normalizedMenuSearch));
+  }, [menus, normalizedMenuSearch]);
+
+  const filteredRecipes = useMemo(() => {
+    if (!normalizedMenuSearch) {
+      return recipes;
+    }
+    return recipes.filter((recipe) => {
+      const parsed = parseRecipeContents(recipe.contents);
+      return (
+        parsed.title.toLowerCase().includes(normalizedMenuSearch) ||
+        parsed.notes.toLowerCase().includes(normalizedMenuSearch)
+      );
+    });
+  }, [recipes, normalizedMenuSearch]);
 
   if (!accessToken) {
     if (useAuthStore.getState().suppressLoginRedirect) {
@@ -391,158 +416,6 @@ export function BrewStorePage() {
       setRecipeForm(EMPTY_RECIPE_CONTENT);
     } catch (err: unknown) {
       setError(getErrorMessage(err, '레시피 삭제에 실패했습니다.'));
-    }
-  };
-
-  const handleCreateCategory = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!categoryName.trim() || !canMutateStock) return;
-    try {
-      const { data } = await brewApi.createStockCategory(storeId, categoryName.trim());
-      setStockCategories((prev) => [...prev, data]);
-      setCategoryName('');
-      setSelectedCategoryId(data.id);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '카테고리 추가에 실패했습니다.'));
-    }
-  };
-
-  const handleSaveCategory = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!selectedCategoryId || !categoryName.trim() || !canMutateStock) {
-      return;
-    }
-    setError('');
-    try {
-      const { data } = await brewApi.updateStockCategory(
-        selectedCategoryId,
-        categoryName.trim(),
-      );
-      setStockCategories((prev) =>
-        prev.map((cat) => (cat.id === data.id ? { ...cat, ...data } : cat)),
-      );
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '카테고리 수정에 실패했습니다.'));
-    }
-  };
-
-  const handleDeleteCategory = async () => {
-    if (!selectedCategoryId || !canMutateStock) {
-      return;
-    }
-    if (!window.confirm('카테고리와 하위 재고를 삭제할까요?')) {
-      return;
-    }
-    setError('');
-    try {
-      await brewApi.deleteStockCategory(selectedCategoryId);
-      setStockCategories((prev) => prev.filter((c) => c.id !== selectedCategoryId));
-      setSelectedCategoryId(null);
-      setCategoryName('');
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '카테고리 삭제에 실패했습니다.'));
-    }
-  };
-
-  const handleCreateStock = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!canMutateStock || !stockForm.stockName.trim()) {
-      return;
-    }
-
-    const isCustom = stockForm.categoryKey === '__custom__';
-    if (!stockForm.categoryKey) {
-      setError('카테고리를 선택해 주세요.');
-      return;
-    }
-    if (isCustom && !stockForm.customCategoryName.trim()) {
-      setError('카테고리 이름을 입력해 주세요.');
-      return;
-    }
-
-    setCreatingStock(true);
-    setError('');
-    try {
-      let categoryId: number;
-      let createdCategory: BrewStockCategory | null = null;
-
-      if (isCustom) {
-        const name = stockForm.customCategoryName.trim();
-        const existing = stockCategories.find(
-          (cat) => cat.categoryName.toLowerCase() === name.toLowerCase(),
-        );
-        if (existing) {
-          categoryId = existing.id;
-        } else {
-          const { data } = await brewApi.createStockCategory(storeId, name);
-          createdCategory = data;
-          categoryId = data.id;
-        }
-      } else {
-        categoryId = Number(stockForm.categoryKey);
-        if (!Number.isFinite(categoryId) || categoryId <= 0) {
-          setError('카테고리를 선택해 주세요.');
-          return;
-        }
-      }
-
-      const { data } = await brewApi.createStock(categoryId, {
-        stockName: stockForm.stockName.trim(),
-        stockNum: stockForm.stockNum,
-        stockMinNum: stockForm.stockMinNum,
-      });
-
-      setStockCategories((prev) => {
-        if (createdCategory) {
-          return [...prev, { ...createdCategory, stocks: [data] }];
-        }
-        return prev.map((cat) =>
-          cat.id === data.categoryId
-            ? { ...cat, stocks: [...cat.stocks, data] }
-            : cat,
-        );
-      });
-
-      setStockForm({
-        categoryKey: isCustom ? '__custom__' : String(categoryId),
-        customCategoryName: '',
-        stockName: '',
-        stockNum: 0,
-        stockMinNum: 0,
-      });
-      setStockCreateOpen(false);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '재고 추가에 실패했습니다.'));
-    } finally {
-      setCreatingStock(false);
-    }
-  };
-
-  const handleUpdateStockQty = async (
-    stockId: number,
-    categoryId: number,
-    stockName: string,
-    stockNum: number,
-    stockMinNum: number | null,
-  ) => {
-    try {
-      const { data } = await brewApi.updateStock(stockId, {
-        stockName,
-        stockNum,
-        stockMinNum,
-      });
-      setStockCategories((prev) =>
-        prev.map((cat) =>
-          cat.id === categoryId
-            ? {
-                ...cat,
-                stocks: cat.stocks.map((s) => (s.id === data.id ? data : s)),
-              }
-            : cat,
-        ),
-      );
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '재고 수량 변경에 실패했습니다.'));
     }
   };
 
@@ -689,7 +562,7 @@ export function BrewStorePage() {
     }
   };
 
-  const handleConfirmApprove = async (payload: BrewJoinApprovePayload) => {
+  const handleConfirmApprove = async (payload: VevenoJoinApprovePayload) => {
     if (!approveTarget) {
       return;
     }
@@ -710,90 +583,6 @@ export function BrewStorePage() {
     }
   };
 
-  const openNotices = () => {
-    setNoticesOpen(true);
-    setEditingNoticeId(null);
-    setNoticeForm({ title: '', body: '' });
-    setError('');
-  };
-
-  const closeNotices = () => {
-    if (savingNotice) {
-      return;
-    }
-    setNoticesOpen(false);
-    setEditingNoticeId(null);
-    setNoticeForm({ title: '', body: '' });
-  };
-
-  const startEditNotice = (notice: BrewNotice) => {
-    setEditingNoticeId(notice.id);
-    setNoticeForm({ title: notice.title, body: notice.body });
-  };
-
-  const handleSaveNotice = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!store?.owned) {
-      return;
-    }
-    const title = noticeForm.title.trim();
-    const body = noticeForm.body.trim();
-    if (!title || !body) {
-      setError('제목과 본문을 입력해 주세요.');
-      return;
-    }
-    setSavingNotice(true);
-    setError('');
-    try {
-      if (editingNoticeId) {
-        const { data } = await brewApi.updateNotice(editingNoticeId, { title, body });
-        setNotices((prev) => prev.map((n) => (n.id === data.id ? data : n)));
-      } else {
-        const { data } = await brewApi.createNotice(storeId, { title, body });
-        setNotices((prev) => [data, ...prev]);
-      }
-      setEditingNoticeId(null);
-      setNoticeForm({ title: '', body: '' });
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '공지 저장에 실패했습니다.'));
-    } finally {
-      setSavingNotice(false);
-    }
-  };
-
-  const handleDeleteNotice = async (noticeId: string) => {
-    if (!store?.owned || !window.confirm('이 공지를 삭제할까요?')) {
-      return;
-    }
-    setSavingNotice(true);
-    setError('');
-    try {
-      await brewApi.deleteNotice(noticeId);
-      setNotices((prev) => prev.filter((n) => n.id !== noticeId));
-      if (editingNoticeId === noticeId) {
-        setEditingNoticeId(null);
-        setNoticeForm({ title: '', body: '' });
-      }
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, '공지 삭제에 실패했습니다.'));
-    } finally {
-      setSavingNotice(false);
-    }
-  };
-
-  const formatNoticeDate = (iso: string): string => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) {
-      return iso;
-    }
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${day} ${hh}:${mm}`;
-  };
-
   const handleDeleteStore = async () => {
     setDeleting(true);
     setError('');
@@ -807,56 +596,6 @@ export function BrewStorePage() {
       setDeleting(false);
     }
   };
-
-  const selectedRecipe = recipes.find((r) => r.id === selectedRecipeId) ?? null;
-  const canEditStock = Boolean(store?.canEditStock);
-  const canMutateStock = Boolean(
-    store?.canEditStock && (store.owned || store.onDuty),
-  );
-
-  const normalizedMenuSearch = menuSearch.trim().toLowerCase();
-  const normalizedStockSearch = stockSearch.trim().toLowerCase();
-
-  const filteredMenus = useMemo(() => {
-    if (!normalizedMenuSearch) {
-      return menus;
-    }
-    return menus.filter((menu) => menu.name.toLowerCase().includes(normalizedMenuSearch));
-  }, [menus, normalizedMenuSearch]);
-
-  const filteredRecipes = useMemo(() => {
-    if (!normalizedMenuSearch) {
-      return recipes;
-    }
-    return recipes.filter((recipe) => {
-      const parsed = parseRecipeContents(recipe.contents);
-      return (
-        parsed.title.toLowerCase().includes(normalizedMenuSearch) ||
-        parsed.notes.toLowerCase().includes(normalizedMenuSearch)
-      );
-    });
-  }, [recipes, normalizedMenuSearch]);
-
-  const filteredStockCategories = useMemo(() => {
-    if (!normalizedStockSearch) {
-      return stockCategories;
-    }
-    return stockCategories
-      .map((cat) => {
-        const categoryMatched = cat.categoryName.toLowerCase().includes(normalizedStockSearch);
-        const matchedStocks = cat.stocks.filter((stock) =>
-          stock.stockName.toLowerCase().includes(normalizedStockSearch),
-        );
-        if (categoryMatched) {
-          return cat;
-        }
-        if (matchedStocks.length === 0) {
-          return null;
-        }
-        return { ...cat, stocks: matchedStocks };
-      })
-      .filter((cat): cat is BrewStockCategory => cat != null);
-  }, [stockCategories, normalizedStockSearch]);
 
   const tabs: { id: Tab; label: string; visible?: boolean }[] = [
     { id: 'menus', label: '메뉴', visible: true },
@@ -896,7 +635,7 @@ export function BrewStorePage() {
                 <p className="brew-shell__meta">
                   {store.owned ? 'Owner' : store.subscribed ? 'Staff' : 'Guest'}
                   {' · '}
-                  <BrewVisibilityBadge isPublic={store.isPublic} />
+                  <VevenoVisibilityBadge isPublic={store.isPublic} />
                   {store.subscribed && store.leaveDate ? (
                     <>
                       {' · '}
@@ -969,7 +708,7 @@ export function BrewStorePage() {
             {tab === 'menus' ? (
               <div className="brew-stack-lg">
                 <div className="brew-toolbar">
-                  <BrewInput
+                  <VevenoInput
                     id="menu-tab-search"
                     label="검색"
                     value={menuSearch}
@@ -982,7 +721,7 @@ export function BrewStorePage() {
                     <div className="brew-menu-rail__head">
                       <h2 className="brew-menu-rail__title">카테고리</h2>
                       {store.owned ? (
-                        <BrewButton
+                        <VevenoButton
                           size="sm"
                           variant={menuEditMode ? 'secondary' : 'ghost'}
                           onClick={() => {
@@ -998,17 +737,17 @@ export function BrewStorePage() {
                           }}
                         >
                           {menuEditMode ? '편집 종료' : '편집'}
-                        </BrewButton>
+                        </VevenoButton>
                       ) : null}
                     </div>
                     {store.owned && menuEditMode ? (
                       <form className="brew-search-row" onSubmit={handleCreateMenu}>
-                        <BrewInput
+                        <VevenoInput
                           value={menuName}
                           onChange={(e) => setMenuName(e.target.value)}
                           placeholder="메뉴 이름"
                         />
-                        <BrewButton type="submit">추가</BrewButton>
+                        <VevenoButton type="submit">추가</VevenoButton>
                       </form>
                     ) : null}
                     <div className="brew-menu-rail__list">
@@ -1039,12 +778,12 @@ export function BrewStorePage() {
                   </aside>
 
                   <div className="brew-menu-main">
-                    <BrewCard
+                    <VevenoCard
                       title="레시피"
                       action={
                         store.owned ? (
                           <div className="brew-card__actions">
-                            <BrewButton
+                            <VevenoButton
                               size="sm"
                               disabled={!selectedMenuId}
                               onClick={() => {
@@ -1058,8 +797,8 @@ export function BrewStorePage() {
                               }}
                             >
                               새로 추가
-                            </BrewButton>
-                            <BrewButton
+                            </VevenoButton>
+                            <VevenoButton
                               size="sm"
                               variant={recipeEditMode ? 'secondary' : 'ghost'}
                               onClick={() => {
@@ -1074,7 +813,7 @@ export function BrewStorePage() {
                               }}
                             >
                               {recipeEditMode ? '편집 종료' : '편집'}
-                            </BrewButton>
+                            </VevenoButton>
                           </div>
                         ) : null
                       }
@@ -1125,12 +864,12 @@ export function BrewStorePage() {
                           })}
                         </div>
                       )}
-                    </BrewCard>
+                    </VevenoCard>
 
                     {store.owned && recipeEditMode && selectedMenuId ? (
-                      <BrewCard title={selectedRecipe ? '레시피 편집' : '레시피 추가'}>
+                      <VevenoCard title={selectedRecipe ? '레시피 편집' : '레시피 추가'}>
                         <form className="brew-form-stack" onSubmit={handleSaveRecipe}>
-                          <BrewInput
+                          <VevenoInput
                             label="제목"
                             id="recipe-title"
                             value={recipeForm.title}
@@ -1146,7 +885,7 @@ export function BrewStorePage() {
                             <span className="brew-field__label" id="recipe-notes-label">
                               노트
                             </span>
-                            <BrewRecipeNotesEditor
+                            <VevenoRecipeNotesEditor
                               id="recipe-notes"
                               value={recipeForm.notes}
                               onChange={(notes) =>
@@ -1164,240 +903,40 @@ export function BrewStorePage() {
                             </p>
                           </div>
                           <div className="brew-btn-row">
-                            <BrewButton type="submit">
+                            <VevenoButton type="submit">
                               {selectedRecipe ? '저장/수정' : '레시피 추가'}
-                            </BrewButton>
+                            </VevenoButton>
                             {selectedRecipe ? (
-                              <BrewButton
+                              <VevenoButton
                                 variant="danger"
                                 onClick={() => {
                                   void handleDeleteRecipe();
                                 }}
                               >
                                 삭제
-                              </BrewButton>
+                              </VevenoButton>
                             ) : null}
                           </div>
                         </form>
-                      </BrewCard>
+                      </VevenoCard>
                     ) : null}
                   </div>
                 </div>
               </div>
             ) : null}
 
-            {tab === 'stocks' && canEditStock ? (
-              <div className="brew-stack-lg">
-                {!canMutateStock ? (
-                  <p className="brew-duty-banner">
-                    근무 시간이 아니라 재고를 수정할 수 없습니다. 조회만 가능합니다.
-                  </p>
-                ) : null}
-                <div className="brew-toolbar brew-toolbar--stock">
-                  <BrewInput
-                    id="stock-tab-search"
-                    label="검색"
-                    value={stockSearch}
-                    onChange={(e) => setStockSearch(e.target.value)}
-                    placeholder="카테고리·재고 이름 검색"
-                  />
-                  {canMutateStock ? (
-                    <div className="brew-toolbar__actions">
-                      <BrewButton
-                        size="sm"
-                        variant={categoryEditMode ? 'secondary' : 'ghost'}
-                        onClick={() => {
-                          setCategoryEditMode((prev) => {
-                            const next = !prev;
-                            if (!next) {
-                              setSelectedCategoryId(null);
-                              setCategoryName('');
-                            }
-                            return next;
-                          });
-                        }}
-                      >
-                        {categoryEditMode ? '카테고리 편집 종료' : '카테고리 편집'}
-                      </BrewButton>
-                      <BrewButton
-                        size="sm"
-                        onClick={() => {
-                          setError('');
-                          setStockCreateOpen(true);
-                        }}
-                      >
-                        + 재고 추가
-                      </BrewButton>
-                    </div>
-                  ) : null}
-                </div>
-
-                {canMutateStock && categoryEditMode ? (
-                  <div className="brew-stock-edit-grid">
-                    <BrewCard title="카테고리">
-                      {stockCategories.length === 0 ? (
-                        <p className="brew-empty">등록된 카테고리가 없습니다.</p>
-                      ) : filteredStockCategories.length === 0 ? (
-                        <p className="brew-empty">검색 결과가 없습니다.</p>
-                      ) : (
-                        <div className="brew-stack">
-                          {filteredStockCategories.map((cat) => {
-                            const selected = cat.id === selectedCategoryId;
-                            return (
-                              <button
-                                key={cat.id}
-                                type="button"
-                                className={
-                                  selected
-                                    ? 'brew-store-row is-clickable is-selected'
-                                    : 'brew-store-row is-clickable'
-                                }
-                                onClick={() => {
-                                  setSelectedCategoryId(cat.id);
-                                  setCategoryName(cat.categoryName);
-                                }}
-                              >
-                                <div className="brew-store-row__main">
-                                  <p className="brew-store-row__name">{cat.categoryName}</p>
-                                  <p className="brew-store-row__sub">
-                                    재고 {cat.stocks.length}개
-                                  </p>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </BrewCard>
-                    <BrewCard
-                      title="카테고리 편집"
-                      action={
-                        <BrewButton
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setSelectedCategoryId(null);
-                            setCategoryName('');
-                          }}
-                        >
-                          새로 작성
-                        </BrewButton>
-                      }
-                    >
-                      <form
-                        className="brew-form-stack"
-                        onSubmit={
-                          selectedCategoryId ? handleSaveCategory : handleCreateCategory
-                        }
-                      >
-                        <BrewInput
-                          label="이름"
-                          id="category-name"
-                          value={categoryName}
-                          onChange={(e) => setCategoryName(e.target.value)}
-                          placeholder="카테고리 이름 (예: 원두)"
-                        />
-                        <div className="brew-btn-row">
-                          <BrewButton type="submit">
-                            {selectedCategoryId ? '저장/수정' : '카테고리 추가'}
-                          </BrewButton>
-                          {selectedCategoryId ? (
-                            <BrewButton
-                              variant="danger"
-                              onClick={() => {
-                                void handleDeleteCategory();
-                              }}
-                            >
-                              삭제
-                            </BrewButton>
-                          ) : null}
-                        </div>
-                      </form>
-                    </BrewCard>
-                  </div>
-                ) : null}
-
-                <BrewCard title="재고 목록">
-                  {stockCategories.length === 0 ? (
-                    <p className="brew-empty">표시할 재고가 없습니다.</p>
-                  ) : filteredStockCategories.length === 0 ? (
-                    <p className="brew-empty">검색 결과가 없습니다.</p>
-                  ) : (
-                    <div className="brew-stack-lg">
-                      {filteredStockCategories.map((cat) => (
-                        <div key={cat.id} className="brew-stock-block-inline">
-                          <h3 className="brew-subsection-title">{cat.categoryName}</h3>
-                          {cat.stocks.length === 0 ? (
-                            <p className="brew-empty">항목이 없습니다.</p>
-                          ) : (
-                            <div className="brew-stack">
-                              {cat.stocks.map((stock) => (
-                                <div
-                                  key={stock.id}
-                                  className={`brew-stock-row${stock.lowStock ? ' is-low' : ''}`}
-                                >
-                                  <div className="brew-stock-row__info">
-                                    <p className="brew-store-row__name">{stock.stockName}</p>
-                                    <p className="brew-store-row__sub">
-                                      경고선 {stock.stockMinNum ?? 0}
-                                    </p>
-                                  </div>
-                                  <div className="brew-stock-row__qty">
-                                    {stock.lowStock ? (
-                                      <BrewBadge variant="danger">부족</BrewBadge>
-                                    ) : null}
-                                    {canMutateStock ? (
-                                      <>
-                                        <BrewButton
-                                          size="sm"
-                                          variant="secondary"
-                                          onClick={() => {
-                                            void handleUpdateStockQty(
-                                              stock.id,
-                                              cat.id,
-                                              stock.stockName,
-                                              Math.max(0, stock.stockNum - 1),
-                                              stock.stockMinNum,
-                                            );
-                                          }}
-                                        >
-                                          −
-                                        </BrewButton>
-                                        <span className="brew-stock-num">{stock.stockNum}</span>
-                                        <BrewButton
-                                          size="sm"
-                                          variant="secondary"
-                                          onClick={() => {
-                                            void handleUpdateStockQty(
-                                              stock.id,
-                                              cat.id,
-                                              stock.stockName,
-                                              stock.stockNum + 1,
-                                              stock.stockMinNum,
-                                            );
-                                          }}
-                                        >
-                                          +
-                                        </BrewButton>
-                                      </>
-                                    ) : (
-                                      <span className="brew-stock-num">{stock.stockNum}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </BrewCard>
-              </div>
-            ) : null}
+            <VevenoStoreStocksPanel
+              active={tab === 'stocks' && canEditStock}
+              storeId={storeId}
+              owned={store.owned}
+              onDuty={store.onDuty}
+              stockCategories={stockCategories}
+              setStockCategories={setStockCategories}
+              onError={setError}
+            />
 
             {tab === 'schedule' && (store.owned || store.subscribed) ? (
-              <BrewSchedulePanel
+              <VevenoSchedulePanel
                 storeId={storeId}
                 storeName={store.name}
                 owned={store.owned}
@@ -1407,14 +946,14 @@ export function BrewStorePage() {
             ) : null}
 
             {tab === 'tools' && (store.owned || store.subscribed) ? (
-              <BrewToolsPanel storeId={storeId} />
+              <VevenoToolsPanel storeId={storeId} />
             ) : null}
 
             {tab === 'settings' && store.owned ? (
               <div className="brew-settings-stack">
-                <BrewCard title="업장 정보">
+                <VevenoCard title="업장 정보">
                   <form className="brew-form-stack" onSubmit={handleSaveStore}>
-                    <BrewInput
+                    <VevenoInput
                       label="가게 이름"
                       id="store-name"
                       value={storeForm.name}
@@ -1483,8 +1022,8 @@ export function BrewStorePage() {
                       </div>
                     </div>
                     <div className="brew-btn-row">
-                      <BrewButton type="submit">저장/수정</BrewButton>
-                      <BrewButton
+                      <VevenoButton type="submit">저장/수정</VevenoButton>
+                      <VevenoButton
                         type="button"
                         variant="secondary"
                         loading={regeneratingCode}
@@ -1493,12 +1032,12 @@ export function BrewStorePage() {
                         }}
                       >
                         재발급
-                      </BrewButton>
+                      </VevenoButton>
                     </div>
                   </form>
-                </BrewCard>
+                </VevenoCard>
 
-                <BrewCard title="가입 승인">
+                <VevenoCard title="가입 승인">
                   {joinRequests.length === 0 ? (
                     <p className="brew-empty">대기 중인 신청이 없습니다.</p>
                   ) : (
@@ -1510,13 +1049,13 @@ export function BrewStorePage() {
                             <p className="brew-store-row__sub">{req.email}</p>
                           </div>
                           <div className="brew-search-result__actions">
-                            <BrewButton
+                            <VevenoButton
                               size="sm"
                               onClick={() => setApproveTarget(req)}
                             >
                               승인
-                            </BrewButton>
-                            <BrewButton
+                            </VevenoButton>
+                            <VevenoButton
                               size="sm"
                               variant="secondary"
                               onClick={() => {
@@ -1529,15 +1068,15 @@ export function BrewStorePage() {
                               }}
                             >
                               거절
-                            </BrewButton>
+                            </VevenoButton>
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-                </BrewCard>
+                </VevenoCard>
 
-                <BrewCard title="직원 · 재고 권한">
+                <VevenoCard title="직원 · 재고 권한">
                   <p className="brew-card-lead">
                     재고 수정 권한을 켠 구독자만 재고 탭이 보이며, 수량·등록을 변경할 수 있습니다.
                     퇴사일은 마지막 근무일이며, 그다음 날부터 구독·근무가 정리됩니다.
@@ -1590,7 +1129,7 @@ export function BrewStorePage() {
                               재고 수정
                             </label>
                             {sub.leaveDate ? (
-                              <BrewButton
+                              <VevenoButton
                                 size="sm"
                                 variant="secondary"
                                 onClick={() =>
@@ -1598,9 +1137,9 @@ export function BrewStorePage() {
                                 }
                               >
                                 퇴사 취소
-                              </BrewButton>
+                              </VevenoButton>
                             ) : (
-                              <BrewButton
+                              <VevenoButton
                                 size="sm"
                                 variant="secondary"
                                 onClick={() =>
@@ -1612,28 +1151,28 @@ export function BrewStorePage() {
                                 }
                               >
                                 퇴사
-                              </BrewButton>
+                              </VevenoButton>
                             )}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-                </BrewCard>
+                </VevenoCard>
 
                 <div className="brew-btn-row">
-                  <BrewButton
+                  <VevenoButton
                     variant="danger"
                     onClick={() => setDeleteDialogOpen(true)}
                   >
                     가게 삭제
-                  </BrewButton>
+                  </VevenoButton>
                 </div>
               </div>
             ) : null}
 
             {tab === 'schedule' && store.subscribed && !store.owned ? (
-              <BrewCard title="가게 나가기">
+              <VevenoCard title="가게 나가기">
                 <p className="brew-card-lead">
                   퇴사일(마지막 근무일)을 지정하면 그날까지 근무할 수 있고, 다음날부터
                   구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 나갑니다.
@@ -1641,15 +1180,15 @@ export function BrewStorePage() {
                 {store.leaveDate ? (
                   <div className="brew-btn-row">
                     <p className="brew-card-lead">퇴사 예정: {store.leaveDate}</p>
-                    <BrewButton
+                    <VevenoButton
                       variant="secondary"
                       onClick={() => void handleClearLeave('', true)}
                     >
                       퇴사 예약 취소
-                    </BrewButton>
+                    </VevenoButton>
                   </div>
                 ) : (
-                  <BrewButton
+                  <VevenoButton
                     variant="secondary"
                     onClick={() =>
                       openLeaveDialog({
@@ -1660,19 +1199,19 @@ export function BrewStorePage() {
                     }
                   >
                     퇴사일 지정 · 나가기
-                  </BrewButton>
+                  </VevenoButton>
                 )}
-              </BrewCard>
+              </VevenoCard>
             ) : null}
           </>
         ) : null}
       </div>
 
-      <BrewModal open={noticesOpen} title="공지" onClose={closeNotices}>
+      <VevenoModal open={noticesOpen} title="공지" onClose={closeNotices}>
         <div className="brew-stack-lg">
           {store?.owned ? (
             <form className="brew-form-stack" onSubmit={(e) => void handleSaveNotice(e)}>
-              <BrewInput
+              <VevenoInput
                 label={editingNoticeId ? '제목 수정' : '새 공지 제목'}
                 value={noticeForm.title}
                 onChange={(e) =>
@@ -1698,25 +1237,22 @@ export function BrewStorePage() {
                 />
               </div>
               <div className="brew-btn-row">
-                <BrewButton
+                <VevenoButton
                   type="submit"
                   loading={savingNotice}
                   disabled={!noticeForm.title.trim() || !noticeForm.body.trim()}
                 >
                   {editingNoticeId ? '수정 저장' : '공지 등록'}
-                </BrewButton>
+                </VevenoButton>
                 {editingNoticeId ? (
-                  <BrewButton
+                  <VevenoButton
                     type="button"
                     variant="secondary"
                     disabled={savingNotice}
-                    onClick={() => {
-                      setEditingNoticeId(null);
-                      setNoticeForm({ title: '', body: '' });
-                    }}
+                    onClick={cancelNoticeEdit}
                   >
                     작성 취소
-                  </BrewButton>
+                  </VevenoButton>
                 ) : null}
               </div>
             </form>
@@ -1737,22 +1273,22 @@ export function BrewStorePage() {
                   <p className="brew-notice-item__body">{notice.body}</p>
                   {store?.owned ? (
                     <div className="brew-btn-row">
-                      <BrewButton
+                      <VevenoButton
                         size="sm"
                         variant="secondary"
                         disabled={savingNotice}
                         onClick={() => startEditNotice(notice)}
                       >
                         수정
-                      </BrewButton>
-                      <BrewButton
+                      </VevenoButton>
+                      <VevenoButton
                         size="sm"
                         variant="danger"
                         disabled={savingNotice}
                         onClick={() => void handleDeleteNotice(notice.id)}
                       >
                         삭제
-                      </BrewButton>
+                      </VevenoButton>
                     </div>
                   ) : null}
                 </article>
@@ -1761,21 +1297,21 @@ export function BrewStorePage() {
           )}
 
           <div className="brew-modal__actions">
-            <BrewButton variant="secondary" onClick={closeNotices} disabled={savingNotice}>
+            <VevenoButton variant="secondary" onClick={closeNotices} disabled={savingNotice}>
               닫기
-            </BrewButton>
+            </VevenoButton>
           </div>
         </div>
-      </BrewModal>
+      </VevenoModal>
 
-      <BrewModal
+      <VevenoModal
         open={menuEditOpen}
         title="메뉴 수정"
         onClose={closeMenuEditModal}
         closeOnBackdrop={!savingMenu}
       >
         <form className="brew-form-stack" onSubmit={handleSaveMenuName}>
-          <BrewInput
+          <VevenoInput
             label="이름"
             id="edit-menu-name"
             value={editingMenuName}
@@ -1784,10 +1320,10 @@ export function BrewStorePage() {
             disabled={savingMenu}
           />
           <div className="brew-modal__actions">
-            <BrewButton type="submit" disabled={savingMenu || !editingMenuName.trim()}>
+            <VevenoButton type="submit" disabled={savingMenu || !editingMenuName.trim()}>
               {savingMenu ? '저장 중…' : '저장'}
-            </BrewButton>
-            <BrewButton
+            </VevenoButton>
+            <VevenoButton
               type="button"
               variant="danger"
               disabled={savingMenu || !editingMenuId}
@@ -1798,144 +1334,39 @@ export function BrewStorePage() {
               }}
             >
               삭제
-            </BrewButton>
-            <BrewButton
+            </VevenoButton>
+            <VevenoButton
               type="button"
               variant="secondary"
               disabled={savingMenu}
               onClick={closeMenuEditModal}
             >
               취소
-            </BrewButton>
+            </VevenoButton>
           </div>
         </form>
-      </BrewModal>
+      </VevenoModal>
 
-      <BrewModal
+      <VevenoModal
         open={recipeViewOpen}
         title={viewRecipeContent.title || '레시피'}
         onClose={() => setRecipeViewOpen(false)}
       >
         <div className="brew-recipe-view">
           {viewRecipeContent.notes ? (
-            <BrewRecipeNotesView notes={viewRecipeContent.notes} />
+            <VevenoRecipeNotesView notes={viewRecipeContent.notes} />
           ) : (
             <p className="brew-empty">노트가 없습니다.</p>
           )}
         </div>
         <div className="brew-modal__actions">
-          <BrewButton variant="secondary" onClick={() => setRecipeViewOpen(false)}>
+          <VevenoButton variant="secondary" onClick={() => setRecipeViewOpen(false)}>
             닫기
-          </BrewButton>
+          </VevenoButton>
         </div>
-      </BrewModal>
+      </VevenoModal>
 
-      <BrewModal
-        open={stockCreateOpen}
-        title="재고 등록"
-        onClose={() => {
-          if (!creatingStock) {
-            setStockCreateOpen(false);
-          }
-        }}
-        closeOnBackdrop={!creatingStock}
-      >
-        <form className="brew-form-stack" onSubmit={handleCreateStock}>
-          <div className="brew-field">
-            <label className="brew-field__label" htmlFor="stock-category">
-              카테고리
-            </label>
-            <select
-              id="stock-category"
-              className="brew-field__input"
-              value={stockForm.categoryKey}
-              onChange={(e) =>
-                setStockForm((prev) => ({
-                  ...prev,
-                  categoryKey: e.target.value,
-                  customCategoryName:
-                    e.target.value === '__custom__' ? prev.customCategoryName : '',
-                }))
-              }
-              disabled={creatingStock}
-            >
-              <option value="">카테고리 선택</option>
-              {stockCategories.map((cat) => (
-                <option key={cat.id} value={String(cat.id)}>
-                  {cat.categoryName}
-                </option>
-              ))}
-              <option value="__custom__">직접 입력</option>
-            </select>
-          </div>
-          {stockForm.categoryKey === '__custom__' ? (
-            <BrewInput
-              label="카테고리 이름"
-              value={stockForm.customCategoryName}
-              onChange={(e) =>
-                setStockForm((prev) => ({
-                  ...prev,
-                  customCategoryName: e.target.value,
-                }))
-              }
-              placeholder="새 카테고리 이름"
-              disabled={creatingStock}
-            />
-          ) : null}
-          <BrewInput
-            label="재고 이름"
-            value={stockForm.stockName}
-            onChange={(e) =>
-              setStockForm((prev) => ({ ...prev, stockName: e.target.value }))
-            }
-            placeholder="재고 이름"
-            disabled={creatingStock}
-          />
-          <BrewInput
-            label="수량"
-            type="number"
-            min={0}
-            value={stockForm.stockNum}
-            onChange={(e) =>
-              setStockForm((prev) => ({
-                ...prev,
-                stockNum: Number(e.target.value),
-              }))
-            }
-            disabled={creatingStock}
-          />
-          <BrewInput
-            label="경고 수량"
-            type="number"
-            min={0}
-            value={stockForm.stockMinNum}
-            onChange={(e) =>
-              setStockForm((prev) => ({
-                ...prev,
-                stockMinNum: Number(e.target.value),
-              }))
-            }
-            disabled={creatingStock}
-          />
-          <p className="brew-card-lead">
-            「직접 입력」은 같은 이름이 없으면 카테고리를 만든 뒤 재고를 추가합니다.
-          </p>
-          <div className="brew-modal__actions">
-            <BrewButton
-              variant="secondary"
-              disabled={creatingStock}
-              onClick={() => setStockCreateOpen(false)}
-            >
-              취소
-            </BrewButton>
-            <BrewButton type="submit" loading={creatingStock}>
-              추가
-            </BrewButton>
-          </div>
-        </form>
-      </BrewModal>
-
-      <BrewJoinApproveModal
+      <VevenoJoinApproveModal
         open={Boolean(approveTarget)}
         request={approveTarget}
         loading={approving}
@@ -1949,7 +1380,7 @@ export function BrewStorePage() {
         }}
       />
 
-      <BrewModal
+      <VevenoModal
         open={leaveOpen}
         title={leaveTarget?.self ? '가게 나가기' : `${leaveTarget?.nickname ?? ''} 퇴사`}
         onClose={() => {
@@ -1964,7 +1395,7 @@ export function BrewStorePage() {
             퇴사일(마지막 근무일)을 선택하세요. 그날까지 근무할 수 있고, 다음날부터
             구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 처리됩니다.
           </p>
-          <BrewInput
+          <VevenoInput
             label="퇴사일"
             id="leave-date"
             type="date"
@@ -1973,7 +1404,7 @@ export function BrewStorePage() {
             onChange={(e) => setLeaveDate(e.target.value)}
           />
           <div className="brew-btn-row">
-            <BrewButton
+            <VevenoButton
               type="button"
               variant="secondary"
               disabled={leaving}
@@ -1983,15 +1414,15 @@ export function BrewStorePage() {
               }}
             >
               취소
-            </BrewButton>
-            <BrewButton type="submit" variant="danger" loading={leaving}>
+            </VevenoButton>
+            <VevenoButton type="submit" variant="danger" loading={leaving}>
               {leaveTarget?.self ? '나가기' : '퇴사 처리'}
-            </BrewButton>
+            </VevenoButton>
           </div>
         </form>
-      </BrewModal>
+      </VevenoModal>
 
-      <BrewStoreDeleteDialog
+      <VevenoStoreDeleteDialog
         open={deleteDialogOpen}
         storeName={store?.name ?? ''}
         loading={deleting}

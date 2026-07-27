@@ -1,8 +1,8 @@
-interface BrewVisibilityBadgeProps {
+interface VevenoVisibilityBadgeProps {
   isPublic: boolean;
 }
 
-export function BrewVisibilityBadge({ isPublic }: BrewVisibilityBadgeProps) {
+export function VevenoVisibilityBadge({ isPublic }: VevenoVisibilityBadgeProps) {
   const label = isPublic ? '공개 가게' : '비공개 가게';
   return (
     <span

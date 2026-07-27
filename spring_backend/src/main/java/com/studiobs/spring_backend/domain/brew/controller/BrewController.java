@@ -30,6 +30,8 @@ import com.studiobs.spring_backend.domain.brew.dto.TimerPresetResponse;
 import com.studiobs.spring_backend.domain.brew.dto.UpdateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.service.BrewScheduleService;
 import com.studiobs.spring_backend.domain.brew.service.BrewService;
+import com.studiobs.spring_backend.domain.brew.service.BrewNoticeService;
+import com.studiobs.spring_backend.domain.brew.service.BrewStockService;
 import com.studiobs.spring_backend.domain.brew.service.BrewTimerPresetService;
 import com.studiobs.spring_backend.global.common.MessageResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -58,6 +60,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class BrewController {
 
     private final BrewService brewService;
+    private final BrewNoticeService brewNoticeService;
+    private final BrewStockService brewStockService;
     private final BrewScheduleService brewScheduleService;
     private final BrewTimerPresetService brewTimerPresetService;
     private final AccessTokenResolver accessTokenResolver;
@@ -157,7 +161,7 @@ public class BrewController {
 
     @GetMapping("/stores/{storeId}/notices")
     public List<NoticeResponse> listNotices(HttpServletRequest request, @PathVariable UUID storeId) {
-        return brewService.listNotices(accessTokenResolver.requireEmail(request), storeId);
+        return brewNoticeService.listNotices(accessTokenResolver.requireEmail(request), storeId);
     }
 
     @PostMapping("/stores/{storeId}/notices")
@@ -167,7 +171,11 @@ public class BrewController {
             @PathVariable UUID storeId,
             @Valid @RequestBody NoticeRequest body
     ) {
-        return brewService.createNotice(accessTokenResolver.requireEmail(request), storeId, body);
+        return brewNoticeService.createNotice(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                body
+        );
     }
 
     @PatchMapping("/notices/{noticeId}")
@@ -176,13 +184,17 @@ public class BrewController {
             @PathVariable UUID noticeId,
             @Valid @RequestBody NoticeRequest body
     ) {
-        return brewService.updateNotice(accessTokenResolver.requireEmail(request), noticeId, body);
+        return brewNoticeService.updateNotice(
+                accessTokenResolver.requireEmail(request),
+                noticeId,
+                body
+        );
     }
 
     @DeleteMapping("/notices/{noticeId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteNotice(HttpServletRequest request, @PathVariable UUID noticeId) {
-        brewService.deleteNotice(accessTokenResolver.requireEmail(request), noticeId);
+        brewNoticeService.deleteNotice(accessTokenResolver.requireEmail(request), noticeId);
     }
 
     @GetMapping("/menus/{menuId}/recipes")
@@ -217,7 +229,10 @@ public class BrewController {
 
     @GetMapping("/stores/{storeId}/stocks")
     public List<StockCategoryResponse> listStocks(HttpServletRequest request, @PathVariable UUID storeId) {
-        return brewService.listStockCategories(storeId, accessTokenResolver.requireEmail(request));
+        return brewStockService.listStockCategories(
+                storeId,
+                accessTokenResolver.requireEmail(request)
+        );
     }
 
     @PostMapping("/stores/{storeId}/stock-categories")
@@ -227,7 +242,11 @@ public class BrewController {
             @PathVariable UUID storeId,
             @Valid @RequestBody NameRequest body
     ) {
-        return brewService.createStockCategory(accessTokenResolver.requireEmail(request), storeId, body);
+        return brewStockService.createStockCategory(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                body
+        );
     }
 
     @PatchMapping("/stock-categories/{categoryId}")
@@ -236,7 +255,7 @@ public class BrewController {
             @PathVariable Integer categoryId,
             @Valid @RequestBody NameRequest body
     ) {
-        return brewService.renameStockCategory(
+        return brewStockService.renameStockCategory(
                 accessTokenResolver.requireEmail(request),
                 categoryId,
                 body
@@ -248,7 +267,10 @@ public class BrewController {
             HttpServletRequest request,
             @PathVariable Integer categoryId
     ) {
-        brewService.deleteStockCategory(accessTokenResolver.requireEmail(request), categoryId);
+        brewStockService.deleteStockCategory(
+                accessTokenResolver.requireEmail(request),
+                categoryId
+        );
         return new MessageResponse("재고 카테고리가 삭제되었습니다.");
     }
 
@@ -259,7 +281,11 @@ public class BrewController {
             @PathVariable Integer categoryId,
             @Valid @RequestBody StockRequest body
     ) {
-        return brewService.createStock(accessTokenResolver.requireEmail(request), categoryId, body);
+        return brewStockService.createStock(
+                accessTokenResolver.requireEmail(request),
+                categoryId,
+                body
+        );
     }
 
     @PatchMapping("/stocks/{stockId}")
@@ -268,12 +294,16 @@ public class BrewController {
             @PathVariable Integer stockId,
             @Valid @RequestBody StockRequest body
     ) {
-        return brewService.updateStock(accessTokenResolver.requireEmail(request), stockId, body);
+        return brewStockService.updateStock(
+                accessTokenResolver.requireEmail(request),
+                stockId,
+                body
+        );
     }
 
     @DeleteMapping("/stocks/{stockId}")
     public MessageResponse deleteStock(HttpServletRequest request, @PathVariable Integer stockId) {
-        brewService.deleteStock(accessTokenResolver.requireEmail(request), stockId);
+        brewStockService.deleteStock(accessTokenResolver.requireEmail(request), stockId);
         return new MessageResponse("재고가 삭제되었습니다.");
     }
 

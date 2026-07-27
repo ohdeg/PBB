@@ -6,32 +6,21 @@ import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
 import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
 import com.studiobs.spring_backend.domain.brew.dto.MenuResponse;
 import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
-import com.studiobs.spring_backend.domain.brew.dto.NoticeRequest;
-import com.studiobs.spring_backend.domain.brew.dto.NoticeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeContentsRequest;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
 import com.studiobs.spring_backend.domain.brew.dto.ScheduleSlotRequest;
-import com.studiobs.spring_backend.domain.brew.dto.StockCategoryResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockPermissionRequest;
-import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
-import com.studiobs.spring_backend.domain.brew.dto.StockResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StoreResponse;
 import com.studiobs.spring_backend.domain.brew.dto.SubscriberResponse;
 import com.studiobs.spring_backend.domain.brew.dto.UpdateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewMenu;
 import com.studiobs.spring_backend.domain.brew.entity.BrewRecipe;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
-import com.studiobs.spring_backend.domain.brew.entity.BrewStoreNotice;
-import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStock;
-import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.repository.BrewMenuRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewRecipeRepository;
-import com.studiobs.spring_backend.domain.brew.repository.BrewStoreNoticeRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
-import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
-import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewInviteCodes;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
@@ -58,9 +47,6 @@ public class BrewService {
     private final BrewMenuRepository menuRepository;
     private final BrewRecipeRepository recipeRepository;
     private final BrewStoreSubscriptionRepository subscriptionRepository;
-    private final BrewStoreStockCategoryRepository stockCategoryRepository;
-    private final BrewStoreStockRepository stockRepository;
-    private final BrewStoreNoticeRepository noticeRepository;
     private final BrewRedisService brewRedisService;
     private final BrewScheduleService brewScheduleService;
 
@@ -224,46 +210,6 @@ public class BrewService {
     }
 
     @Transactional(readOnly = true)
-    public List<NoticeResponse> listNotices(String email, UUID storeId) {
-        User user = requireUser(email);
-        BrewStore store = requireStore(storeId);
-        assertMember(store, user.getId());
-        return noticeRepository.findByStoreIdOrderByCreatedAtDesc(storeId).stream()
-                .map(n -> NoticeResponse.from(n, nicknameOf(n.getAuthorUserId())))
-                .toList();
-    }
-
-    @Transactional
-    public NoticeResponse createNotice(String email, UUID storeId, NoticeRequest request) {
-        User user = requireUser(email);
-        requireOwnedStore(storeId, user.getId());
-        BrewStoreNotice notice = noticeRepository.save(BrewStoreNotice.builder()
-                .storeId(storeId)
-                .authorUserId(user.getId())
-                .title(request.title().trim())
-                .body(request.body().trim())
-                .build());
-        return NoticeResponse.from(notice, user.getNickname());
-    }
-
-    @Transactional
-    public NoticeResponse updateNotice(String email, UUID noticeId, NoticeRequest request) {
-        User user = requireUser(email);
-        BrewStoreNotice notice = requireNotice(noticeId);
-        requireOwnedStore(notice.getStoreId(), user.getId());
-        notice.update(request.title().trim(), request.body().trim());
-        return NoticeResponse.from(noticeRepository.save(notice), nicknameOf(notice.getAuthorUserId()));
-    }
-
-    @Transactional
-    public void deleteNotice(String email, UUID noticeId) {
-        User user = requireUser(email);
-        BrewStoreNotice notice = requireNotice(noticeId);
-        requireOwnedStore(notice.getStoreId(), user.getId());
-        noticeRepository.delete(notice);
-    }
-
-    @Transactional(readOnly = true)
     public List<RecipeResponse> listRecipes(UUID menuId, String emailOrNull) {
         BrewMenu menu = requireMenu(menuId);
         BrewStore store = requireStore(menu.getStoreId());
@@ -302,99 +248,6 @@ public class BrewService {
         BrewMenu menu = requireMenu(recipe.getMenuId());
         requireOwnedStore(menu.getStoreId(), user.getId());
         recipeRepository.delete(recipe);
-    }
-
-    @Transactional(readOnly = true)
-    public List<StockCategoryResponse> listStockCategories(UUID storeId, String email) {
-        User user = requireUser(email);
-        requireStockEditor(storeId, user.getId());
-        return stockCategoryRepository.findByStoreIdOrderByCategoryNameAsc(storeId).stream()
-                .map(cat -> StockCategoryResponse.from(
-                        cat,
-                        stockRepository.findByCategoryIdOrderByStockNameAsc(cat.getId())))
-                .toList();
-    }
-
-    @Transactional
-    public StockCategoryResponse createStockCategory(String email, UUID storeId, NameRequest request) {
-        User user = requireUser(email);
-        requireStockMutator(storeId, user.getId());
-        String name = request.name().trim();
-        if (stockCategoryRepository.existsByStoreIdAndCategoryName(storeId, name)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 카테고리 이름입니다.");
-        }
-        BrewStoreStockCategory category = stockCategoryRepository.save(
-                BrewStoreStockCategory.builder().storeId(storeId).categoryName(name).build());
-        return StockCategoryResponse.from(category, List.of());
-    }
-
-    @Transactional
-    public StockCategoryResponse renameStockCategory(
-            String email,
-            Integer categoryId,
-            NameRequest request
-    ) {
-        User user = requireUser(email);
-        BrewStoreStockCategory category = requireStockCategory(categoryId);
-        requireStockMutator(category.getStoreId(), user.getId());
-        String name = request.name().trim();
-        if (name.isEmpty()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "카테고리 이름을 입력해 주세요.");
-        }
-        if (!category.getCategoryName().equalsIgnoreCase(name)
-                && stockCategoryRepository.existsByStoreIdAndCategoryName(category.getStoreId(), name)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 카테고리 이름입니다.");
-        }
-        category.rename(name);
-        List<BrewStoreStock> stocks = stockRepository.findByCategoryIdOrderByStockNameAsc(categoryId);
-        return StockCategoryResponse.from(category, stocks);
-    }
-
-    @Transactional
-    public void deleteStockCategory(String email, Integer categoryId) {
-        User user = requireUser(email);
-        BrewStoreStockCategory category = requireStockCategory(categoryId);
-        requireStockMutator(category.getStoreId(), user.getId());
-        stockCategoryRepository.delete(category);
-    }
-
-    @Transactional
-    public StockResponse createStock(String email, Integer categoryId, StockRequest request) {
-        User user = requireUser(email);
-        BrewStoreStockCategory category = requireStockCategory(categoryId);
-        requireStockMutator(category.getStoreId(), user.getId());
-        validateStockNums(request.stockNum(), request.stockMinNum());
-        String name = request.stockName().trim();
-        if (stockRepository.existsByCategoryIdAndStockName(categoryId, name)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 재고 이름입니다.");
-        }
-        BrewStoreStock stock = stockRepository.save(BrewStoreStock.builder()
-                .categoryId(categoryId)
-                .stockName(name)
-                .stockNum(request.stockNum())
-                .stockMinNum(request.stockMinNum())
-                .build());
-        return StockResponse.from(stock);
-    }
-
-    @Transactional
-    public StockResponse updateStock(String email, Integer stockId, StockRequest request) {
-        User user = requireUser(email);
-        BrewStoreStock stock = requireStock(stockId);
-        BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
-        requireStockMutator(category.getStoreId(), user.getId());
-        validateStockNums(request.stockNum(), request.stockMinNum());
-        stock.update(request.stockName().trim(), request.stockNum(), request.stockMinNum());
-        return StockResponse.from(stockRepository.save(stock));
-    }
-
-    @Transactional
-    public void deleteStock(String email, Integer stockId) {
-        User user = requireUser(email);
-        BrewStoreStock stock = requireStock(stockId);
-        BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
-        requireStockMutator(category.getStoreId(), user.getId());
-        stockRepository.delete(stock);
     }
 
     @Transactional
@@ -634,34 +487,6 @@ public class BrewService {
         );
     }
 
-    private void requireStockEditor(UUID storeId, UUID userId) {
-        BrewStore store = requireStore(storeId);
-        if (store.getOwnerUserId().equals(userId)) {
-            return;
-        }
-        boolean allowed = subscriptionRepository
-                .findBySubscriberUserIdAndStoreId(userId, storeId)
-                .map(BrewStoreSubscription::isCanEditStock)
-                .orElse(false);
-        if (!allowed) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "재고 수정 권한이 없습니다.");
-        }
-    }
-
-    private void requireStockMutator(UUID storeId, UUID userId) {
-        requireStockEditor(storeId, userId);
-        BrewStore store = requireStore(storeId);
-        if (store.getOwnerUserId().equals(userId)) {
-            return;
-        }
-        if (!brewScheduleService.isCurrentlyOnDuty(storeId, userId)) {
-            throw new BusinessException(
-                    HttpStatus.FORBIDDEN,
-                    "근무 시간에만 재고를 수정할 수 있습니다."
-            );
-        }
-    }
-
     private StoreResponse toStoreResponse(BrewStore store, UUID viewerId) {
         boolean subscribed = false;
         boolean canEditStock = false;
@@ -721,15 +546,6 @@ public class BrewService {
         throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
     }
 
-    private String nicknameOf(UUID userId) {
-        return userService.findById(userId).map(User::getNickname).orElse("");
-    }
-
-    private BrewStoreNotice requireNotice(UUID noticeId) {
-        return noticeRepository.findById(noticeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다."));
-    }
-
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
@@ -765,25 +581,6 @@ public class BrewService {
     private BrewRecipe requireRecipe(UUID recipeId) {
         return recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "레시피를 찾을 수 없습니다."));
-    }
-
-    private BrewStoreStockCategory requireStockCategory(Integer categoryId) {
-        return stockCategoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "재고 카테고리를 찾을 수 없습니다."));
-    }
-
-    private BrewStoreStock requireStock(Integer stockId) {
-        return stockRepository.findById(stockId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "재고를 찾을 수 없습니다."));
-    }
-
-    private void validateStockNums(int stockNum, Integer stockMinNum) {
-        if (stockNum < 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "재고 수량은 0 이상이어야 합니다.");
-        }
-        if (stockMinNum != null && stockMinNum < 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "경고 수량은 0 이상이어야 합니다.");
-        }
     }
 
     private String findEmailByUserId(UUID userId) {

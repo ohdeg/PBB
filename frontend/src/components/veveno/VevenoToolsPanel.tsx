@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { BrewTimers } from './BrewTimers';
-import { BrewUnitConverter } from './BrewUnitConverter';
+import { VevenoTimers } from './VevenoTimers';
+import { VevenoUnitConverter } from './VevenoUnitConverter';
 
 type ToolsSection = 'units' | 'timers';
 
-interface BrewToolsPanelProps {
+interface VevenoToolsPanelProps {
   storeId: string;
 }
 
-export function BrewToolsPanel({ storeId }: BrewToolsPanelProps) {
+export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
   const [section, setSection] = useState<ToolsSection>('units');
 
   return (
@@ -35,9 +35,9 @@ export function BrewToolsPanel({ storeId }: BrewToolsPanelProps) {
       </div>
 
       {section === 'units' ? (
-        <BrewUnitConverter />
+        <VevenoUnitConverter />
       ) : (
-        <BrewTimers storeId={storeId} />
+        <VevenoTimers storeId={storeId} />
       )}
     </div>
   );

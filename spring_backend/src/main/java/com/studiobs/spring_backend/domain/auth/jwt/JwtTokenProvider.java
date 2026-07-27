@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.auth.jwt;
 
 import com.studiobs.spring_backend.domain.user.entity.User;
+import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import com.studiobs.spring_backend.global.config.JwtProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -39,6 +40,10 @@ public class JwtTokenProvider {
 
     public String getEmail(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    public UserClass getUserClass(String token) {
+        return UserClass.from(parseClaims(token).get(CLAIM_USER_CLASS, String.class));
     }
 
     public boolean isAccessToken(String token) {

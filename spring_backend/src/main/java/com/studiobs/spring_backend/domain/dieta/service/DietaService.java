@@ -182,6 +182,24 @@ public class DietaService {
         return toProfileResponse(profile);
     }
 
+    /**
+     * Wipes all Dieta data for the user (MySQL rows + Redis meal queues) so onboarding can run again.
+     * Idempotent when no profile exists.
+     */
+    @Transactional
+    public void resetAll(String email) {
+        User user = requireUser(email);
+        UUID userId = user.getId();
+        bodyLogRepository.deleteByUserId(userId);
+        intakeLogRepository.deleteByUserId(userId);
+        activityLogRepository.deleteByUserId(userId);
+        ketoEventRepository.deleteByUserId(userId);
+        checkInLogRepository.deleteByUserId(userId);
+        recipeRepository.deleteByUserId(userId);
+        profileRepository.deleteById(userId);
+        mealQueueRedisService.deleteAllForUser(userId);
+    }
+
     @Transactional
     public DietaProfileResponse patchProfile(String email, DietaProfilePatchRequest request) {
         User user = requireUser(email);

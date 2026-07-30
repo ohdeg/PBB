@@ -496,11 +496,15 @@ flowchart LR
     auto[목표 체중 도달 · 자동 MAINTAIN] -.-> toggle
     settings --> editTw[목표 체중 · 주간 W 수정]
     settings --> reOnboard[온보딩 다시]
+    reOnboard --> confirmWipe[확인 · 데이터 전부 삭제]
+    confirmWipe --> resetApi["POST /reset"]
+    resetApi --> onboardAgain[온보딩 재시작]
 ```
 
 - 설정 UI는 **유지 모드 단일 토글** (LOSS/GAIN/MAINTAIN 칩 없음). ON=MAINTAIN, OFF=이전 LOSS|GAIN 복귀
 - 목표 체중 도달 시 자동 MAINTAIN은 그대로 적용되며, 이후 토글을 끄면 이전 감량·증량으로 돌아갈 수 있음
 - MAINTAIN일 때 일일 목표 = TDEE
+- **온보딩 다시**: 확인 후 `POST /api/v1/dieta/reset`로 프로필·체중·섭취·레시피·체크인·식사 큐를 모두 지운 뒤 `/hobbies/dieta/onboarding`으로 이동 (재온보딩은 최초와 동일, 409 없음)
 
 라우트:
 - `/hobbies/dieta` — 랜딩 (온보딩 완료 시 홈으로 스킵)

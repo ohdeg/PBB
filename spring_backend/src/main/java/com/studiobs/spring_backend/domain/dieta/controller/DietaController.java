@@ -69,6 +69,13 @@ public class DietaController {
         return dietaService.completeOnboarding(accessTokenResolver.requireEmail(request), body);
     }
 
+    /** Deletes all Dieta data for the caller so they can complete onboarding again. */
+    @PostMapping("/reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reset(HttpServletRequest request) {
+        dietaService.resetAll(accessTokenResolver.requireEmail(request));
+    }
+
     @PatchMapping("/profile")
     public DietaProfileResponse patchProfile(
             HttpServletRequest request,

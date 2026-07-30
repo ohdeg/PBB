@@ -12,4 +12,6 @@ public interface DietaIntakeLogRepository extends JpaRepository<DietaIntakeLog, 
     List<DietaIntakeLog> findByUserIdOrderByLoggedOnAsc(UUID userId);
 
     Optional<DietaIntakeLog> findByUserIdAndLoggedOn(UUID userId, LocalDate loggedOn);
+
+    void deleteByUserId(UUID userId);
 }

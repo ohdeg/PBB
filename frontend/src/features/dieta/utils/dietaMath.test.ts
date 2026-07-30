@@ -7,6 +7,7 @@ import {
   buildWeeklyCheckInProposal,
   computeTdee,
   computeWeeklyX,
+  conservativeActivityFactor,
   daysBetweenIso,
   estimateBmrKcal,
   estimateTdeeFromIntake,
@@ -27,6 +28,15 @@ describe('estimateBmrKcal / computeTdee', () => {
     })
     expect(bmr).toBeGreaterThan(1600)
     expect(computeTdee(bmr, 1.4)).toBeGreaterThanOrEqual(bmr)
+  })
+
+  it('applies conservative activity factor for TDEE', () => {
+    expect(conservativeActivityFactor(1.2)).toBe(1.2)
+    expect(conservativeActivityFactor(1.4)).toBeCloseTo(1.3, 5)
+    expect(conservativeActivityFactor(1.725)).toBeCloseTo(1.54375, 5)
+    // raw 1.4 → effective 1.3, not full 1.4
+    expect(computeTdee(2000, 1.4)).toBe(2600)
+    expect(computeTdee(2000, 1.725)).toBe(3088)
   })
 })
 

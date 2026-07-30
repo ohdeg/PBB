@@ -11,6 +11,9 @@ public final class DietaMath {
     private static final BigDecimal DEFAULT_WEEKLY_TARGET_KG = new BigDecimal("0.5");
     private static final BigDecimal WEIGHT_X_DIVISOR = new BigDecimal("1.2");
     private static final int KCAL_PER_KG = 7700;
+    /** Discount applied to (activityFactor − 1) when computing TDEE so maintain kcal is not overstated. */
+    private static final double ACTIVITY_FACTOR_CONSERVATIVE_SCALE = 0.75;
+    private static final double MIN_TDEE_ACTIVITY_FACTOR = 1.2;
 
     private DietaMath() {
     }
@@ -22,8 +25,18 @@ public final class DietaMath {
         return (int) Math.round("F".equalsIgnoreCase(sex) ? base - 161 : base + 5);
     }
 
+    /**
+     * Conservative TDEE activity factor: {@code 1 + (factor − 1) × 0.75}, floored at 1.2.
+     * UI still stores/shows the raw survey factor; only TDEE uses this.
+     */
+    public static double conservativeActivityFactor(double activityFactor) {
+        double scaled = 1.0 + (activityFactor - 1.0) * ACTIVITY_FACTOR_CONSERVATIVE_SCALE;
+        return Math.max(scaled, MIN_TDEE_ACTIVITY_FACTOR);
+    }
+
     public static int computeTdee(int bmr, BigDecimal activityFactor) {
-        return Math.max((int) Math.round(bmr * activityFactor.doubleValue()), bmr);
+        double factor = conservativeActivityFactor(activityFactor.doubleValue());
+        return Math.max((int) Math.round(bmr * factor), bmr);
     }
 
     /** Macros → kcal (carb×4 + protein×4 + fat×9). */

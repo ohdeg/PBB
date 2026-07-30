@@ -12,4 +12,6 @@ public interface DietaBodyLogRepository extends JpaRepository<DietaBodyLog, UUID
     List<DietaBodyLog> findByUserIdOrderByLoggedOnAsc(UUID userId);
 
     Optional<DietaBodyLog> findByUserIdAndLoggedOn(UUID userId, LocalDate loggedOn);
+
+    void deleteByUserId(UUID userId);
 }

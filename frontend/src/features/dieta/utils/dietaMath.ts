@@ -17,8 +17,22 @@ export function estimateBmrKcal(params: {
   return Math.round(sex === 'F' ? base - 161 : base + 5);
 }
 
+/** Discount applied to (activityFactor − 1) when computing TDEE so maintain kcal is not overstated. */
+const ACTIVITY_FACTOR_CONSERVATIVE_SCALE = 0.75
+const MIN_TDEE_ACTIVITY_FACTOR = 1.2
+
+/**
+ * Conservative TDEE activity factor: `1 + (factor − 1) × 0.75`, floored at 1.2.
+ * UI still stores/shows the raw survey factor; only TDEE uses this.
+ */
+export function conservativeActivityFactor(activityFactor: number): number {
+  const scaled = 1 + (activityFactor - 1) * ACTIVITY_FACTOR_CONSERVATIVE_SCALE
+  return Math.max(scaled, MIN_TDEE_ACTIVITY_FACTOR)
+}
+
 export function computeTdee(bmr: number, activityFactor: number): number {
-  return Math.max(Math.round(bmr * activityFactor), bmr);
+  const factor = conservativeActivityFactor(activityFactor)
+  return Math.max(Math.round(bmr * factor), bmr)
 }
 
 export function applyLossDaily(daily: number, bmr: number): number {

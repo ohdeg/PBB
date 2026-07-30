@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { dietaApi } from '../api/dietaApi';
 import type { DietaProfile } from '../features/dieta/types';
 import { DIETA_STYLE_LABELS } from '../features/dieta/types';
@@ -7,6 +7,7 @@ import { useDietaUserKey } from '../features/dieta/useDietaUserKey';
 import { useAuthStore } from '../stores/authStore';
 
 export function DietaSettingsPage() {
+  const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
   const userKey = useDietaUserKey();
   const [profile, setProfile] = useState<DietaProfile | null>(null);
@@ -70,15 +71,41 @@ export function DietaSettingsPage() {
     }
   };
 
+  const resetOnboarding = async () => {
+    if (busy) {
+      return;
+    }
+    const ok = window.confirm(
+      '기존 체중·섭취·레시피·체크인 데이터가 모두 삭제됩니다. 온보딩을 다시 할까요?',
+    );
+    if (!ok) {
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      await dietaApi.resetAll(userKey);
+      void navigate('/hobbies/dieta/onboarding', { replace: true });
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : '온보딩 초기화에 실패했어요.');
+      setBusy(false);
+    }
+  };
+
   const maintainOn = profile.goalType === 'MAINTAIN';
 
   return (
     <>
       <div className="dieta-title-row">
         <h1>설정</h1>
-        <Link className="dieta-link" to="/hobbies/dieta/onboarding">
+        <button
+          type="button"
+          className="dieta-link"
+          disabled={busy}
+          onClick={() => void resetOnboarding()}
+        >
           온보딩 다시
-        </Link>
+        </button>
       </div>
 
       <section className="dieta-card">

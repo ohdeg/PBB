@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -46,6 +47,14 @@ public class DietaMealQueueRedisService {
             return toStore;
         } catch (JacksonException ex) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "식사 큐를 저장할 수 없습니다.");
+        }
+    }
+
+    /** Deletes all Redis meal-queue keys for the user (`dieta:mealq:{userId}:*`). */
+    public void deleteAllForUser(UUID userId) {
+        Set<String> keys = stringRedisTemplate.keys(KEY_PREFIX + userId + ":*");
+        if (keys != null && !keys.isEmpty()) {
+            stringRedisTemplate.delete(keys);
         }
     }
 

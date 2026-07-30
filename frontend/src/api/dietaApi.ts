@@ -161,6 +161,15 @@ export const dietaApi = {
     }
   },
 
+  /** Wipes all Dieta data so onboarding can run again. */
+  async resetAll(_key?: string | null): Promise<void> {
+    try {
+      await apiClient.post(`${BASE}/reset`);
+    } catch (error) {
+      rethrowDieta(error, '온보딩 초기화에 실패했어요.');
+    }
+  },
+
   async updateProfile(
     patch: Partial<DietaProfile>,
     _key?: string | null,

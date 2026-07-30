@@ -28,6 +28,18 @@ Safety: TDEE ≥ BMR · LOSS daily ≥ BMR · GAIN daily ≤ TDEE + `gainCeiling
 
 BMR: Mifflin–St Jeor; user-entered or estimated from weight/height/age/sex.
 
+### Conservative TDEE activity factor
+
+UI stores the survey `activityFactor` as chosen (e.g. 1.2 / 1.4 / 1.55 / 1.725).  
+TDEE uses a **conservative** factor so maintain kcal is not overstated:
+
+```
+tdeeFactor = max(1.2, 1.0 + (activityFactor − 1.0) × 0.75)
+TDEE = max(round(BMR × tdeeFactor), BMR)
+```
+
+Applied in FE `dietaMath.computeTdee` and BE `DietaMath.computeTdee` (onboarding and any path that multiplies BMR × activity). Check-in TDEE re-estimate from intake/weight does **not** use this (no activityFactor multiply).
+
 ## 3. Weekly X & bands (weight-only)
 
 - **X** (LOSS/GAIN): `weightDeltaKg` signed by goal direction, then **`÷ 1.2`**.  
@@ -77,7 +89,7 @@ On complete: `onboardingComplete=true`, `weekStartsOn=today`, `weekActivityExtra
 - Meals: daytime queue by mealType; finalize → Gemini → intake log. Homemade recipe via 「등록 음식」→「추가하기」 → immediate Gemini → `dieta_recipes` + same-day intake (not Redis queue); same modal select → copy recipe to today (`add-to-day`); finalize passes `knownRecipes`.
 - Activity: steps / minutes / activity kcal (known fields only); week extra kcal hint.
 - Check-in: 7-day gate (`today − weekStartsOn ≥ 7`); weight; proposal modal with keepTargets.
-- Settings: maintain toggle, targets, step kcal, Gemini consent, re-onboard.
+- Settings: maintain toggle, targets, step kcal, Gemini consent, **온보딩 다시** (confirm → `POST /reset` wipe → onboarding).
 
 Nav: 홈 · 섭취 · 활동 · 설정 (no progress tab; `/progress` → home).
 
@@ -171,7 +183,8 @@ No food catalog / dedicated recipe bookshelf entity in MVP (list historical `die
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/api/v1/dieta/profile` | 404 if none |
-| POST | `/api/v1/dieta/onboarding` | Creates profile + ONBOARDING body log |
+| POST | `/api/v1/dieta/onboarding` | Creates profile + ONBOARDING body log (409 if profile exists) |
+| POST | `/api/v1/dieta/reset` | Wipe all Dieta data (profile, logs, recipes, Redis `dieta:mealq:{userId}:*`) → 204; then onboarding works as first-time |
 | PATCH | `/api/v1/dieta/profile` | Partial update |
 | POST | `/api/v1/dieta/maintain-mode` | `{ "enabled": boolean }` |
 | GET/PUT | `/api/v1/dieta/body-logs` | List / upsert by `loggedOn` |

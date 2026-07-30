@@ -18,6 +18,18 @@ class DietaMathTest {
     }
 
     @Test
+    void computeTdee_usesConservativeActivityFactor() {
+        assertThat(DietaMath.conservativeActivityFactor(1.2))
+                .isCloseTo(1.2, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(DietaMath.conservativeActivityFactor(1.4))
+                .isCloseTo(1.3, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(DietaMath.conservativeActivityFactor(1.725))
+                .isCloseTo(1.54375, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(DietaMath.computeTdee(2000, new BigDecimal("1.4"))).isEqualTo(2600);
+        assertThat(DietaMath.computeTdee(2000, new BigDecimal("1.725"))).isEqualTo(3088);
+    }
+
+    @Test
     void weeklyX_isWeightDeltaOver1_2() {
         assertThat(DietaMath.computeWeeklyXFromWeight("LOSS", new BigDecimal("-1.2")))
                 .isEqualTo(1.0);

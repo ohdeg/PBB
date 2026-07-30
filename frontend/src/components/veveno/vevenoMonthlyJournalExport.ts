@@ -1,12 +1,12 @@
 import * as XLSX from 'xlsx';
-import type { BrewCalendarOccurrence, BrewOccurrenceType } from '../../types/brew';
+import type { VevenoCalendarOccurrence, VevenoOccurrenceType } from '../../types/veveno';
 
 export interface MonthlyJournalExportInput {
   storeName: string;
   year: number;
   /** 1–12 */
   month: number;
-  occurrences: BrewCalendarOccurrence[];
+  occurrences: VevenoCalendarOccurrence[];
 }
 
 interface JournalShift {
@@ -90,7 +90,7 @@ export function occurrenceDurationMinutes(
   return end - start;
 }
 
-function typeLabel(type: BrewOccurrenceType): string | null {
+function typeLabel(type: VevenoOccurrenceType): string | null {
   switch (type) {
     case 'REGULAR':
       return '정규';
@@ -131,7 +131,7 @@ function daysInMonth(year: number, month: number): number {
 }
 
 function buildShifts(
-  occurrences: BrewCalendarOccurrence[],
+  occurrences: VevenoCalendarOccurrence[],
   year: number,
   month: number,
 ): JournalShift[] {

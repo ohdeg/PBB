@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
-import { brewApi } from '../api/brewApi'
-import type { BrewNotice, BrewStore } from '../types/brew'
+import { vevenoApi } from '../api/vevenoApi'
+import type { VevenoNotice, VevenoStore } from '../types/veveno'
 import { getErrorMessage } from '../utils/error'
 
 interface UseVevenoNoticesOptions {
-  store: BrewStore | null
+  store: VevenoStore | null
   storeId: string
   setError: Dispatch<SetStateAction<string>>
 }
@@ -15,7 +15,7 @@ export function useVevenoNotices({
   storeId,
   setError,
 }: UseVevenoNoticesOptions) {
-  const [notices, setNotices] = useState<BrewNotice[]>([])
+  const [notices, setNotices] = useState<VevenoNotice[]>([])
   const [noticesOpen, setNoticesOpen] = useState(false)
   const [noticeForm, setNoticeForm] = useState({ title: '', body: '' })
   const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null)
@@ -35,7 +35,7 @@ export function useVevenoNotices({
     setNoticeForm({ title: '', body: '' })
   }
 
-  const startEditNotice = (notice: BrewNotice) => {
+  const startEditNotice = (notice: VevenoNotice) => {
     setEditingNoticeId(notice.id)
     setNoticeForm({ title: notice.title, body: notice.body })
   }
@@ -60,7 +60,7 @@ export function useVevenoNotices({
     setError('')
     try {
       if (editingNoticeId) {
-        const { data } = await brewApi.updateNotice(editingNoticeId, {
+        const { data } = await vevenoApi.updateNotice(editingNoticeId, {
           title,
           body,
         })
@@ -68,7 +68,7 @@ export function useVevenoNotices({
           current.map((notice) => (notice.id === data.id ? data : notice)),
         )
       } else {
-        const { data } = await brewApi.createNotice(storeId, { title, body })
+        const { data } = await vevenoApi.createNotice(storeId, { title, body })
         setNotices((current) => [data, ...current])
       }
       setEditingNoticeId(null)
@@ -86,7 +86,7 @@ export function useVevenoNotices({
     setSavingNotice(true)
     setError('')
     try {
-      await brewApi.deleteNotice(noticeId)
+      await vevenoApi.deleteNotice(noticeId)
       setNotices((current) =>
         current.filter((notice) => notice.id !== noticeId),
       )

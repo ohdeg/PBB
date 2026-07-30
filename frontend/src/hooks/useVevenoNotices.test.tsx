@@ -4,19 +4,19 @@ import { act, renderHook } from '@testing-library/react'
 import type { AxiosResponse } from 'axios'
 import type { FormEvent, SetStateAction } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { brewApi } from '../api/brewApi'
-import type { BrewNotice, BrewStore } from '../types/brew'
+import { vevenoApi } from '../api/vevenoApi'
+import type { VevenoNotice, VevenoStore } from '../types/veveno'
 import { useVevenoNotices } from './useVevenoNotices'
 
-vi.mock('../api/brewApi', () => ({
-  brewApi: {
+vi.mock('../api/vevenoApi', () => ({
+  vevenoApi: {
     createNotice: vi.fn(),
     updateNotice: vi.fn(),
     deleteNotice: vi.fn(),
   },
 }))
 
-const ownerStore: BrewStore = {
+const ownerStore: VevenoStore = {
   id: 'store-1',
   ownerUserId: 'owner-1',
   name: 'Test Store',
@@ -31,7 +31,7 @@ const ownerStore: BrewStore = {
   updatedAt: '2026-07-27T00:00:00Z',
 }
 
-const createdNotice: BrewNotice = {
+const createdNotice: VevenoNotice = {
   id: 'notice-1',
   storeId: ownerStore.id,
   authorUserId: ownerStore.ownerUserId,
@@ -48,9 +48,9 @@ describe('useVevenoNotices', () => {
   })
 
   it('creates an owner notice and resets the form', async () => {
-    vi.mocked(brewApi.createNotice).mockResolvedValue({
+    vi.mocked(vevenoApi.createNotice).mockResolvedValue({
       data: createdNotice,
-    } as AxiosResponse<BrewNotice>)
+    } as AxiosResponse<VevenoNotice>)
     const setError = vi.fn<(value: SetStateAction<string>) => void>()
     const { result } = renderHook(() =>
       useVevenoNotices({
@@ -72,7 +72,7 @@ describe('useVevenoNotices', () => {
       )
     })
 
-    expect(brewApi.createNotice).toHaveBeenCalledWith(ownerStore.id, {
+    expect(vevenoApi.createNotice).toHaveBeenCalledWith(ownerStore.id, {
       title: createdNotice.title,
       body: createdNotice.body,
     })
@@ -97,6 +97,6 @@ describe('useVevenoNotices', () => {
       )
     })
 
-    expect(brewApi.createNotice).not.toHaveBeenCalled()
+    expect(vevenoApi.createNotice).not.toHaveBeenCalled()
   })
 })

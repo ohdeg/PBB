@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { brewApi } from '../api/brewApi';
+import { vevenoApi } from '../api/vevenoApi';
 import { useAuthStore } from '../stores/authStore';
 
 const HUB_PATH = '/hobbies/veveno/hub';
@@ -78,8 +78,8 @@ export function VevenoLandingPage() {
     void (async () => {
       try {
         const [mine, subs] = await Promise.all([
-          brewApi.myStores(),
-          brewApi.subscriptions(),
+          vevenoApi.myStores(),
+          vevenoApi.subscriptions(),
         ]);
         if (cancelled) {
           return;

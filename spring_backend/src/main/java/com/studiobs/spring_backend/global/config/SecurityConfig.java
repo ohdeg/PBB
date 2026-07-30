@@ -72,9 +72,12 @@ public class SecurityConfig {
                                 "/api/v1/lotto/draws",
                                 "/api/v1/lotto/draws/latest",
                                 "/api/v1/brew/stores/public",
-                                "/api/v1/brew/stores/search"
+                                "/api/v1/brew/stores/search",
+                                "/api/v1/veveno/stores/public",
+                                "/api/v1/veveno/stores/search"
                         ).permitAll()
                         .requestMatchers(publicBrewStoreReadMatcher()).permitAll()
+                        .requestMatchers(publicVevenoStoreReadMatcher()).permitAll()
                         .requestMatchers("/api/v1/dev/**").hasRole("DEV")
                         .requestMatchers(
                                 HttpMethod.PUT,
@@ -91,9 +94,17 @@ public class SecurityConfig {
     }
 
     private static RegexRequestMatcher publicBrewStoreReadMatcher() {
+        return publicStoreReadMatcher("brew");
+    }
+
+    private static RegexRequestMatcher publicVevenoStoreReadMatcher() {
+        return publicStoreReadMatcher("veveno");
+    }
+
+    private static RegexRequestMatcher publicStoreReadMatcher(String apiSegment) {
         String uuid = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
                 + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-        String pattern = "^/api/v1/brew/(stores/" + uuid
+        String pattern = "^/api/v1/" + apiSegment + "/(stores/" + uuid
                 + "(?:/menus)?|menus/" + uuid + "/recipes)$";
         return new RegexRequestMatcher(pattern, HttpMethod.GET.name());
     }

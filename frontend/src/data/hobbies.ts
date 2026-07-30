@@ -27,12 +27,12 @@ export const HOBBY_APPS: HobbyApp[] = [
     available: true,
   },
   {
-    id: 'lotto',
+    id: '6pick',
     name: '6PICK',
     subtitle: '로또 번호',
     description: '몬테카를로·Hot/Cold로 번호를 만들고 히스토리를 저장하는 앱',
     category: '라이프',
-    path: '/hobbies/lotto',
+    path: '/hobbies/6pick',
     accent: '#af52de',
     available: true,
     iconSrc: '/6pick/logo.svg',
@@ -64,7 +64,8 @@ export function getFeaturedHobby(): HobbyApp {
 }
 
 export function getHobbyById(id: string): HobbyApp | undefined {
-  const resolvedId = id === 'brew-note' ? 'veveno' : id;
+  const resolvedId =
+    id === 'brew-note' ? 'veveno' : id === 'lotto' ? '6pick' : id;
   return HOBBY_APPS.find((app) => app.id === resolvedId);
 }
 

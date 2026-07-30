@@ -1702,7 +1702,7 @@ export function LottoPage() {
         : history
     executeImageCapture(
       targetData,
-      `로또_${selectedItems.length > 0 ? '선택저장' : '전체저장'}_${new Date().getTime()}.png`,
+      `6PICK_${selectedItems.length > 0 ? '선택저장' : '전체저장'}_${new Date().getTime()}.png`,
     )
   }
 
@@ -1729,7 +1729,7 @@ export function LottoPage() {
               <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-600 rounded-md text-[10px] font-black tracking-widest mb-2">
                 STRATEGIC DRAW
               </span>
-              <h2 className="text-xl font-black text-slate-900">로또 추첨 결과</h2>
+              <h2 className="text-xl font-black text-slate-900">6PICK 추첨 결과</h2>
             </div>
             <p className="text-xs font-bold text-slate-400">
               {new Date().toLocaleDateString()}
@@ -1849,7 +1849,7 @@ export function LottoPage() {
 
           <nav
             className="mt-4 flex rounded-xl bg-slate-100 p-1"
-            aria-label="로또 메인 탭"
+            aria-label="6PICK 메인 탭"
           >
             <button
               type="button"

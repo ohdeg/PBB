@@ -16,10 +16,14 @@ import {
 } from '../features/score/utils/musicXmlMetadata';
 import { resolveErrorMessage } from '../features/score/utils/resolveErrorMessage';
 import { filterLibraryScoresByQuery } from '../features/score/utils/scoreSearch';
+import { migrateMusicViewerStorageOnce } from '../features/score/utils/migrateMusicViewerStorage';
 import { Button } from '../components/ui/Button';
 
 function ScoreLibraryPageInner() {
   const t = useTranslation();
+  useEffect(() => {
+    migrateMusicViewerStorageOnce();
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scores, setScores] = useState<LibraryScoreItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');

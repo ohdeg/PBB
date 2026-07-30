@@ -9,6 +9,6 @@ test('veveno landing shows brand copy', async ({ page }) => {
 })
 
 test('lotto shell loads after splash', async ({ page }) => {
-  await page.goto('/hobbies/lotto')
+  await page.goto('/hobbies/6pick')
   await expect(page.getByRole('main')).toBeVisible({ timeout: 20_000 })
 })

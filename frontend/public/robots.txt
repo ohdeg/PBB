@@ -1,8 +1,9 @@
 User-agent: *
 Allow: /
-Allow: /hobbies/lotto
+Allow: /hobbies/6pick
 Allow: /hobbies/score-viewer
 Allow: /hobbies/veveno
+Allow: /hobbies/dieta
 
 Disallow: /login
 Disallow: /signup

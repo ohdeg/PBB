@@ -17,7 +17,7 @@ export const INDEXABLE_PAGE_SEO: readonly IndexablePageSeo[] = [
     description: "취미 앱을 골라 시작하는 Play beom's BAG",
   },
   {
-    path: '/hobbies/lotto',
+    path: '/hobbies/6pick',
     title: '6PICK · PBB',
     description:
       '몬테카를로·Hot/Cold로 로또 번호를 만들고 히스토리를 저장하는 앱',
@@ -32,5 +32,10 @@ export const INDEXABLE_PAGE_SEO: readonly IndexablePageSeo[] = [
     path: '/hobbies/veveno',
     title: 'Veveno · PBB',
     description: '메뉴·재고·근무를 한곳에 남기는 가벼운 매장 노트',
+  },
+  {
+    path: '/hobbies/dieta',
+    title: 'Dieta · PBB',
+    description: '체중·섭취·활동량으로 한 주씩 부드럽게 조절하는 코칭 노트',
   },
 ] as const;

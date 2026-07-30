@@ -6,8 +6,8 @@ import {
   useSyncExternalStore,
 } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { brewApi } from '../../api/brewApi';
-import type { BrewTimerPreset, BrewTimerPresetStep } from '../../types/brew';
+import { vevenoApi } from '../../api/vevenoApi';
+import type { VevenoTimerPreset, VevenoTimerPresetStep } from '../../types/veveno';
 import { getErrorMessage } from '../../utils/error';
 import { VevenoButton } from './VevenoButton';
 import { VevenoInput } from './VevenoInput';
@@ -80,10 +80,10 @@ function VevenoActionMenu({ actions }: { actions: MenuAction[] }) {
   }, [open]);
 
   return (
-    <div className="brew-menu" ref={rootRef}>
+    <div className="veveno-menu" ref={rootRef}>
       <button
         type="button"
-        className={`brew-menu__trigger${open ? ' is-open' : ''}`}
+        className={`veveno-menu__trigger${open ? ' is-open' : ''}`}
         aria-label="더보기"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -92,13 +92,13 @@ function VevenoActionMenu({ actions }: { actions: MenuAction[] }) {
         ⋯
       </button>
       {open ? (
-        <div className="brew-menu__list" role="menu">
+        <div className="veveno-menu__list" role="menu">
           {actions.map((action) => (
             <button
               key={action.label}
               type="button"
               role="menuitem"
-              className={`brew-menu__item${action.danger ? ' is-danger' : ''}`}
+              className={`veveno-menu__item${action.danger ? ' is-danger' : ''}`}
               disabled={action.disabled}
               onClick={() => {
                 setOpen(false);
@@ -125,7 +125,7 @@ function VevenoIconButton({ label, onClick, primary, children }: VevenoIconButto
   return (
     <button
       type="button"
-      className={`brew-icon-btn${primary ? ' brew-icon-btn--primary' : ''}`}
+      className={`veveno-icon-btn${primary ? ' veveno-icon-btn--primary' : ''}`}
       aria-label={label}
       title={label}
       onClick={onClick}
@@ -169,7 +169,7 @@ function newDraftStep(name = '', minutes = '15', seconds = '0'): DraftStep {
   };
 }
 
-function stepsToDraft(steps: BrewTimerPresetStep[]): DraftStep[] {
+function stepsToDraft(steps: VevenoTimerPresetStep[]): DraftStep[] {
   return steps.map((step, index) => {
     const parts = msToDraftParts(step.durationMs);
     return {
@@ -193,7 +193,7 @@ function timerToDraftSteps(timer: VevenoTimer): DraftStep[] {
   });
 }
 
-function collectStepsFromDraft(draftSteps: DraftStep[]): BrewTimerPresetStep[] {
+function collectStepsFromDraft(draftSteps: DraftStep[]): VevenoTimerPresetStep[] {
   return draftSteps
     .map((step) => ({
       name: step.name,
@@ -215,8 +215,8 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
   ]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<SaveTarget>('personal');
-  const [personalPresets, setPersonalPresets] = useState<BrewTimerPreset[]>([]);
-  const [storePresets, setStorePresets] = useState<BrewTimerPreset[]>([]);
+  const [personalPresets, setPersonalPresets] = useState<VevenoTimerPreset[]>([]);
+  const [storePresets, setStorePresets] = useState<VevenoTimerPreset[]>([]);
   const [presetError, setPresetError] = useState('');
   const [presetBusy, setPresetBusy] = useState(false);
   const [editingPreset, setEditingPreset] = useState<{
@@ -227,8 +227,8 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
   const loadPresets = useCallback(async () => {
     try {
       const [personal, store] = await Promise.all([
-        brewApi.listPersonalTimerPresets(),
-        brewApi.listStoreTimerPresets(storeId),
+        vevenoApi.listPersonalTimerPresets(),
+        vevenoApi.listStoreTimerPresets(storeId),
       ]);
       setPersonalPresets(personal.data);
       setStorePresets(store.data);
@@ -266,7 +266,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     );
   };
 
-  const loadPresetIntoForm = (preset: BrewTimerPreset) => {
+  const loadPresetIntoForm = (preset: VevenoTimerPreset) => {
     setEditingId(null);
     setEditingPreset({
       id: preset.id,
@@ -280,7 +280,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     );
   };
 
-  const applyPresetAsTimer = (preset: BrewTimerPreset) => {
+  const applyPresetAsTimer = (preset: VevenoTimerPreset) => {
     addVevenoTimer(preset.name, preset.steps);
   };
 
@@ -312,18 +312,18 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     try {
       if (editingPreset) {
         if (editingPreset.scope === 'personal') {
-          await brewApi.updatePersonalTimerPreset(editingPreset.id, payload);
+          await vevenoApi.updatePersonalTimerPreset(editingPreset.id, payload);
         } else {
-          await brewApi.updateStoreTimerPreset(
+          await vevenoApi.updateStoreTimerPreset(
             storeId,
             editingPreset.id,
             payload,
           );
         }
       } else if (saveTarget === 'personal') {
-        await brewApi.createPersonalTimerPreset(payload);
+        await vevenoApi.createPersonalTimerPreset(payload);
       } else {
-        await brewApi.createStoreTimerPreset(storeId, payload);
+        await vevenoApi.createStoreTimerPreset(storeId, payload);
       }
       setEditingPreset(null);
       await loadPresets();
@@ -348,9 +348,9 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
         })),
       };
       if (target === 'personal') {
-        await brewApi.createPersonalTimerPreset(payload);
+        await vevenoApi.createPersonalTimerPreset(payload);
       } else {
-        await brewApi.createStoreTimerPreset(storeId, payload);
+        await vevenoApi.createStoreTimerPreset(storeId, payload);
       }
       await loadPresets();
     } catch (err: unknown) {
@@ -360,13 +360,13 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     }
   };
 
-  const handleDeletePreset = async (preset: BrewTimerPreset) => {
+  const handleDeletePreset = async (preset: VevenoTimerPreset) => {
     setPresetBusy(true);
     try {
       if (preset.scope === 'PERSONAL') {
-        await brewApi.deletePersonalTimerPreset(preset.id);
+        await vevenoApi.deletePersonalTimerPreset(preset.id);
       } else {
-        await brewApi.deleteStoreTimerPreset(storeId, preset.id);
+        await vevenoApi.deleteStoreTimerPreset(storeId, preset.id);
       }
       if (editingPreset?.id === preset.id) {
         setEditingPreset(null);
@@ -381,25 +381,25 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
 
   const renderPresetList = (
     title: string,
-    presets: BrewTimerPreset[],
+    presets: VevenoTimerPreset[],
     emptyText: string,
   ) => (
-    <div className="brew-preset-block">
-      <h4 className="brew-preset-block__title">{title}</h4>
+    <div className="veveno-preset-block">
+      <h4 className="veveno-preset-block__title">{title}</h4>
       {presets.length === 0 ? (
-        <p className="brew-empty">{emptyText}</p>
+        <p className="veveno-empty">{emptyText}</p>
       ) : (
-        <ul className="brew-preset-list">
+        <ul className="veveno-preset-list">
           {presets.map((preset) => (
-            <li key={preset.id} className="brew-preset-card">
+            <li key={preset.id} className="veveno-preset-card">
               <div>
-                <p className="brew-preset-card__name">{preset.name}</p>
-                <p className="brew-preset-card__meta">
+                <p className="veveno-preset-card__name">{preset.name}</p>
+                <p className="veveno-preset-card__meta">
                   {preset.steps.length}단계 ·{' '}
                   {preset.steps.map((s) => formatTimerMs(s.durationMs)).join(' → ')}
                 </p>
               </div>
-              <div className="brew-preset-card__actions">
+              <div className="veveno-preset-card__actions">
                 <VevenoButton
                   size="sm"
                   onClick={() => applyPresetAsTimer(preset)}
@@ -431,35 +431,35 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
   );
 
   return (
-    <div className="brew-timers">
-      <section className="brew-tools-block">
-        <h3 className="brew-tools-block__title">
+    <div className="veveno-timers">
+      <section className="veveno-tools-block">
+        <h3 className="veveno-tools-block__title">
           {editingId
             ? '타이머 수정'
             : editingPreset
               ? '프리셋 수정'
               : '타이머'}
         </h3>
-        <p className="brew-tools-block__lead">
+        <p className="veveno-tools-block__lead">
           단계는 1개면 일반 타이머, 2개 이상이면 끝나자마자 다음이 이어집니다.
           프리셋은 내 계정 또는 이 가게에 저장할 수 있습니다.
         </p>
         {presetError ? (
-          <p className="brew-notice brew-notice--error" role="alert">
+          <p className="veveno-notice veveno-notice--error" role="alert">
             {presetError}
           </p>
         ) : null}
-        <form className="brew-timer-form" onSubmit={handleSubmit}>
+        <form className="veveno-timer-form" onSubmit={handleSubmit}>
           <VevenoInput
-            id="brew-timer-name"
+            id="veveno-timer-name"
             label="이름"
             value={timerName}
             onChange={(e) => setTimerName(e.target.value)}
             placeholder="예: 추출 / 로스팅 후 식힘"
           />
-          <div className="brew-chain-drafts">
+          <div className="veveno-chain-drafts">
             {draftSteps.map((step, index) => (
-              <div key={step.id} className="brew-chain-draft">
+              <div key={step.id} className="veveno-chain-draft">
                 <VevenoInput
                   id={`timer-step-name-${step.id}`}
                   label={
@@ -478,7 +478,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   }}
                   placeholder={draftSteps.length === 1 ? '예: 추출' : undefined}
                 />
-                <div className="brew-timer-duration">
+                <div className="veveno-timer-duration">
                   <VevenoInput
                     id={`timer-step-min-${step.id}`}
                     label="분"
@@ -524,7 +524,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
               </div>
             ))}
           </div>
-          <div className="brew-timer-form__row">
+          <div className="veveno-timer-form__row">
             <VevenoButton
               type="button"
               variant="secondary"
@@ -538,7 +538,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
             >
               단계 추가
             </VevenoButton>
-            <div className="brew-timer-form__row-end">
+            <div className="veveno-timer-form__row-end">
               {editingId || editingPreset ? (
                 <VevenoButton
                   type="button"
@@ -551,7 +551,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
               ) : null}
               {!editingPreset ? (
                 <select
-                  className="brew-select-inline"
+                  className="veveno-select-inline"
                   aria-label="프리셋 저장 위치"
                   value={saveTarget}
                   onChange={(e) =>
@@ -584,9 +584,9 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
         </form>
 
         {snapshot.timers.length === 0 ? (
-          <p className="brew-empty">아직 타이머가 없습니다.</p>
+          <p className="veveno-empty">아직 타이머가 없습니다.</p>
         ) : (
-          <ul className="brew-timer-list">
+          <ul className="veveno-timer-list">
             {snapshot.timers.map((timer) => {
               const current = timer.steps[timer.currentStepIndex];
               const isMultiStep = timer.steps.length > 1;
@@ -605,10 +605,10 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
               return (
                 <li
                   key={timer.id}
-                  className={`brew-timer-card${timer.status === 'done' ? ' is-done' : ''}${timer.status === 'running' ? ' is-running' : ''}${isEditing ? ' is-editing' : ''}`}
+                  className={`veveno-timer-card${timer.status === 'done' ? ' is-done' : ''}${timer.status === 'running' ? ' is-running' : ''}${isEditing ? ' is-editing' : ''}`}
                 >
-                  <div className="brew-timer-card__head">
-                    <p className="brew-timer-card__name">{timer.name}</p>
+                  <div className="veveno-timer-card__head">
+                    <p className="veveno-timer-card__name">{timer.name}</p>
                     <VevenoActionMenu
                       actions={[
                         {
@@ -646,10 +646,10 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                       ]}
                     />
                   </div>
-                  <p className="brew-timer-card__time">
+                  <p className="veveno-timer-card__time">
                     {formatTimerMs(timer.remainingMs)}
                   </p>
-                  <p className="brew-timer-card__meta">
+                  <p className="veveno-timer-card__meta">
                     {timer.status === 'done'
                       ? '완료'
                       : isMultiStep
@@ -662,7 +662,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                     {isEditing ? ' · 수정 중' : ''}
                   </p>
                   {isMultiStep ? (
-                    <ol className="brew-chain-steps">
+                    <ol className="veveno-chain-steps">
                       {hiddenBefore > 0 ? (
                         <li className="is-more">완료된 {hiddenBefore}단계</li>
                       ) : null}
@@ -691,7 +691,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                       ) : null}
                     </ol>
                   ) : null}
-                  <div className="brew-timer-card__actions">
+                  <div className="veveno-timer-card__actions">
                     {timer.status === 'done' && !timer.acknowledged ? (
                       <VevenoButton
                         size="sm"
@@ -730,8 +730,8 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
         )}
       </section>
 
-      <section className="brew-tools-block">
-        <h3 className="brew-tools-block__title">프리셋</h3>
+      <section className="veveno-tools-block">
+        <h3 className="veveno-tools-block__title">프리셋</h3>
         {renderPresetList('내 프리셋', personalPresets, '저장된 내 프리셋이 없습니다.')}
         {renderPresetList(
           '이 가게 프리셋',

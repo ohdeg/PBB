@@ -158,7 +158,7 @@ flowchart LR
     home --> music[음악]
     featured --> target[선택된 앱 경로]
     life --> brew[/hobbies/veveno]
-    life --> lotto[/hobbies/lotto]
+    life --> lotto[/hobbies/6pick]
     life --> dieta[/hobbies/dieta]
     music --> score[/hobbies/score-viewer]
 ```
@@ -338,7 +338,7 @@ Firebase 로또 앱(6PICK)을 MySQL로 이식. PBB 기존 로그인 유지(Googl
 
 ```mermaid
 flowchart LR
-    enter([진입 /hobbies/lotto]) --> splash[6PICK 스플래시]
+    enter([진입 /hobbies/6pick]) --> splash[6PICK 스플래시]
     splash --> tabs{탭}
     tabs --> draw[번호 생성]
     tabs --> payout[세금 계산]
@@ -534,7 +534,8 @@ flowchart LR
 | `/hobbies/veveno` | Veveno 소개 랜딩 | 불필요 (SEO) |
 | `/hobbies/veveno/hub` | Veveno 허브 | **필수** |
 | `/hobbies/veveno/stores/:storeId` | 가게(메뉴·재고·근무·도구·설정·공지) | **필수** |
-| `/hobbies/lotto` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
+| `/hobbies/6pick` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
+| `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | — |
 | `/hobbies/score-viewer` | 악보 보관함 | 선택 |
 | `/hobbies/score-viewer/:id` | 악보 연습 뷰어 | 선택 |
 | `/hobbies/dieta` | Dieta 랜딩 | 선택 (완료 프로필은 홈 스킵) |

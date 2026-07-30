@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { brewApi } from '../../api/brewApi';
-import type { BrewStockCategory } from '../../types/brew';
+import { vevenoApi } from '../../api/vevenoApi';
+import type { VevenoStockCategory } from '../../types/veveno';
 import { getErrorMessage } from '../../utils/error';
 import { VevenoBadge } from './VevenoBadge';
 import { VevenoButton } from './VevenoButton';
@@ -14,8 +14,8 @@ interface VevenoStoreStocksPanelProps {
   storeId: string;
   owned: boolean;
   onDuty: boolean;
-  stockCategories: BrewStockCategory[];
-  setStockCategories: Dispatch<SetStateAction<BrewStockCategory[]>>;
+  stockCategories: VevenoStockCategory[];
+  setStockCategories: Dispatch<SetStateAction<VevenoStockCategory[]>>;
   onError: (message: string) => void;
 }
 
@@ -62,14 +62,14 @@ export function VevenoStoreStocksPanel({
         }
         return { ...cat, stocks: matchedStocks };
       })
-      .filter((cat): cat is BrewStockCategory => cat != null);
+      .filter((cat): cat is VevenoStockCategory => cat != null);
   }, [stockCategories, normalizedStockSearch]);
 
   const handleCreateCategory = async (event: FormEvent) => {
     event.preventDefault();
     if (!categoryName.trim() || !canMutateStock) return;
     try {
-      const { data } = await brewApi.createStockCategory(storeId, categoryName.trim());
+      const { data } = await vevenoApi.createStockCategory(storeId, categoryName.trim());
       setStockCategories((prev) => [...prev, data]);
       setCategoryName('');
       setSelectedCategoryId(data.id);
@@ -85,7 +85,7 @@ export function VevenoStoreStocksPanel({
     }
     onError('');
     try {
-      const { data } = await brewApi.updateStockCategory(
+      const { data } = await vevenoApi.updateStockCategory(
         selectedCategoryId,
         categoryName.trim(),
       );
@@ -106,7 +106,7 @@ export function VevenoStoreStocksPanel({
     }
     onError('');
     try {
-      await brewApi.deleteStockCategory(selectedCategoryId);
+      await vevenoApi.deleteStockCategory(selectedCategoryId);
       setStockCategories((prev) => prev.filter((c) => c.id !== selectedCategoryId));
       setSelectedCategoryId(null);
       setCategoryName('');
@@ -135,7 +135,7 @@ export function VevenoStoreStocksPanel({
     onError('');
     try {
       let categoryId: number;
-      let createdCategory: BrewStockCategory | null = null;
+      let createdCategory: VevenoStockCategory | null = null;
 
       if (isCustom) {
         const name = stockForm.customCategoryName.trim();
@@ -145,7 +145,7 @@ export function VevenoStoreStocksPanel({
         if (existing) {
           categoryId = existing.id;
         } else {
-          const { data } = await brewApi.createStockCategory(storeId, name);
+          const { data } = await vevenoApi.createStockCategory(storeId, name);
           createdCategory = data;
           categoryId = data.id;
         }
@@ -157,7 +157,7 @@ export function VevenoStoreStocksPanel({
         }
       }
 
-      const { data } = await brewApi.createStock(categoryId, {
+      const { data } = await vevenoApi.createStock(categoryId, {
         stockName: stockForm.stockName.trim(),
         stockNum: stockForm.stockNum,
         stockMinNum: stockForm.stockMinNum,
@@ -197,7 +197,7 @@ export function VevenoStoreStocksPanel({
     stockMinNum: number | null,
   ) => {
     try {
-      const { data } = await brewApi.updateStock(stockId, {
+      const { data } = await vevenoApi.updateStock(stockId, {
         stockName,
         stockNum,
         stockMinNum,
@@ -220,13 +220,13 @@ export function VevenoStoreStocksPanel({
   return (
     <>
       {active ? (
-      <div className="brew-stack-lg">
+      <div className="veveno-stack-lg">
         {!canMutateStock ? (
-          <p className="brew-duty-banner">
+          <p className="veveno-duty-banner">
             근무 시간이 아니라 재고를 수정할 수 없습니다. 조회만 가능합니다.
           </p>
         ) : null}
-        <div className="brew-toolbar brew-toolbar--stock">
+        <div className="veveno-toolbar veveno-toolbar--stock">
           <VevenoInput
             id="stock-tab-search"
             label="검색"
@@ -235,7 +235,7 @@ export function VevenoStoreStocksPanel({
             placeholder="카테고리·재고 이름 검색"
           />
           {canMutateStock ? (
-            <div className="brew-toolbar__actions">
+            <div className="veveno-toolbar__actions">
               <VevenoButton
                 size="sm"
                 variant={categoryEditMode ? 'secondary' : 'ghost'}
@@ -266,14 +266,14 @@ export function VevenoStoreStocksPanel({
         </div>
 
         {canMutateStock && categoryEditMode ? (
-          <div className="brew-stock-edit-grid">
+          <div className="veveno-stock-edit-grid">
             <VevenoCard title="카테고리">
               {stockCategories.length === 0 ? (
-                <p className="brew-empty">등록된 카테고리가 없습니다.</p>
+                <p className="veveno-empty">등록된 카테고리가 없습니다.</p>
               ) : filteredStockCategories.length === 0 ? (
-                <p className="brew-empty">검색 결과가 없습니다.</p>
+                <p className="veveno-empty">검색 결과가 없습니다.</p>
               ) : (
-                <div className="brew-stack">
+                <div className="veveno-stack">
                   {filteredStockCategories.map((cat) => {
                     const selected = cat.id === selectedCategoryId;
                     return (
@@ -282,17 +282,17 @@ export function VevenoStoreStocksPanel({
                         type="button"
                         className={
                           selected
-                            ? 'brew-store-row is-clickable is-selected'
-                            : 'brew-store-row is-clickable'
+                            ? 'veveno-store-row is-clickable is-selected'
+                            : 'veveno-store-row is-clickable'
                         }
                         onClick={() => {
                           setSelectedCategoryId(cat.id);
                           setCategoryName(cat.categoryName);
                         }}
                       >
-                        <div className="brew-store-row__main">
-                          <p className="brew-store-row__name">{cat.categoryName}</p>
-                          <p className="brew-store-row__sub">
+                        <div className="veveno-store-row__main">
+                          <p className="veveno-store-row__name">{cat.categoryName}</p>
+                          <p className="veveno-store-row__sub">
                             재고 {cat.stocks.length}개
                           </p>
                         </div>
@@ -318,7 +318,7 @@ export function VevenoStoreStocksPanel({
               }
             >
               <form
-                className="brew-form-stack"
+                className="veveno-form-stack"
                 onSubmit={
                   selectedCategoryId ? handleSaveCategory : handleCreateCategory
                 }
@@ -330,7 +330,7 @@ export function VevenoStoreStocksPanel({
                   onChange={(e) => setCategoryName(e.target.value)}
                   placeholder="카테고리 이름 (예: 원두)"
                 />
-                <div className="brew-btn-row">
+                <div className="veveno-btn-row">
                   <VevenoButton type="submit">
                     {selectedCategoryId ? '저장/수정' : '카테고리 추가'}
                   </VevenoButton>
@@ -352,30 +352,30 @@ export function VevenoStoreStocksPanel({
 
         <VevenoCard title="재고 목록">
           {stockCategories.length === 0 ? (
-            <p className="brew-empty">표시할 재고가 없습니다.</p>
+            <p className="veveno-empty">표시할 재고가 없습니다.</p>
           ) : filteredStockCategories.length === 0 ? (
-            <p className="brew-empty">검색 결과가 없습니다.</p>
+            <p className="veveno-empty">검색 결과가 없습니다.</p>
           ) : (
-            <div className="brew-stack-lg">
+            <div className="veveno-stack-lg">
               {filteredStockCategories.map((cat) => (
-                <div key={cat.id} className="brew-stock-block-inline">
-                  <h3 className="brew-subsection-title">{cat.categoryName}</h3>
+                <div key={cat.id} className="veveno-stock-block-inline">
+                  <h3 className="veveno-subsection-title">{cat.categoryName}</h3>
                   {cat.stocks.length === 0 ? (
-                    <p className="brew-empty">항목이 없습니다.</p>
+                    <p className="veveno-empty">항목이 없습니다.</p>
                   ) : (
-                    <div className="brew-stack">
+                    <div className="veveno-stack">
                       {cat.stocks.map((stock) => (
                         <div
                           key={stock.id}
-                          className={`brew-stock-row${stock.lowStock ? ' is-low' : ''}`}
+                          className={`veveno-stock-row${stock.lowStock ? ' is-low' : ''}`}
                         >
-                          <div className="brew-stock-row__info">
-                            <p className="brew-store-row__name">{stock.stockName}</p>
-                            <p className="brew-store-row__sub">
+                          <div className="veveno-stock-row__info">
+                            <p className="veveno-store-row__name">{stock.stockName}</p>
+                            <p className="veveno-store-row__sub">
                               경고선 {stock.stockMinNum ?? 0}
                             </p>
                           </div>
-                          <div className="brew-stock-row__qty">
+                          <div className="veveno-stock-row__qty">
                             {stock.lowStock ? (
                               <VevenoBadge variant="danger">부족</VevenoBadge>
                             ) : null}
@@ -396,7 +396,7 @@ export function VevenoStoreStocksPanel({
                                 >
                                   −
                                 </VevenoButton>
-                                <span className="brew-stock-num">{stock.stockNum}</span>
+                                <span className="veveno-stock-num">{stock.stockNum}</span>
                                 <VevenoButton
                                   size="sm"
                                   variant="secondary"
@@ -414,7 +414,7 @@ export function VevenoStoreStocksPanel({
                                 </VevenoButton>
                               </>
                             ) : (
-                              <span className="brew-stock-num">{stock.stockNum}</span>
+                              <span className="veveno-stock-num">{stock.stockNum}</span>
                             )}
                           </div>
                         </div>
@@ -439,14 +439,14 @@ export function VevenoStoreStocksPanel({
         }}
         closeOnBackdrop={!creatingStock}
       >
-        <form className="brew-form-stack" onSubmit={handleCreateStock}>
-          <div className="brew-field">
-            <label className="brew-field__label" htmlFor="stock-category">
+        <form className="veveno-form-stack" onSubmit={handleCreateStock}>
+          <div className="veveno-field">
+            <label className="veveno-field__label" htmlFor="stock-category">
               카테고리
             </label>
             <select
               id="stock-category"
-              className="brew-field__input"
+              className="veveno-field__input"
               value={stockForm.categoryKey}
               onChange={(e) =>
                 setStockForm((prev) => ({
@@ -516,10 +516,10 @@ export function VevenoStoreStocksPanel({
             }
             disabled={creatingStock}
           />
-          <p className="brew-card-lead">
+          <p className="veveno-card-lead">
             「직접 입력」은 같은 이름이 없으면 카테고리를 만든 뒤 재고를 추가합니다.
           </p>
-          <div className="brew-modal__actions">
+          <div className="veveno-modal__actions">
             <VevenoButton
               variant="secondary"
               disabled={creatingStock}

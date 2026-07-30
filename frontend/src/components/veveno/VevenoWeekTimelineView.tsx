@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { BrewCalendarOccurrence } from '../../types/brew';
+import type { VevenoCalendarOccurrence } from '../../types/veveno';
 import {
   VEVENO_HOUR_HEIGHT_PX,
   buildVevenoStaffColorMap,
@@ -15,7 +15,7 @@ const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 interface VevenoWeekTimelineViewProps {
   days: Date[];
-  occurrences: BrewCalendarOccurrence[];
+  occurrences: VevenoCalendarOccurrence[];
   staffUserIds: string[];
 }
 
@@ -30,7 +30,7 @@ function formatTime(t: string): string {
   return t.length >= 5 ? t.slice(0, 5) : t;
 }
 
-function blockTitle(occ: BrewCalendarOccurrence): string {
+function blockTitle(occ: VevenoCalendarOccurrence): string {
   const time = `${formatTime(occ.startTime)}–${formatTime(occ.endTime)}${
     occ.overnight ? ' (익일)' : ''
   }`;
@@ -45,14 +45,14 @@ function blockTitle(occ: BrewCalendarOccurrence): string {
 
 function segmentClassName(segment: VevenoTimetableSegment): string {
   const parts = [
-    'brew-tt-block',
-    `brew-tt-block--${segment.occurrence.type.toLowerCase()}`,
+    'veveno-tt-block',
+    `veveno-tt-block--${segment.occurrence.type.toLowerCase()}`,
   ];
   if (!segment.isFirst) {
-    parts.push('brew-tt-block--cont');
+    parts.push('veveno-tt-block--cont');
   }
   if (!segment.isLast) {
-    parts.push('brew-tt-block--cont-next');
+    parts.push('veveno-tt-block--cont-next');
   }
   return parts.join(' ');
 }
@@ -64,7 +64,7 @@ function DayColumn({
   range,
   colorMap,
 }: {
-  dayOccurrences: BrewCalendarOccurrence[];
+  dayOccurrences: VevenoCalendarOccurrence[];
   rangeHeight: number;
   hourCount: number;
   range: ReturnType<typeof getVevenoWeekTimetableRange>;
@@ -73,11 +73,11 @@ function DayColumn({
   const segments = layoutVevenoDayTimetableBlocks(dayOccurrences, range);
 
   return (
-    <div className="brew-tt-day" style={{ height: rangeHeight }}>
+    <div className="veveno-tt-day" style={{ height: rangeHeight }}>
       {Array.from({ length: hourCount }, (_, hourIndex) => (
         <div
           key={hourIndex}
-          className="brew-tt-hour-line"
+          className="veveno-tt-hour-line"
           style={{ top: hourIndex * VEVENO_HOUR_HEIGHT_PX, height: VEVENO_HOUR_HEIGHT_PX }}
         />
       ))}
@@ -102,19 +102,19 @@ function DayColumn({
           >
             {segment.showLabel ? (
               <>
-                <p className="brew-tt-block__name">{segment.occurrence.nickname}</p>
-                <p className="brew-tt-block__time">
+                <p className="veveno-tt-block__name">{segment.occurrence.nickname}</p>
+                <p className="veveno-tt-block__time">
                   {formatTime(segment.occurrence.startTime)}–
                   {formatTime(segment.occurrence.endTime)}
                   {segment.occurrence.overnight ? ' ·익일' : ''}
                 </p>
                 {segment.occurrence.type === 'COVER' ? (
-                  <p className="brew-tt-block__meta">
+                  <p className="veveno-tt-block__meta">
                     대체 · {segment.occurrence.relatedNickname}
                   </p>
                 ) : null}
                 {segment.occurrence.type === 'EXTRA' ? (
-                  <p className="brew-tt-block__meta">추가</p>
+                  <p className="veveno-tt-block__meta">추가</p>
                 ) : null}
               </>
             ) : null}
@@ -162,8 +162,8 @@ export default function VevenoWeekTimelineView({
   const selectedDay = days.find((d) => toDateKey(d) === selectedKey) ?? days[0];
 
   return (
-    <div className="brew-tt">
-      <div className="brew-tt-strip brew-tt-strip--mobile">
+    <div className="veveno-tt">
+      <div className="veveno-tt-strip veveno-tt-strip--mobile">
         {days.map((day, index) => {
           const key = toDateKey(day);
           const isToday = key === todayKey;
@@ -172,33 +172,33 @@ export default function VevenoWeekTimelineView({
             <button
               key={key}
               type="button"
-              className={`brew-tt-strip__day${selected ? ' is-selected' : ''}${isToday ? ' is-today' : ''}`}
+              className={`veveno-tt-strip__day${selected ? ' is-selected' : ''}${isToday ? ' is-today' : ''}`}
               onClick={() => setSelectedKey(key)}
             >
-              <span className="brew-tt-strip__wd">{DAY_LABELS[index]}</span>
-              <span className="brew-tt-strip__num">{day.getDate()}</span>
+              <span className="veveno-tt-strip__wd">{DAY_LABELS[index]}</span>
+              <span className="veveno-tt-strip__num">{day.getDate()}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="brew-tt-mobile">
+      <div className="veveno-tt-mobile">
         {selectedDay ? (
           <>
-            <p className="brew-tt-mobile__label">
+            <p className="veveno-tt-mobile__label">
               {selectedDay.getMonth() + 1}월 {selectedDay.getDate()}일 (
               {DAY_LABELS[(selectedDay.getDay() + 6) % 7]})
             </p>
-            <div className="brew-tt-scroll">
+            <div className="veveno-tt-scroll">
               <div
-                className="brew-tt-body"
+                className="veveno-tt-body"
                 style={{ gridTemplateColumns: '40px minmax(0, 1fr)' }}
               >
-                <div className="brew-tt-gutter">
+                <div className="veveno-tt-gutter">
                   {range.hourLabels.map((label, index) => (
                     <div
                       key={label}
-                      className="brew-tt-gutter__hour"
+                      className="veveno-tt-gutter__hour"
                       style={{
                         height: VEVENO_HOUR_HEIGHT_PX,
                         paddingTop: index === 0 ? 4 : 0,
@@ -221,36 +221,36 @@ export default function VevenoWeekTimelineView({
         ) : null}
       </div>
 
-      <div className="brew-tt-desktop">
+      <div className="veveno-tt-desktop">
         <div
-          className="brew-tt-strip brew-tt-strip--desktop"
+          className="veveno-tt-strip veveno-tt-strip--desktop"
           style={{ gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))' }}
         >
-          <div className="brew-tt-strip__gutter" />
+          <div className="veveno-tt-strip__gutter" />
           {days.map((day, index) => {
             const key = toDateKey(day);
             const isToday = key === todayKey;
             return (
               <div
                 key={key}
-                className={`brew-tt-strip__day brew-tt-strip__day--static${isToday ? ' is-today' : ''}`}
+                className={`veveno-tt-strip__day veveno-tt-strip__day--static${isToday ? ' is-today' : ''}`}
               >
-                <span className="brew-tt-strip__wd">{DAY_LABELS[index]}</span>
-                <span className="brew-tt-strip__num">{day.getDate()}</span>
+                <span className="veveno-tt-strip__wd">{DAY_LABELS[index]}</span>
+                <span className="veveno-tt-strip__num">{day.getDate()}</span>
               </div>
             );
           })}
         </div>
-        <div className="brew-tt-scroll">
+        <div className="veveno-tt-scroll">
           <div
-            className="brew-tt-body"
+            className="veveno-tt-body"
             style={{ gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))' }}
           >
-            <div className="brew-tt-gutter">
+            <div className="veveno-tt-gutter">
               {range.hourLabels.map((label, index) => (
                 <div
                   key={label}
-                  className="brew-tt-gutter__hour"
+                  className="veveno-tt-gutter__hour"
                   style={{
                     height: VEVENO_HOUR_HEIGHT_PX,
                     paddingTop: index === 0 ? 4 : 0,
@@ -265,7 +265,7 @@ export default function VevenoWeekTimelineView({
               return (
                 <div
                   key={key}
-                  className={`brew-tt-col${key === todayKey ? ' is-today' : ''}`}
+                  className={`veveno-tt-col${key === todayKey ? ' is-today' : ''}`}
                 >
                   <DayColumn
                     dayOccurrences={occurrencesForDate(occurrences, key)}

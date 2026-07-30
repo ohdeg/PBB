@@ -50,18 +50,22 @@ import {
 } from './constants/annotationBrush';
 import { useScorePlaybackController } from './hooks/useScorePlaybackController';
 import { useScorePlaybackDerived } from './hooks/useScorePlaybackDerived';
+import { migrateMusicViewerStorageOnce } from './utils/migrateMusicViewerStorage';
 
 interface ScoreViewerProps {
   scoreId: string;
 }
 
-const BPM_STORAGE_KEY = 'music-viewer:last-bpm';
-const MEASURES_PER_LINE_STORAGE_KEY = 'music-viewer:last-measures-per-line';
-const SCORE_VIEWER_GUIDE_SEEN_KEY = 'music-viewer:guide:score-viewer-seen';
+const BPM_STORAGE_KEY = 'score-viewer:last-bpm';
+const MEASURES_PER_LINE_STORAGE_KEY = 'score-viewer:last-measures-per-line';
+const SCORE_VIEWER_GUIDE_SEEN_KEY = 'score-viewer:guide:score-viewer-seen';
 const USER_SCROLL_INTERRUPT_TOUCH_THRESHOLD_PX = 10;
 
 export function ScoreViewer({ scoreId }: ScoreViewerProps) {
   const t = useTranslation();
+  useEffect(() => {
+    migrateMusicViewerStorageOnce();
+  }, []);
   const [musicXml, setMusicXml] = useState<string>('');
   const [snapshot, setSnapshot] = useState<ScoreRenderSnapshot>({
     timings: [],

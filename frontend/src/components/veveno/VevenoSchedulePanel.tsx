@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { brewApi } from '../../api/brewApi';
+import { vevenoApi } from '../../api/vevenoApi';
 import { useAuthStore } from '../../stores/authStore';
 import type {
-  BrewCalendarOccurrence,
-  BrewCover,
-  BrewSchedule,
-  BrewScheduleSlotInput,
-  BrewShiftKind,
-} from '../../types/brew';
+  VevenoCalendarOccurrence,
+  VevenoCover,
+  VevenoSchedule,
+  VevenoScheduleSlotInput,
+  VevenoShiftKind,
+} from '../../types/veveno';
 import { getErrorMessage } from '../../utils/error';
 import { VevenoButton } from './VevenoButton';
 import { VevenoCard } from './VevenoCard';
@@ -117,12 +117,12 @@ function rangesOverlap(a: [number, number], b: [number, number]): boolean {
 }
 
 function monthVisibleOccurrences(
-  items: BrewCalendarOccurrence[],
-): BrewCalendarOccurrence[] {
+  items: VevenoCalendarOccurrence[],
+): VevenoCalendarOccurrence[] {
   return items.filter((occ) => occ.type !== 'COVERED_OUT');
 }
 
-function monthChipLabel(occ: BrewCalendarOccurrence): string {
+function monthChipLabel(occ: VevenoCalendarOccurrence): string {
   const time = `${formatTime(occ.startTime)}–${formatTime(occ.endTime)}${
     occ.overnight ? ' (익일)' : ''
   }`;
@@ -134,7 +134,7 @@ function monthChipLabel(occ: BrewCalendarOccurrence): string {
 
 const MONTH_PREVIEW_COUNT = 4;
 
-function shiftKindLabel(kind: BrewShiftKind): string {
+function shiftKindLabel(kind: VevenoShiftKind): string {
   return kind === 'EXTRA' ? '추가' : '대체';
 }
 
@@ -152,7 +152,7 @@ function emptySlot(): ScheduleSlotState {
   };
 }
 
-function coverStatusLabel(status: string, kind: BrewShiftKind = 'COVER'): string {
+function coverStatusLabel(status: string, kind: VevenoShiftKind = 'COVER'): string {
   switch (status) {
     case 'PENDING_OWNER':
       return kind === 'EXTRA' ? '업주 승인 대기' : '업주 대타자 지정 대기';
@@ -179,8 +179,8 @@ export function VevenoSchedulePanel({
   const userId = useAuthStore((s) => s.userId);
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchor, setAnchor] = useState(() => new Date());
-  const [occurrences, setOccurrences] = useState<BrewCalendarOccurrence[]>([]);
-  const [pendingCovers, setPendingCovers] = useState<BrewCover[]>([]);
+  const [occurrences, setOccurrences] = useState<VevenoCalendarOccurrence[]>([]);
+  const [pendingCovers, setPendingCovers] = useState<VevenoCover[]>([]);
   const [staff, setStaff] = useState<VevenoStaffMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [exportingJournal, setExportingJournal] = useState(false);
@@ -204,10 +204,10 @@ export function VevenoSchedulePanel({
     workDate: toDateKey(new Date()),
     startTime: '09:00',
     endTime: '18:00',
-    shiftKind: 'COVER' as BrewShiftKind,
+    shiftKind: 'COVER' as VevenoShiftKind,
     note: '',
   });
-  const [coverSchedules, setCoverSchedules] = useState<BrewSchedule[]>([]);
+  const [coverSchedules, setCoverSchedules] = useState<VevenoSchedule[]>([]);
   const [coverScheduleHint, setCoverScheduleHint] = useState('');
   const [coverAssignments, setCoverAssignments] = useState<Record<string, string>>({});
   const [monthPeekKey, setMonthPeekKey] = useState<string | null>(null);
@@ -244,9 +244,9 @@ export function VevenoSchedulePanel({
       const from = toDateKey(range.from);
       const to = toDateKey(range.to);
       const [calRes, pendingRes, staffRes] = await Promise.all([
-        brewApi.getCalendar(storeId, from, to),
-        brewApi.listPendingCovers(storeId),
-        brewApi.listStaff(storeId),
+        vevenoApi.getCalendar(storeId, from, to),
+        vevenoApi.listPendingCovers(storeId),
+        vevenoApi.listStaff(storeId),
       ]);
       setOccurrences(calRes.data.occurrences);
       setPendingCovers(pendingRes.data);
@@ -277,14 +277,14 @@ export function VevenoSchedulePanel({
     }
     void (async () => {
       try {
-        const { data } = await brewApi.listSchedules(storeId);
+        const { data } = await vevenoApi.listSchedules(storeId);
         const mine = data.filter((s) => s.userId === editUserId);
         setSlots((prev) => {
           const next = { ...prev };
           for (let d = 1; d <= 7; d += 1) {
             next[d] = emptySlot();
           }
-          mine.forEach((s: BrewSchedule) => {
+          mine.forEach((s: VevenoSchedule) => {
             next[s.dayOfWeek] = {
               enabled: true,
               startTime: formatTime(s.startTime),
@@ -326,7 +326,7 @@ export function VevenoSchedulePanel({
     let cancelled = false;
     void (async () => {
       try {
-        const { data } = await brewApi.listSchedules(storeId);
+        const { data } = await vevenoApi.listSchedules(storeId);
         if (!cancelled) {
           setCoverSchedules(data);
         }
@@ -478,7 +478,7 @@ export function VevenoSchedulePanel({
   ]);
 
   const byDate = useMemo(() => {
-    const map = new Map<string, BrewCalendarOccurrence[]>();
+    const map = new Map<string, VevenoCalendarOccurrence[]>();
     occurrences.forEach((occ) => {
       const list = map.get(occ.date) ?? [];
       list.push(occ);
@@ -492,7 +492,7 @@ export function VevenoSchedulePanel({
     if (!editUserId) {
       return;
     }
-    const payload: BrewScheduleSlotInput[] = [];
+    const payload: VevenoScheduleSlotInput[] = [];
     for (let d = 1; d <= 7; d += 1) {
       const slot = slots[d];
       if (slot?.enabled) {
@@ -505,8 +505,8 @@ export function VevenoSchedulePanel({
     }
     setSavingSchedule(true);
     try {
-      await brewApi.replaceSchedules(storeId, editUserId, payload);
-      const { data } = await brewApi.listSchedules(storeId);
+      await vevenoApi.replaceSchedules(storeId, editUserId, payload);
+      const { data } = await vevenoApi.listSchedules(storeId);
       setCoverSchedules(data);
       await load();
     } catch (err: unknown) {
@@ -551,7 +551,7 @@ export function VevenoSchedulePanel({
     }
     setSubmittingCover(true);
     try {
-      await brewApi.createCover(storeId, {
+      await vevenoApi.createCover(storeId, {
         ...(isExtra
           ? {}
           : { originalUserId: coverForm.originalUserId }),
@@ -588,7 +588,7 @@ export function VevenoSchedulePanel({
     try {
       const from = startOfMonth(anchor);
       const to = endOfMonth(anchor);
-      const { data } = await brewApi.getCalendar(
+      const { data } = await vevenoApi.getCalendar(
         storeId,
         toDateKey(from),
         toDateKey(to),
@@ -624,16 +624,16 @@ export function VevenoSchedulePanel({
   );
 
   return (
-    <div className="brew-stack-lg">
+    <div className="veveno-stack-lg">
       <VevenoCard title={owned ? '직원 근무 달력' : '내 근무'}>
-        <p className="brew-card-lead">
+        <p className="veveno-card-lead">
           {owned
             ? '매장 전 직원의 근무·대체·추가를 한 화면에서 봅니다. 종료가 시작보다 이르면 자정 넘김입니다.'
             : '내 근무와 관련된 대체·추가를 주간·월간으로 확인합니다.'}
         </p>
-        <div className="brew-schedule-toolbar">
-          <div className="brew-schedule-toolbar__top">
-            <div className="brew-btn-row brew-schedule-toolbar__modes">
+        <div className="veveno-schedule-toolbar">
+          <div className="veveno-schedule-toolbar__top">
+            <div className="veveno-btn-row veveno-schedule-toolbar__modes">
               <VevenoButton
                 size="sm"
                 variant={viewMode === 'week' ? 'primary' : 'secondary'}
@@ -652,7 +652,7 @@ export function VevenoSchedulePanel({
                 오늘
               </VevenoButton>
             </div>
-            <div className="brew-schedule-toolbar__export">
+            <div className="veveno-schedule-toolbar__export">
               <VevenoButton
                 size="sm"
                 variant="secondary"
@@ -666,19 +666,19 @@ export function VevenoSchedulePanel({
               </VevenoButton>
             </div>
           </div>
-          <div className="brew-schedule-nav">
+          <div className="veveno-schedule-nav">
             <button
               type="button"
-              className="brew-schedule-nav__arrow"
+              className="veveno-schedule-nav__arrow"
               aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}
               onClick={() => shiftAnchor(-1)}
             >
               ‹
             </button>
-            <span className="brew-schedule-range">{rangeLabel}</span>
+            <span className="veveno-schedule-range">{rangeLabel}</span>
             <button
               type="button"
-              className="brew-schedule-nav__arrow"
+              className="veveno-schedule-nav__arrow"
               aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}
               onClick={() => shiftAnchor(1)}
             >
@@ -687,7 +687,7 @@ export function VevenoSchedulePanel({
           </div>
         </div>
         {loading ? (
-          <p className="brew-empty">불러오는 중…</p>
+          <p className="veveno-empty">불러오는 중…</p>
         ) : viewMode === 'week' ? (
           <VevenoWeekTimelineView
             days={range.days}
@@ -695,16 +695,16 @@ export function VevenoSchedulePanel({
             staffUserIds={staff.map((s) => s.userId)}
           />
         ) : (
-          <div className="brew-schedule-grid brew-schedule-grid--month">
+          <div className="veveno-schedule-grid veveno-schedule-grid--month">
             {DAY_LABELS.map((label) => (
-              <div key={`wd-${label}`} className="brew-schedule-weekday">
+              <div key={`wd-${label}`} className="veveno-schedule-weekday">
                 {label}
               </div>
             ))}
             {Array.from({ length: range.leadingEmpty }, (_, i) => (
               <div
                 key={`empty-${i}`}
-                className="brew-schedule-day brew-schedule-day--empty"
+                className="veveno-schedule-day veveno-schedule-day--empty"
                 aria-hidden
               />
             ))}
@@ -718,7 +718,7 @@ export function VevenoSchedulePanel({
               return (
                 <div
                   key={key}
-                  className={`brew-schedule-day${isToday ? ' brew-schedule-day--today' : ''}${
+                  className={`veveno-schedule-day${isToday ? ' veveno-schedule-day--today' : ''}${
                     peeking ? ' is-peek' : ''
                   }`}
                   onMouseEnter={() => setMonthPeekKey(key)}
@@ -733,20 +733,20 @@ export function VevenoSchedulePanel({
                     setMonthPeekKey((prev) => (prev === key ? null : key));
                   }}
                 >
-                  <div className="brew-schedule-day__head">
+                  <div className="veveno-schedule-day__head">
                     <span>
                       {day.getMonth() + 1}/{day.getDate()}
                     </span>
                     {isToday ? <span>오늘</span> : null}
                   </div>
-                  <ul className="brew-schedule-day__list">
+                  <ul className="veveno-schedule-day__list">
                     {visible.length === 0 ? (
-                      <li className="brew-schedule-day__empty">—</li>
+                      <li className="veveno-schedule-day__empty">—</li>
                     ) : (
                       preview.map((occ, idx) => (
                         <li
                           key={`${occ.userId}-${occ.type}-${occ.coverId ?? idx}`}
-                          className={`brew-schedule-chip brew-schedule-chip--${occ.type.toLowerCase()}`}
+                          className={`veveno-schedule-chip veveno-schedule-chip--${occ.type.toLowerCase()}`}
                         >
                           {monthChipLabel(occ)}
                         </li>
@@ -754,18 +754,18 @@ export function VevenoSchedulePanel({
                     )}
                   </ul>
                   {overflow > 0 ? (
-                    <p className="brew-schedule-day__more">+{overflow}</p>
+                    <p className="veveno-schedule-day__more">+{overflow}</p>
                   ) : null}
                   {peeking && visible.length > 0 ? (
-                    <div className="brew-schedule-day__popover" role="dialog">
-                      <p className="brew-schedule-day__popover-title">
+                    <div className="veveno-schedule-day__popover" role="dialog">
+                      <p className="veveno-schedule-day__popover-title">
                         {day.getMonth() + 1}/{day.getDate()} · {visible.length}명
                       </p>
-                      <ul className="brew-schedule-day__popover-list">
+                      <ul className="veveno-schedule-day__popover-list">
                         {visible.map((occ, idx) => (
                           <li
                             key={`peek-${occ.userId}-${occ.type}-${occ.coverId ?? idx}`}
-                            className={`brew-schedule-chip brew-schedule-chip--${occ.type.toLowerCase()}`}
+                            className={`veveno-schedule-chip veveno-schedule-chip--${occ.type.toLowerCase()}`}
                           >
                             {monthChipLabel(occ)}
                           </li>
@@ -780,20 +780,20 @@ export function VevenoSchedulePanel({
         )}
       </VevenoCard>
 
-      <div className="brew-schedule-panels">
+      <div className="veveno-schedule-panels">
       {owned ? (
         <VevenoCard title="정규 근무 지정">
           {staff.length === 0 ? (
-            <p className="brew-empty">직원이 없습니다. 가입 승인 후 지정할 수 있습니다.</p>
+            <p className="veveno-empty">직원이 없습니다. 가입 승인 후 지정할 수 있습니다.</p>
           ) : (
-            <form className="brew-form-stack" onSubmit={(e) => void handleSaveSchedule(e)}>
-              <div className="brew-field">
-                <label className="brew-field__label" htmlFor="sched-user">
+            <form className="veveno-form-stack" onSubmit={(e) => void handleSaveSchedule(e)}>
+              <div className="veveno-field">
+                <label className="veveno-field__label" htmlFor="sched-user">
                   직원
                 </label>
                 <select
                   id="sched-user"
-                  className="brew-field__input"
+                  className="veveno-field__input"
                   value={editUserId}
                   onChange={(e) => setEditUserId(e.target.value)}
                 >
@@ -804,12 +804,12 @@ export function VevenoSchedulePanel({
                   ))}
                 </select>
               </div>
-              <div className="brew-schedule-bulk">
-                <p className="brew-field__label">선택 요일 일괄 시간</p>
-                <div className="brew-schedule-slot-row brew-schedule-bulk__row">
+              <div className="veveno-schedule-bulk">
+                <p className="veveno-field__label">선택 요일 일괄 시간</p>
+                <div className="veveno-schedule-slot-row veveno-schedule-bulk__row">
                   <input
                     type="time"
-                    className="brew-field__input brew-schedule-time"
+                    className="veveno-field__input veveno-schedule-time"
                     value={bulkStartTime}
                     onChange={(e) => setBulkStartTime(e.target.value)}
                     aria-label="일괄 시작 시각"
@@ -817,7 +817,7 @@ export function VevenoSchedulePanel({
                   <span>~</span>
                   <input
                     type="time"
-                    className="brew-field__input brew-schedule-time"
+                    className="veveno-field__input veveno-schedule-time"
                     value={bulkEndTime}
                     onChange={(e) => setBulkEndTime(e.target.value)}
                     aria-label="일괄 종료 시각"
@@ -831,18 +831,18 @@ export function VevenoSchedulePanel({
                     선택 요일에 적용
                   </VevenoButton>
                 </div>
-                <p className="brew-field__hint">
+                <p className="veveno-field__hint">
                   체크한 요일에만 위 시간이 들어갑니다. 적용 후에도 요일별로 수정할 수
                   있습니다.
                 </p>
               </div>
-              <div className="brew-stack">
+              <div className="veveno-stack">
                 {DAY_LABELS.map((label, i) => {
                   const dow = i + 1;
                   const slot = slots[dow] ?? emptySlot();
                   return (
-                    <div key={dow} className="brew-schedule-slot-row">
-                      <label className="brew-check">
+                    <div key={dow} className="veveno-schedule-slot-row">
+                      <label className="veveno-check">
                         <input
                           type="checkbox"
                           checked={slot.enabled}
@@ -860,7 +860,7 @@ export function VevenoSchedulePanel({
                       </label>
                       <input
                         type="time"
-                        className="brew-field__input brew-schedule-time"
+                        className="veveno-field__input veveno-schedule-time"
                         value={slot.startTime}
                         disabled={!slot.enabled}
                         onChange={(e) =>
@@ -876,7 +876,7 @@ export function VevenoSchedulePanel({
                       <span>~</span>
                       <input
                         type="time"
-                        className="brew-field__input brew-schedule-time"
+                        className="veveno-field__input veveno-schedule-time"
                         value={slot.endTime}
                         disabled={!slot.enabled}
                         onChange={(e) =>
@@ -893,7 +893,7 @@ export function VevenoSchedulePanel({
                   );
                 })}
               </div>
-              <p className="brew-card-lead">
+              <p className="veveno-card-lead">
                 종료 시각이 시작보다 이르면 자정 넘김(예: 22:00~06:00)으로 저장됩니다.
               </p>
               <VevenoButton type="submit" loading={savingSchedule}>
@@ -906,10 +906,10 @@ export function VevenoSchedulePanel({
 
       {(owned || subscribed) && staff.length > 0 ? (
         <VevenoCard title="대체·추가 신청">
-          <form className="brew-form-stack" onSubmit={(e) => void handleCreateCover(e)}>
-            <div className="brew-field">
-              <span className="brew-field__label">유형</span>
-              <div className="brew-btn-row">
+          <form className="veveno-form-stack" onSubmit={(e) => void handleCreateCover(e)}>
+            <div className="veveno-field">
+              <span className="veveno-field__label">유형</span>
+              <div className="veveno-btn-row">
                 <VevenoButton
                   type="button"
                   size="sm"
@@ -931,20 +931,20 @@ export function VevenoSchedulePanel({
                   추가
                 </VevenoButton>
               </div>
-              <p className="brew-field__hint">
+              <p className="veveno-field__hint">
                 {coverForm.shiftKind === 'COVER'
                   ? '원래 근무자 구간은 타임테이블에서 빠지고, 지정된 사람이 대신 근무합니다.'
                   : '정규 근무가 아닌 별도 시간에 추가 근무자를 지정합니다. 요청 직원은 없습니다.'}
               </p>
             </div>
             {coverForm.shiftKind === 'COVER' && owned ? (
-              <div className="brew-field">
-                <label className="brew-field__label" htmlFor="cover-original">
+              <div className="veveno-field">
+                <label className="veveno-field__label" htmlFor="cover-original">
                   원래 근무자
                 </label>
                 <select
                   id="cover-original"
-                  className="brew-field__input"
+                  className="veveno-field__input"
                   value={coverForm.originalUserId}
                   onChange={(e) =>
                     setCoverForm((prev) => ({
@@ -962,23 +962,23 @@ export function VevenoSchedulePanel({
               </div>
             ) : null}
             {coverForm.shiftKind === 'COVER' && !owned ? (
-              <p className="brew-card-lead">
+              <p className="veveno-card-lead">
                 본인 근무의 대체를 신청하면 업주가 대체자를 지정합니다.
               </p>
             ) : null}
             {coverForm.shiftKind === 'EXTRA' && !owned ? (
-              <p className="brew-card-lead">
+              <p className="veveno-card-lead">
                 본인 추가 근무를 신청하면 업주 승인 후 반영됩니다.
               </p>
             ) : null}
             {owned ? (
-              <div className="brew-field">
-                <label className="brew-field__label" htmlFor="cover-user">
+              <div className="veveno-field">
+                <label className="veveno-field__label" htmlFor="cover-user">
                   {coverForm.shiftKind === 'COVER' ? '대체자' : '추가 근무자'}
                 </label>
                 <select
                   id="cover-user"
-                  className="brew-field__input"
+                  className="veveno-field__input"
                   value={coverForm.coverUserId}
                   onChange={(e) =>
                     setCoverForm((prev) => ({ ...prev, coverUserId: e.target.value }))
@@ -992,7 +992,7 @@ export function VevenoSchedulePanel({
                   ))}
                 </select>
                 {otherStaff.length > 0 && availableCoverStaff.length === 0 ? (
-                  <p className="brew-field__hint">
+                  <p className="veveno-field__hint">
                     해당 시간에 지정 가능한 직원이 없습니다.
                   </p>
                 ) : null}
@@ -1006,7 +1006,7 @@ export function VevenoSchedulePanel({
                 setCoverForm((prev) => ({ ...prev, workDate: e.target.value }))
               }
             />
-            <div className="brew-schedule-slot-row">
+            <div className="veveno-schedule-slot-row">
               <VevenoInput
                 label="시작"
                 type="time"
@@ -1025,7 +1025,7 @@ export function VevenoSchedulePanel({
               />
             </div>
             {coverScheduleHint ? (
-              <p className="brew-card-lead">{coverScheduleHint}</p>
+              <p className="veveno-card-lead">{coverScheduleHint}</p>
             ) : null}
             <VevenoInput
               label="메모 (선택)"
@@ -1041,11 +1041,11 @@ export function VevenoSchedulePanel({
         </VevenoCard>
       ) : null}
 
-      <VevenoCard title="대체·추가 관리" className="brew-schedule-panels__span">
+      <VevenoCard title="대체·추가 관리" className="veveno-schedule-panels__span">
         {pendingCovers.length === 0 ? (
-          <p className="brew-empty">대기·승인된 대체·추가가 없습니다.</p>
+          <p className="veveno-empty">대기·승인된 대체·추가가 없습니다.</p>
         ) : (
-          <div className="brew-stack">
+          <div className="veveno-stack">
             {pendingCovers.map((cover) => {
               const kind = cover.shiftKind ?? 'COVER';
               const canAssign =
@@ -1071,21 +1071,21 @@ export function VevenoSchedulePanel({
                   ? `[추가] ${cover.coverNickname || '추가 근무자'}`
                   : `[대체] ${cover.originalNickname} → ${cover.coverNickname || '대타자 미지정'}`;
               return (
-                <div key={cover.id} className="brew-search-result">
+                <div key={cover.id} className="veveno-search-result">
                   <div>
-                    <p className="brew-store-row__name">{title}</p>
-                    <p className="brew-store-row__sub">
+                    <p className="veveno-store-row__name">{title}</p>
+                    <p className="veveno-store-row__sub">
                       {cover.workDate} {formatTime(cover.startTime)}–
                       {formatTime(cover.endTime)}
                       {cover.overnight ? ' (익일)' : ''} ·{' '}
                       {coverStatusLabel(cover.status, kind)}
                     </p>
                   </div>
-                  <div className="brew-search-result__actions">
+                  <div className="veveno-search-result__actions">
                     {canAssign ? (
                       <>
                         <select
-                          className="brew-field__input"
+                          className="veveno-field__input"
                           aria-label={`${cover.originalNickname}의 대체자`}
                           value={coverAssignments[cover.id] ?? ''}
                           onChange={(e) =>
@@ -1121,7 +1121,7 @@ export function VevenoSchedulePanel({
                             if (!coverUserId) return;
                             void (async () => {
                               try {
-                                await brewApi.assignCover(cover.id, coverUserId);
+                                await vevenoApi.assignCover(cover.id, coverUserId);
                                 setCoverAssignments((prev) => {
                                   const next = { ...prev };
                                   delete next[cover.id];
@@ -1144,7 +1144,7 @@ export function VevenoSchedulePanel({
                         onClick={() => {
                           void (async () => {
                             try {
-                              await brewApi.acceptCover(cover.id);
+                              await vevenoApi.acceptCover(cover.id);
                               await load();
                             } catch (err: unknown) {
                               onError(getErrorMessage(err, '승인에 실패했습니다.'));
@@ -1161,7 +1161,7 @@ export function VevenoSchedulePanel({
                         onClick={() => {
                           void (async () => {
                             try {
-                              await brewApi.acceptCover(cover.id);
+                              await vevenoApi.acceptCover(cover.id);
                               await load();
                             } catch (err: unknown) {
                               onError(getErrorMessage(err, '수락에 실패했습니다.'));
@@ -1179,7 +1179,7 @@ export function VevenoSchedulePanel({
                         onClick={() => {
                           void (async () => {
                             try {
-                              await brewApi.rejectCover(cover.id);
+                              await vevenoApi.rejectCover(cover.id);
                               await load();
                             } catch (err: unknown) {
                               onError(getErrorMessage(err, '거절에 실패했습니다.'));
@@ -1208,7 +1208,7 @@ export function VevenoSchedulePanel({
                           }
                           void (async () => {
                             try {
-                              await brewApi.cancelCover(cover.id);
+                              await vevenoApi.cancelCover(cover.id);
                               await load();
                             } catch (err: unknown) {
                               onError(getErrorMessage(err, '취소에 실패했습니다.'));

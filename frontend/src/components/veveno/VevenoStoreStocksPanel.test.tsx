@@ -4,12 +4,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { AxiosResponse } from 'axios'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { brewApi } from '../../api/brewApi'
-import type { BrewStock, BrewStockCategory } from '../../types/brew'
+import { vevenoApi } from '../../api/vevenoApi'
+import type { VevenoStock, VevenoStockCategory } from '../../types/veveno'
 import { VevenoStoreStocksPanel } from './VevenoStoreStocksPanel'
 
-vi.mock('../../api/brewApi', () => ({
-  brewApi: {
+vi.mock('../../api/vevenoApi', () => ({
+  vevenoApi: {
     createStockCategory: vi.fn(),
     updateStockCategory: vi.fn(),
     deleteStockCategory: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('../../api/brewApi', () => ({
   },
 }))
 
-const categories: BrewStockCategory[] = [
+const categories: VevenoStockCategory[] = [
   {
     id: 1,
     storeId: 'store-1',
@@ -62,7 +62,7 @@ interface HarnessProps {
 
 function Harness({ owned, onDuty }: HarnessProps) {
   const [stockCategories, setStockCategories] =
-    useState<BrewStockCategory[]>(categories)
+    useState<VevenoStockCategory[]>(categories)
 
   return (
     <VevenoStoreStocksPanel
@@ -98,19 +98,19 @@ describe('VevenoStoreStocksPanel', () => {
   })
 
   it('updates stock quantity for an owner', async () => {
-    const updated: BrewStock = {
+    const updated: VevenoStock = {
       ...categories[0].stocks[0],
       stockNum: 3,
     }
-    vi.mocked(brewApi.updateStock).mockResolvedValue({
+    vi.mocked(vevenoApi.updateStock).mockResolvedValue({
       data: updated,
-    } as AxiosResponse<BrewStock>)
+    } as AxiosResponse<VevenoStock>)
 
     render(<Harness owned onDuty={false} />)
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0])
 
     await waitFor(() => {
-      expect(brewApi.updateStock).toHaveBeenCalledWith(10, {
+      expect(vevenoApi.updateStock).toHaveBeenCalledWith(10, {
         stockName: '에티오피아',
         stockNum: 3,
         stockMinNum: 1,

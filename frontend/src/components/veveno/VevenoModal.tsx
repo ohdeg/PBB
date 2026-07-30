@@ -80,33 +80,33 @@ export function VevenoModal({
 
   return (
     <div
-      className="brew-modal-backdrop"
+      className="veveno-modal-backdrop"
       onClick={closeOnBackdrop ? onClose : undefined}
       role="presentation"
     >
       <div
         ref={dialogRef}
-        className="brew-modal"
+        className="veveno-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <div className="brew-modal__head">
-          <h2 id={titleId} className="brew-modal__title">
+        <div className="veveno-modal__head">
+          <h2 id={titleId} className="veveno-modal__title">
             {title}
           </h2>
           <button
             type="button"
-            className="brew-modal__close"
+            className="veveno-modal__close"
             onClick={onClose}
             aria-label="닫기"
           >
             ×
           </button>
         </div>
-        <div className="brew-modal__body">{children}</div>
+        <div className="veveno-modal__body">{children}</div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 export type AutoScrollMode = 'line' | 'page';
 
-export const AUTO_SCROLL_MODE_STORAGE_KEY = 'music-viewer:auto-scroll-mode';
+export const AUTO_SCROLL_MODE_STORAGE_KEY = 'score-viewer:auto-scroll-mode';
 
 export const AUTO_SCROLL_MODE_LABELS: Record<AutoScrollMode, string> = {
   line: '줄 단위',

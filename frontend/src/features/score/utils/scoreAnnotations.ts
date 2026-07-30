@@ -1,6 +1,6 @@
 import type { ScoreAnnotationDocument } from '../types/scoreAnnotation';
 
-const STORAGE_PREFIX = 'music-viewer:annotations:';
+const STORAGE_PREFIX = 'score-viewer:annotations:';
 
 export const createEmptyAnnotationDocument = (): ScoreAnnotationDocument => ({
   version: 1,

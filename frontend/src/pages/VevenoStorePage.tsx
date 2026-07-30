@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { brewApi } from '../api/brewApi';
+import { vevenoApi } from '../api/vevenoApi';
 import { VevenoButton } from '../components/veveno/VevenoButton';
 import { VevenoCard } from '../components/veveno/VevenoCard';
 import { VevenoInput } from '../components/veveno/VevenoInput';
@@ -25,19 +25,19 @@ import {
   useVevenoNotices,
 } from '../hooks/useVevenoNotices';
 import type {
-  BrewJoinRequest,
-  BrewMenu,
-  BrewRecipe,
-  BrewRecipeContent,
-  BrewStockCategory,
-  BrewStore,
-  BrewSubscriber,
-} from '../types/brew';
+  VevenoJoinRequest,
+  VevenoMenu,
+  VevenoRecipe,
+  VevenoRecipeContent,
+  VevenoStockCategory,
+  VevenoStore,
+  VevenoSubscriber,
+} from '../types/veveno';
 import {
   EMPTY_RECIPE_CONTENT,
   parseRecipeContents,
   stringifyRecipeContents,
-} from '../types/brew';
+} from '../types/veveno';
 import { getErrorMessage } from '../utils/error';
 
 type Tab = 'menus' | 'stocks' | 'schedule' | 'tools' | 'settings';
@@ -77,14 +77,14 @@ export function VevenoStorePage() {
     },
     [setSearchParams],
   );
-  const [store, setStore] = useState<BrewStore | null>(null);
-  const [menus, setMenus] = useState<BrewMenu[]>([]);
+  const [store, setStore] = useState<VevenoStore | null>(null);
+  const [menus, setMenus] = useState<VevenoMenu[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
-  const [recipes, setRecipes] = useState<BrewRecipe[]>([]);
+  const [recipes, setRecipes] = useState<VevenoRecipe[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
-  const [stockCategories, setStockCategories] = useState<BrewStockCategory[]>([]);
-  const [joinRequests, setJoinRequests] = useState<BrewJoinRequest[]>([]);
-  const [subscribers, setSubscribers] = useState<BrewSubscriber[]>([]);
+  const [stockCategories, setStockCategories] = useState<VevenoStockCategory[]>([]);
+  const [joinRequests, setJoinRequests] = useState<VevenoJoinRequest[]>([]);
+  const [subscribers, setSubscribers] = useState<VevenoSubscriber[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -97,11 +97,11 @@ export function VevenoStorePage() {
   const [savingMenu, setSavingMenu] = useState(false);
   const [recipeViewOpen, setRecipeViewOpen] = useState(false);
   const [viewRecipeContent, setViewRecipeContent] =
-    useState<BrewRecipeContent>(EMPTY_RECIPE_CONTENT);
+    useState<VevenoRecipeContent>(EMPTY_RECIPE_CONTENT);
 
   const [menuName, setMenuName] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
-  const [recipeForm, setRecipeForm] = useState<BrewRecipeContent>(EMPTY_RECIPE_CONTENT);
+  const [recipeForm, setRecipeForm] = useState<VevenoRecipeContent>(EMPTY_RECIPE_CONTENT);
   const [storeForm, setStoreForm] = useState({ name: '', isPublic: false });
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<{
@@ -117,7 +117,7 @@ export function VevenoStorePage() {
     return `${y}-${m}-${day}`;
   });
   const [leaving, setLeaving] = useState(false);
-  const [approveTarget, setApproveTarget] = useState<BrewJoinRequest | null>(null);
+  const [approveTarget, setApproveTarget] = useState<VevenoJoinRequest | null>(null);
   const [approving, setApproving] = useState(false);
   const [regeneratingCode, setRegeneratingCode] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -144,14 +144,14 @@ export function VevenoStorePage() {
     setLoading(true);
     setError('');
     try {
-      const { data } = await brewApi.getStore(storeId);
+      const { data } = await vevenoApi.getStore(storeId);
       setStore(data);
       setStoreForm({ name: data.name, isPublic: data.isPublic });
-      const menusRes = await brewApi.listMenus(storeId);
+      const menusRes = await vevenoApi.listMenus(storeId);
       setMenus(menusRes.data);
       if (data.owned || data.subscribed) {
         try {
-          const noticesRes = await brewApi.listNotices(storeId);
+          const noticesRes = await vevenoApi.listNotices(storeId);
           setNotices(noticesRes.data);
         } catch {
           setNotices([]);
@@ -160,15 +160,15 @@ export function VevenoStorePage() {
         setNotices([]);
       }
       if (data.canEditStock) {
-        const stocksRes = await brewApi.listStocks(storeId);
+        const stocksRes = await vevenoApi.listStocks(storeId);
         setStockCategories(stocksRes.data);
       } else {
         setStockCategories([]);
       }
       if (data.owned) {
         const [joinsRes, subsRes] = await Promise.all([
-          brewApi.listJoinRequests(storeId),
-          brewApi.listSubscribers(storeId),
+          vevenoApi.listJoinRequests(storeId),
+          vevenoApi.listSubscribers(storeId),
         ]);
         setJoinRequests(joinsRes.data);
         setSubscribers(subsRes.data);
@@ -222,7 +222,7 @@ export function VevenoStorePage() {
     }
     void (async () => {
       try {
-        const { data } = await brewApi.getStore(storeId);
+        const { data } = await vevenoApi.getStore(storeId);
         setStore(data);
       } catch {
         /* keep previous store snapshot */
@@ -249,7 +249,7 @@ export function VevenoStorePage() {
     let cancelled = false;
     void (async () => {
       try {
-        const { data } = await brewApi.listRecipes(selectedMenuId);
+        const { data } = await vevenoApi.listRecipes(selectedMenuId);
         if (!cancelled) {
           setRecipes(data);
           // 목록만 로드. 상세 보기 모달은 열지 않음
@@ -310,7 +310,7 @@ export function VevenoStorePage() {
     event.preventDefault();
     if (!menuName.trim() || !store?.owned) return;
     try {
-      const { data } = await brewApi.createMenu(storeId, menuName.trim());
+      const { data } = await vevenoApi.createMenu(storeId, menuName.trim());
       setMenus((prev) => [...prev, data]);
       setMenuName('');
       setSelectedMenuId(data.id);
@@ -319,14 +319,14 @@ export function VevenoStorePage() {
     }
   };
 
-  const selectMenu = (menu: BrewMenu) => {
+  const selectMenu = (menu: VevenoMenu) => {
     setSelectedMenuId(menu.id);
     setSelectedRecipeId(null);
     setRecipeForm(EMPTY_RECIPE_CONTENT);
     setRecipeViewOpen(false);
   };
 
-  const openMenuEditModal = (menu: BrewMenu) => {
+  const openMenuEditModal = (menu: VevenoMenu) => {
     selectMenu(menu);
     if (!store?.owned || !menuEditMode) {
       return;
@@ -354,7 +354,7 @@ export function VevenoStorePage() {
     setSavingMenu(true);
     setError('');
     try {
-      const { data } = await brewApi.updateMenu(editingMenuId, editingMenuName.trim());
+      const { data } = await vevenoApi.updateMenu(editingMenuId, editingMenuName.trim());
       setMenus((prev) => prev.map((m) => (m.id === data.id ? data : m)));
       setMenuEditOpen(false);
       setEditingMenuId(null);
@@ -371,7 +371,7 @@ export function VevenoStorePage() {
     setSavingMenu(true);
     setError('');
     try {
-      await brewApi.deleteMenu(menuId);
+      await vevenoApi.deleteMenu(menuId);
       setMenus((prev) => prev.filter((m) => m.id !== menuId));
       if (selectedMenuId === menuId) {
         setSelectedMenuId(null);
@@ -394,10 +394,10 @@ export function VevenoStorePage() {
     const contents = stringifyRecipeContents(recipeForm);
     try {
       if (selectedRecipeId) {
-        const { data } = await brewApi.updateRecipe(selectedRecipeId, contents);
+        const { data } = await vevenoApi.updateRecipe(selectedRecipeId, contents);
         setRecipes((prev) => prev.map((r) => (r.id === data.id ? data : r)));
       } else {
-        const { data } = await brewApi.createRecipe(selectedMenuId, contents);
+        const { data } = await vevenoApi.createRecipe(selectedMenuId, contents);
         setRecipes((prev) => [...prev, data]);
         setSelectedRecipeId(data.id);
       }
@@ -410,7 +410,7 @@ export function VevenoStorePage() {
     if (!selectedRecipeId) return;
     if (!window.confirm('이 레시피를 삭제할까요?')) return;
     try {
-      await brewApi.deleteRecipe(selectedRecipeId);
+      await vevenoApi.deleteRecipe(selectedRecipeId);
       setRecipes((prev) => prev.filter((r) => r.id !== selectedRecipeId));
       setSelectedRecipeId(null);
       setRecipeForm(EMPTY_RECIPE_CONTENT);
@@ -423,7 +423,7 @@ export function VevenoStorePage() {
     event.preventDefault();
     if (!store?.owned) return;
     try {
-      const { data } = await brewApi.updateStore(storeId, storeForm);
+      const { data } = await vevenoApi.updateStore(storeId, storeForm);
       setStore(data);
     } catch (err: unknown) {
       setError(getErrorMessage(err, '가게 설정 저장에 실패했습니다.'));
@@ -457,7 +457,7 @@ export function VevenoStorePage() {
     setRegeneratingCode(true);
     setError('');
     try {
-      const { data } = await brewApi.regenerateInviteCode(storeId);
+      const { data } = await vevenoApi.regenerateInviteCode(storeId);
       setStore(data);
       setCodeCopied(false);
     } catch (err: unknown) {
@@ -494,7 +494,7 @@ export function VevenoStorePage() {
     setLeaving(true);
     setError('');
     try {
-      const { data: coverCount } = await brewApi.countCoversAfterLeave(
+      const { data: coverCount } = await vevenoApi.countCoversAfterLeave(
         storeId,
         targetUserId,
         leaveDate,
@@ -508,7 +508,7 @@ export function VevenoStorePage() {
         }
       }
       if (leaveTarget.self) {
-        await brewApi.unsubscribe(storeId, leaveDate);
+        await vevenoApi.unsubscribe(storeId, leaveDate);
         const today = (() => {
           const d = new Date();
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -519,7 +519,7 @@ export function VevenoStorePage() {
         }
         await loadStore();
       } else {
-        const { data } = await brewApi.resignSubscriber(
+        const { data } = await vevenoApi.resignSubscriber(
           storeId,
           leaveTarget.userId,
           leaveDate,
@@ -533,7 +533,7 @@ export function VevenoStorePage() {
             prev.filter((s) => s.userId !== leaveTarget.userId),
           );
         }
-        const { data: subs } = await brewApi.listSubscribers(storeId);
+        const { data: subs } = await vevenoApi.listSubscribers(storeId);
         setSubscribers(subs);
       }
       setLeaveOpen(false);
@@ -549,10 +549,10 @@ export function VevenoStorePage() {
     setError('');
     try {
       if (self) {
-        await brewApi.clearMyLeave(storeId);
+        await vevenoApi.clearMyLeave(storeId);
         await loadStore();
       } else {
-        const { data } = await brewApi.clearSubscriberLeave(storeId, userId);
+        const { data } = await vevenoApi.clearSubscriberLeave(storeId, userId);
         setSubscribers((prev) =>
           prev.map((s) => (s.userId === data.userId ? data : s)),
         );
@@ -569,11 +569,11 @@ export function VevenoStorePage() {
     setApproving(true);
     setError('');
     try {
-      await brewApi.approveJoin(storeId, approveTarget.userId, payload);
+      await vevenoApi.approveJoin(storeId, approveTarget.userId, payload);
       setJoinRequests((prev) =>
         prev.filter((r) => r.userId !== approveTarget.userId),
       );
-      const { data } = await brewApi.listSubscribers(storeId);
+      const { data } = await vevenoApi.listSubscribers(storeId);
       setSubscribers(data);
       setApproveTarget(null);
     } catch (err: unknown) {
@@ -587,7 +587,7 @@ export function VevenoStorePage() {
     setDeleting(true);
     setError('');
     try {
-      await brewApi.deleteStore(storeId);
+      await vevenoApi.deleteStore(storeId);
       setDeleteDialogOpen(false);
       void navigate('/hobbies/veveno/hub');
     } catch (err: unknown) {
@@ -618,21 +618,21 @@ export function VevenoStorePage() {
     <>
       {showSplash ? <VevenoSplashScreen onFinish={handleSplashFinish} /> : null}
       {loading ? (
-        <main className="brew-shell">
-          <div className="brew-shell__inner brew-shell__loading">Loading…</div>
+        <main className="veveno-shell">
+          <div className="veveno-shell__inner veveno-shell__loading">Loading…</div>
         </main>
       ) : (
-      <main className="brew-shell">
-      <div className="brew-shell__inner brew-shell__inner--wide">
-        <div className="brew-detail-head">
+      <main className="veveno-shell">
+      <div className="veveno-shell__inner veveno-shell__inner--wide">
+        <div className="veveno-detail-head">
           <div>
-            <Link to="/hobbies/veveno/hub" className="brew-shell__back">
+            <Link to="/hobbies/veveno/hub" className="veveno-shell__back">
               ← Veveno
             </Link>
             {store ? (
               <>
                 <h1>{store.name}</h1>
-                <p className="brew-shell__meta">
+                <p className="veveno-shell__meta">
                   {store.owned ? 'Owner' : store.subscribed ? 'Staff' : 'Guest'}
                   {' · '}
                   <VevenoVisibilityBadge isPublic={store.isPublic} />
@@ -649,7 +649,7 @@ export function VevenoStorePage() {
           {store && (store.owned || store.subscribed) ? (
             <button
               type="button"
-              className="brew-notice-icon-btn"
+              className="veveno-notice-icon-btn"
               aria-label="공지"
               title="공지"
               onClick={openNotices}
@@ -669,7 +669,7 @@ export function VevenoStorePage() {
                 <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
               </svg>
               {notices.length > 0 ? (
-                <span className="brew-notice-icon-btn__badge">
+                <span className="veveno-notice-icon-btn__badge">
                   {notices.length > 99 ? '99+' : notices.length}
                 </span>
               ) : null}
@@ -678,7 +678,7 @@ export function VevenoStorePage() {
         </div>
 
         {error ? (
-          <p className="brew-notice brew-notice--error" role="alert">
+          <p className="veveno-notice veveno-notice--error" role="alert">
             {error}
           </p>
         ) : null}
@@ -686,9 +686,9 @@ export function VevenoStorePage() {
         {store ? (
           <>
             {visibleTabs.length > 1 ? (
-              <div className="brew-seg-tabs-wrap">
+              <div className="veveno-seg-tabs-wrap">
                 <div
-                  className="brew-seg-tabs brew-seg-tabs--sticky"
+                  className="veveno-seg-tabs veveno-seg-tabs--sticky"
                   style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}
                 >
                   {visibleTabs.map((item) => (
@@ -706,8 +706,8 @@ export function VevenoStorePage() {
             ) : null}
 
             {tab === 'menus' ? (
-              <div className="brew-stack-lg">
-                <div className="brew-toolbar">
+              <div className="veveno-stack-lg">
+                <div className="veveno-toolbar">
                   <VevenoInput
                     id="menu-tab-search"
                     label="검색"
@@ -716,10 +716,10 @@ export function VevenoStorePage() {
                     placeholder="메뉴·레시피 이름 검색"
                   />
                 </div>
-                <div className="brew-menu-layout">
-                  <aside className="brew-menu-rail">
-                    <div className="brew-menu-rail__head">
-                      <h2 className="brew-menu-rail__title">카테고리</h2>
+                <div className="veveno-menu-layout">
+                  <aside className="veveno-menu-rail">
+                    <div className="veveno-menu-rail__head">
+                      <h2 className="veveno-menu-rail__title">카테고리</h2>
                       {store.owned ? (
                         <VevenoButton
                           size="sm"
@@ -741,7 +741,7 @@ export function VevenoStorePage() {
                       ) : null}
                     </div>
                     {store.owned && menuEditMode ? (
-                      <form className="brew-search-row" onSubmit={handleCreateMenu}>
+                      <form className="veveno-search-row" onSubmit={handleCreateMenu}>
                         <VevenoInput
                           value={menuName}
                           onChange={(e) => setMenuName(e.target.value)}
@@ -750,11 +750,11 @@ export function VevenoStorePage() {
                         <VevenoButton type="submit">추가</VevenoButton>
                       </form>
                     ) : null}
-                    <div className="brew-menu-rail__list">
+                    <div className="veveno-menu-rail__list">
                       {menus.length === 0 ? (
-                        <p className="brew-empty">메뉴가 없습니다.</p>
+                        <p className="veveno-empty">메뉴가 없습니다.</p>
                       ) : filteredMenus.length === 0 ? (
-                        <p className="brew-empty">검색 결과가 없습니다.</p>
+                        <p className="veveno-empty">검색 결과가 없습니다.</p>
                       ) : (
                         filteredMenus.map((menu) => (
                           <button
@@ -762,14 +762,14 @@ export function VevenoStorePage() {
                             type="button"
                             className={
                               menu.id === selectedMenuId
-                                ? 'brew-rail-item is-active'
-                                : 'brew-rail-item'
+                                ? 'veveno-rail-item is-active'
+                                : 'veveno-rail-item'
                             }
                             onClick={() => openMenuEditModal(menu)}
                           >
-                            <span className="brew-rail-item__name">{menu.name}</span>
+                            <span className="veveno-rail-item__name">{menu.name}</span>
                             {store.owned && menuEditMode ? (
-                              <span className="brew-rail-item__hint">수정</span>
+                              <span className="veveno-rail-item__hint">수정</span>
                             ) : null}
                           </button>
                         ))
@@ -777,12 +777,12 @@ export function VevenoStorePage() {
                     </div>
                   </aside>
 
-                  <div className="brew-menu-main">
+                  <div className="veveno-menu-main">
                     <VevenoCard
                       title="레시피"
                       action={
                         store.owned ? (
-                          <div className="brew-card__actions">
+                          <div className="veveno-card__actions">
                             <VevenoButton
                               size="sm"
                               disabled={!selectedMenuId}
@@ -819,13 +819,13 @@ export function VevenoStorePage() {
                       }
                     >
                       {!selectedMenuId ? (
-                        <p className="brew-empty">왼쪽에서 메뉴를 선택해 주세요.</p>
+                        <p className="veveno-empty">왼쪽에서 메뉴를 선택해 주세요.</p>
                       ) : recipes.length === 0 ? (
-                        <p className="brew-empty">등록된 레시피가 없습니다.</p>
+                        <p className="veveno-empty">등록된 레시피가 없습니다.</p>
                       ) : filteredRecipes.length === 0 ? (
-                        <p className="brew-empty">검색 결과가 없습니다.</p>
+                        <p className="veveno-empty">검색 결과가 없습니다.</p>
                       ) : (
-                        <div className="brew-stack">
+                        <div className="veveno-stack">
                           {filteredRecipes.map((recipe) => {
                             const parsed = parseRecipeContents(recipe.contents);
                             return (
@@ -834,8 +834,8 @@ export function VevenoStorePage() {
                                 type="button"
                                 className={
                                   recipeEditMode && recipe.id === selectedRecipeId
-                                    ? 'brew-store-row is-clickable is-selected'
-                                    : 'brew-store-row is-clickable'
+                                    ? 'veveno-store-row is-clickable is-selected'
+                                    : 'veveno-store-row is-clickable'
                                 }
                                 onClick={() => {
                                   if (recipeEditMode && store.owned) {
@@ -847,12 +847,12 @@ export function VevenoStorePage() {
                                   setRecipeViewOpen(true);
                                 }}
                               >
-                                <div className="brew-store-row__main">
-                                  <p className="brew-store-row__name">
+                                <div className="veveno-store-row__main">
+                                  <p className="veveno-store-row__name">
                                     {parsed.title || '레시피'}
                                   </p>
                                   {parsed.notes ? (
-                                    <p className="brew-store-row__sub">
+                                    <p className="veveno-store-row__sub">
                                       {parsed.notes.length > 80
                                         ? `${parsed.notes.slice(0, 80)}…`
                                         : parsed.notes}
@@ -868,7 +868,7 @@ export function VevenoStorePage() {
 
                     {store.owned && recipeEditMode && selectedMenuId ? (
                       <VevenoCard title={selectedRecipe ? '레시피 편집' : '레시피 추가'}>
-                        <form className="brew-form-stack" onSubmit={handleSaveRecipe}>
+                        <form className="veveno-form-stack" onSubmit={handleSaveRecipe}>
                           <VevenoInput
                             label="제목"
                             id="recipe-title"
@@ -881,8 +881,8 @@ export function VevenoStorePage() {
                             }
                             placeholder="레시피 제목"
                           />
-                          <div className="brew-field">
-                            <span className="brew-field__label" id="recipe-notes-label">
+                          <div className="veveno-field">
+                            <span className="veveno-field__label" id="recipe-notes-label">
                               노트
                             </span>
                             <VevenoRecipeNotesEditor
@@ -897,12 +897,12 @@ export function VevenoStorePage() {
                               placeholder="추출·원두·테이스팅 메모"
                               rows={8}
                             />
-                            <p className="brew-field__hint">
+                            <p className="veveno-field__hint">
                               구분점·번호 목록은 툴바에서, 들여쓰기는 Tab / Shift+Tab 또는
                               툴바로 조절합니다.
                             </p>
                           </div>
-                          <div className="brew-btn-row">
+                          <div className="veveno-btn-row">
                             <VevenoButton type="submit">
                               {selectedRecipe ? '저장/수정' : '레시피 추가'}
                             </VevenoButton>
@@ -950,9 +950,9 @@ export function VevenoStorePage() {
             ) : null}
 
             {tab === 'settings' && store.owned ? (
-              <div className="brew-settings-stack">
+              <div className="veveno-settings-stack">
                 <VevenoCard title="업장 정보">
-                  <form className="brew-form-stack" onSubmit={handleSaveStore}>
+                  <form className="veveno-form-stack" onSubmit={handleSaveStore}>
                     <VevenoInput
                       label="가게 이름"
                       id="store-name"
@@ -961,7 +961,7 @@ export function VevenoStorePage() {
                         setStoreForm((prev) => ({ ...prev, name: e.target.value }))
                       }
                     />
-                    <label className="brew-check">
+                    <label className="veveno-check">
                       <input
                         type="checkbox"
                         checked={storeForm.isPublic}
@@ -974,18 +974,18 @@ export function VevenoStorePage() {
                       />
                       공개 가게 (is_public)
                     </label>
-                    <div className="brew-invite-code">
-                      <p className="brew-field__label">가게 코드</p>
-                      <p className="brew-card-lead">
+                    <div className="veveno-invite-code">
+                      <p className="veveno-field__label">가게 코드</p>
+                      <p className="veveno-card-lead">
                         직원에게 공유하면 이름 대신 코드로 정확히 찾을 수 있습니다.
                         (비공개 가게도 코드로 검색 가능)
                       </p>
-                      <div className="brew-invite-code__row">
+                      <div className="veveno-invite-code__row">
                         <code
                           className={
                             store.inviteCode
-                              ? 'brew-invite-code__value brew-invite-code__value--copyable'
-                              : 'brew-invite-code__value'
+                              ? 'veveno-invite-code__value veveno-invite-code__value--copyable'
+                              : 'veveno-invite-code__value'
                           }
                           role={store.inviteCode ? 'button' : undefined}
                           tabIndex={store.inviteCode ? 0 : undefined}
@@ -1021,7 +1021,7 @@ export function VevenoStorePage() {
                         </code>
                       </div>
                     </div>
-                    <div className="brew-btn-row">
+                    <div className="veveno-btn-row">
                       <VevenoButton type="submit">저장/수정</VevenoButton>
                       <VevenoButton
                         type="button"
@@ -1039,16 +1039,16 @@ export function VevenoStorePage() {
 
                 <VevenoCard title="가입 승인">
                   {joinRequests.length === 0 ? (
-                    <p className="brew-empty">대기 중인 신청이 없습니다.</p>
+                    <p className="veveno-empty">대기 중인 신청이 없습니다.</p>
                   ) : (
-                    <div className="brew-stack">
+                    <div className="veveno-stack">
                       {joinRequests.map((req) => (
-                        <div key={req.userId} className="brew-search-result">
+                        <div key={req.userId} className="veveno-search-result">
                           <div>
-                            <p className="brew-store-row__name">{req.nickname}</p>
-                            <p className="brew-store-row__sub">{req.email}</p>
+                            <p className="veveno-store-row__name">{req.nickname}</p>
+                            <p className="veveno-store-row__sub">{req.email}</p>
                           </div>
-                          <div className="brew-search-result__actions">
+                          <div className="veveno-search-result__actions">
                             <VevenoButton
                               size="sm"
                               onClick={() => setApproveTarget(req)}
@@ -1060,7 +1060,7 @@ export function VevenoStorePage() {
                               variant="secondary"
                               onClick={() => {
                                 void (async () => {
-                                  await brewApi.rejectJoin(storeId, req.userId);
+                                  await vevenoApi.rejectJoin(storeId, req.userId);
                                   setJoinRequests((prev) =>
                                     prev.filter((r) => r.userId !== req.userId),
                                   );
@@ -1077,19 +1077,19 @@ export function VevenoStorePage() {
                 </VevenoCard>
 
                 <VevenoCard title="직원 · 재고 권한">
-                  <p className="brew-card-lead">
+                  <p className="veveno-card-lead">
                     재고 수정 권한을 켠 구독자만 재고 탭이 보이며, 수량·등록을 변경할 수 있습니다.
                     퇴사일은 마지막 근무일이며, 그다음 날부터 구독·근무가 정리됩니다.
                   </p>
                   {subscribers.length === 0 ? (
-                    <p className="brew-empty">구독자가 없습니다.</p>
+                    <p className="veveno-empty">구독자가 없습니다.</p>
                   ) : (
-                    <div className="brew-stack">
+                    <div className="veveno-stack">
                       {subscribers.map((sub) => (
-                        <div key={sub.userId} className="brew-search-result">
+                        <div key={sub.userId} className="veveno-search-result">
                           <div>
-                            <p className="brew-store-row__name">{sub.nickname}</p>
-                            <p className="brew-store-row__sub">
+                            <p className="veveno-store-row__name">{sub.nickname}</p>
+                            <p className="veveno-store-row__sub">
                               {sub.email}
                               {sub.workStartDate
                                 ? ` · 근무 시작 ${sub.workStartDate}`
@@ -1099,8 +1099,8 @@ export function VevenoStorePage() {
                                 : ''}
                             </p>
                           </div>
-                          <div className="brew-search-result__actions">
-                            <label className="brew-check">
+                          <div className="veveno-search-result__actions">
+                            <label className="veveno-check">
                               <input
                                 type="checkbox"
                                 checked={sub.canEditStock}
@@ -1108,7 +1108,7 @@ export function VevenoStorePage() {
                                   const next = e.target.checked;
                                   void (async () => {
                                     try {
-                                      const { data } = await brewApi.updateStockPermission(
+                                      const { data } = await vevenoApi.updateStockPermission(
                                         storeId,
                                         sub.userId,
                                         next,
@@ -1160,7 +1160,7 @@ export function VevenoStorePage() {
                   )}
                 </VevenoCard>
 
-                <div className="brew-btn-row">
+                <div className="veveno-btn-row">
                   <VevenoButton
                     variant="danger"
                     onClick={() => setDeleteDialogOpen(true)}
@@ -1173,13 +1173,13 @@ export function VevenoStorePage() {
 
             {tab === 'schedule' && store.subscribed && !store.owned ? (
               <VevenoCard title="가게 나가기">
-                <p className="brew-card-lead">
+                <p className="veveno-card-lead">
                   퇴사일(마지막 근무일)을 지정하면 그날까지 근무할 수 있고, 다음날부터
                   구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 나갑니다.
                 </p>
                 {store.leaveDate ? (
-                  <div className="brew-btn-row">
-                    <p className="brew-card-lead">퇴사 예정: {store.leaveDate}</p>
+                  <div className="veveno-btn-row">
+                    <p className="veveno-card-lead">퇴사 예정: {store.leaveDate}</p>
                     <VevenoButton
                       variant="secondary"
                       onClick={() => void handleClearLeave('', true)}
@@ -1208,9 +1208,9 @@ export function VevenoStorePage() {
       </div>
 
       <VevenoModal open={noticesOpen} title="공지" onClose={closeNotices}>
-        <div className="brew-stack-lg">
+        <div className="veveno-stack-lg">
           {store?.owned ? (
-            <form className="brew-form-stack" onSubmit={(e) => void handleSaveNotice(e)}>
+            <form className="veveno-form-stack" onSubmit={(e) => void handleSaveNotice(e)}>
               <VevenoInput
                 label={editingNoticeId ? '제목 수정' : '새 공지 제목'}
                 value={noticeForm.title}
@@ -1220,13 +1220,13 @@ export function VevenoStorePage() {
                 placeholder="공지 제목"
                 disabled={savingNotice}
               />
-              <div className="brew-field">
-                <label className="brew-field__label" htmlFor="notice-body">
+              <div className="veveno-field">
+                <label className="veveno-field__label" htmlFor="notice-body">
                   본문
                 </label>
                 <textarea
                   id="notice-body"
-                  className="brew-field__input brew-notice-body"
+                  className="veveno-field__input veveno-notice-body"
                   rows={5}
                   value={noticeForm.body}
                   onChange={(e) =>
@@ -1236,7 +1236,7 @@ export function VevenoStorePage() {
                   disabled={savingNotice}
                 />
               </div>
-              <div className="brew-btn-row">
+              <div className="veveno-btn-row">
                 <VevenoButton
                   type="submit"
                   loading={savingNotice}
@@ -1259,20 +1259,20 @@ export function VevenoStorePage() {
           ) : null}
 
           {notices.length === 0 ? (
-            <p className="brew-empty">등록된 공지가 없습니다.</p>
+            <p className="veveno-empty">등록된 공지가 없습니다.</p>
           ) : (
-            <div className="brew-stack">
+            <div className="veveno-stack">
               {notices.map((notice) => (
-                <article key={notice.id} className="brew-notice-item">
-                  <div className="brew-notice-item__head">
-                    <h3 className="brew-notice-item__title">{notice.title}</h3>
-                    <p className="brew-notice-item__meta">
+                <article key={notice.id} className="veveno-notice-item">
+                  <div className="veveno-notice-item__head">
+                    <h3 className="veveno-notice-item__title">{notice.title}</h3>
+                    <p className="veveno-notice-item__meta">
                       {notice.authorNickname || 'Owner'} · {formatNoticeDate(notice.createdAt)}
                     </p>
                   </div>
-                  <p className="brew-notice-item__body">{notice.body}</p>
+                  <p className="veveno-notice-item__body">{notice.body}</p>
                   {store?.owned ? (
-                    <div className="brew-btn-row">
+                    <div className="veveno-btn-row">
                       <VevenoButton
                         size="sm"
                         variant="secondary"
@@ -1296,7 +1296,7 @@ export function VevenoStorePage() {
             </div>
           )}
 
-          <div className="brew-modal__actions">
+          <div className="veveno-modal__actions">
             <VevenoButton variant="secondary" onClick={closeNotices} disabled={savingNotice}>
               닫기
             </VevenoButton>
@@ -1310,7 +1310,7 @@ export function VevenoStorePage() {
         onClose={closeMenuEditModal}
         closeOnBackdrop={!savingMenu}
       >
-        <form className="brew-form-stack" onSubmit={handleSaveMenuName}>
+        <form className="veveno-form-stack" onSubmit={handleSaveMenuName}>
           <VevenoInput
             label="이름"
             id="edit-menu-name"
@@ -1319,7 +1319,7 @@ export function VevenoStorePage() {
             placeholder="메뉴 이름"
             disabled={savingMenu}
           />
-          <div className="brew-modal__actions">
+          <div className="veveno-modal__actions">
             <VevenoButton type="submit" disabled={savingMenu || !editingMenuName.trim()}>
               {savingMenu ? '저장 중…' : '저장'}
             </VevenoButton>
@@ -1352,14 +1352,14 @@ export function VevenoStorePage() {
         title={viewRecipeContent.title || '레시피'}
         onClose={() => setRecipeViewOpen(false)}
       >
-        <div className="brew-recipe-view">
+        <div className="veveno-recipe-view">
           {viewRecipeContent.notes ? (
             <VevenoRecipeNotesView notes={viewRecipeContent.notes} />
           ) : (
-            <p className="brew-empty">노트가 없습니다.</p>
+            <p className="veveno-empty">노트가 없습니다.</p>
           )}
         </div>
-        <div className="brew-modal__actions">
+        <div className="veveno-modal__actions">
           <VevenoButton variant="secondary" onClick={() => setRecipeViewOpen(false)}>
             닫기
           </VevenoButton>
@@ -1390,8 +1390,8 @@ export function VevenoStorePage() {
           }
         }}
       >
-        <form className="brew-form-stack" onSubmit={(e) => void handleConfirmLeave(e)}>
-          <p className="brew-card-lead">
+        <form className="veveno-form-stack" onSubmit={(e) => void handleConfirmLeave(e)}>
+          <p className="veveno-card-lead">
             퇴사일(마지막 근무일)을 선택하세요. 그날까지 근무할 수 있고, 다음날부터
             구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 처리됩니다.
           </p>
@@ -1403,7 +1403,7 @@ export function VevenoStorePage() {
             value={leaveDate}
             onChange={(e) => setLeaveDate(e.target.value)}
           />
-          <div className="brew-btn-row">
+          <div className="veveno-btn-row">
             <VevenoButton
               type="button"
               variant="secondary"

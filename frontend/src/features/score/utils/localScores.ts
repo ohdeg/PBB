@@ -1,7 +1,7 @@
 import type { ScoreDetail, ScoreSummary } from '../types';
 import { AppError } from './appError';
 
-const DB_NAME = 'music-viewer-local-scores';
+const DB_NAME = 'score-viewer-local-scores';
 const STORE_NAME = 'scores';
 const DB_VERSION = 1;
 export const LOCAL_SCORE_ID_PREFIX = 'local-';

@@ -94,11 +94,11 @@ export function VevenoRecipeNotesEditor({
   };
 
   return (
-    <div className="brew-notes-editor">
-      <div className="brew-notes-toolbar" role="toolbar" aria-label="노트 목록 서식">
+    <div className="veveno-notes-editor">
+      <div className="veveno-notes-toolbar" role="toolbar" aria-label="노트 목록 서식">
         <button
           type="button"
-          className="brew-notes-toolbar__btn"
+          className="veveno-notes-toolbar__btn"
           disabled={disabled}
           title="구분점 목록"
           aria-label="구분점 목록"
@@ -109,7 +109,7 @@ export function VevenoRecipeNotesEditor({
         </button>
         <button
           type="button"
-          className="brew-notes-toolbar__btn"
+          className="veveno-notes-toolbar__btn"
           disabled={disabled}
           title="번호 목록"
           aria-label="번호 목록"
@@ -120,7 +120,7 @@ export function VevenoRecipeNotesEditor({
         </button>
         <button
           type="button"
-          className="brew-notes-toolbar__btn"
+          className="veveno-notes-toolbar__btn"
           disabled={disabled}
           title="들여쓰기 (Tab)"
           aria-label="들여쓰기"
@@ -131,7 +131,7 @@ export function VevenoRecipeNotesEditor({
         </button>
         <button
           type="button"
-          className="brew-notes-toolbar__btn"
+          className="veveno-notes-toolbar__btn"
           disabled={disabled}
           title="내어쓰기 (Shift+Tab)"
           aria-label="내어쓰기"
@@ -144,7 +144,7 @@ export function VevenoRecipeNotesEditor({
       <textarea
         ref={textareaRef}
         id={id}
-        className="brew-field__input brew-field__textarea brew-notes-editor__textarea"
+        className="veveno-field__input veveno-field__textarea veveno-notes-editor__textarea"
         rows={rows}
         value={value}
         onChange={handleChange}

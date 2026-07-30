@@ -12,8 +12,8 @@ export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
   const [section, setSection] = useState<ToolsSection>('units');
 
   return (
-    <div className="brew-tools">
-      <div className="brew-tools-seg brew-tools-seg--main" role="tablist" aria-label="도구">
+    <div className="veveno-tools">
+      <div className="veveno-tools-seg veveno-tools-seg--main" role="tablist" aria-label="도구">
         <button
           type="button"
           role="tab"

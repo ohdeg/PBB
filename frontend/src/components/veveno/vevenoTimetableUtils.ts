@@ -1,4 +1,4 @@
-import type { BrewCalendarOccurrence } from '../../types/brew';
+import type { VevenoCalendarOccurrence } from '../../types/veveno';
 
 export const VEVENO_HOUR_HEIGHT_PX = 48;
 
@@ -30,7 +30,7 @@ export interface VevenoTimetableRange {
 
 /** 한 근무를 겹침 구간에 따라 쪼갠 세로 조각 */
 export interface VevenoTimetableSegment {
-  occurrence: BrewCalendarOccurrence;
+  occurrence: VevenoCalendarOccurrence;
   top: number;
   height: number;
   leftPercent: number;
@@ -42,7 +42,7 @@ export interface VevenoTimetableSegment {
 }
 
 interface TimedItem {
-  occurrence: BrewCalendarOccurrence;
+  occurrence: VevenoCalendarOccurrence;
   start: number;
   end: number;
   id: string;
@@ -55,7 +55,7 @@ function parseTimeToMinutes(raw: string): number {
   return hours * 60 + minutes;
 }
 
-function getOccurrenceEndMinutes(occ: BrewCalendarOccurrence): number {
+function getOccurrenceEndMinutes(occ: VevenoCalendarOccurrence): number {
   const start = parseTimeToMinutes(occ.startTime);
   let end = parseTimeToMinutes(occ.endTime);
   if (occ.overnight || end <= start) {
@@ -65,7 +65,7 @@ function getOccurrenceEndMinutes(occ: BrewCalendarOccurrence): number {
 }
 
 /** COVERED_OUT을 제외한 근무 구간 */
-function expandWorkSpans(occurrences: BrewCalendarOccurrence[]): TimedItem[] {
+function expandWorkSpans(occurrences: VevenoCalendarOccurrence[]): TimedItem[] {
   const items: TimedItem[] = [];
   for (const occurrence of occurrences) {
     if (occurrence.type === 'COVERED_OUT') {
@@ -140,7 +140,7 @@ export function buildVevenoStaffColorMap(userIds: string[]): Map<string, VevenoS
 
 /** 주간 표시 시간 범위 (근무/대타 기준, 기본 08–22) */
 export function getVevenoWeekTimetableRange(
-  occurrences: BrewCalendarOccurrence[],
+  occurrences: VevenoCalendarOccurrence[],
 ): VevenoTimetableRange {
   let minStart = Infinity;
   let maxEnd = -Infinity;
@@ -172,7 +172,7 @@ export function getVevenoWeekTimetableRange(
  * 시작·종료 시각을 경계로 세로 세그먼트를 만든다.
  */
 export function layoutVevenoDayTimetableBlocks(
-  occurrences: BrewCalendarOccurrence[],
+  occurrences: VevenoCalendarOccurrence[],
   range: VevenoTimetableRange,
 ): VevenoTimetableSegment[] {
   const items = expandWorkSpans(occurrences);
@@ -273,8 +273,8 @@ export function layoutVevenoDayTimetableBlocks(
 }
 
 export function occurrencesForDate(
-  occurrences: BrewCalendarOccurrence[],
+  occurrences: VevenoCalendarOccurrence[],
   dateKey: string,
-): BrewCalendarOccurrence[] {
+): VevenoCalendarOccurrence[] {
   return occurrences.filter((occ) => occ.date === dateKey);
 }

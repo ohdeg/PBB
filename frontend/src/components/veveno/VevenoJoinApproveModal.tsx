@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { BrewJoinRequest, BrewScheduleSlotInput } from '../../types/brew';
+import type { VevenoJoinRequest, VevenoScheduleSlotInput } from '../../types/veveno';
 import { VevenoButton } from './VevenoButton';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
@@ -36,12 +36,12 @@ function initialSlots(): Record<number, DaySlot> {
 export interface VevenoJoinApprovePayload {
   canEditStock: boolean;
   workStartDate: string | null;
-  slots: BrewScheduleSlotInput[];
+  slots: VevenoScheduleSlotInput[];
 }
 
 interface VevenoJoinApproveModalProps {
   open: boolean;
-  request: BrewJoinRequest | null;
+  request: VevenoJoinRequest | null;
   loading: boolean;
   onClose: () => void;
   onSave: (payload: VevenoJoinApprovePayload) => void;
@@ -98,7 +98,7 @@ export function VevenoJoinApproveModal({
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    const payloadSlots: BrewScheduleSlotInput[] = [];
+    const payloadSlots: VevenoScheduleSlotInput[] = [];
     for (let d = 1; d <= 7; d += 1) {
       const slot = slots[d];
       if (slot?.enabled) {
@@ -127,8 +127,8 @@ export function VevenoJoinApproveModal({
       }}
     >
       {request ? (
-        <form className="brew-form-stack" onSubmit={handleSubmit}>
-          <p className="brew-card-lead">
+        <form className="veveno-form-stack" onSubmit={handleSubmit}>
+          <p className="veveno-card-lead">
             {request.nickname} ({request.email}) 승인 시 근무·재고 권한을 함께 저장합니다.
           </p>
           <VevenoInput
@@ -140,7 +140,7 @@ export function VevenoJoinApproveModal({
             onChange={(e) => setWorkStartDate(e.target.value)}
             hint="이 날짜부터 정규 근무가 달력에 표시됩니다."
           />
-          <label className="brew-check">
+          <label className="veveno-check">
             <input
               type="checkbox"
               checked={canEditStock}
@@ -148,14 +148,14 @@ export function VevenoJoinApproveModal({
             />
             재고 수정 가능
           </label>
-          <div className="brew-stack">
-            <p className="brew-field__label">정규 근무 (선택)</p>
-            <div className="brew-schedule-bulk">
-              <p className="brew-field__label">선택 요일 일괄 시간</p>
-              <div className="brew-schedule-slot-row brew-schedule-bulk__row">
+          <div className="veveno-stack">
+            <p className="veveno-field__label">정규 근무 (선택)</p>
+            <div className="veveno-schedule-bulk">
+              <p className="veveno-field__label">선택 요일 일괄 시간</p>
+              <div className="veveno-schedule-slot-row veveno-schedule-bulk__row">
                 <input
                   type="time"
-                  className="brew-field__input brew-schedule-time"
+                  className="veveno-field__input veveno-schedule-time"
                   value={bulkStartTime}
                   onChange={(e) => setBulkStartTime(e.target.value)}
                   aria-label="일괄 시작 시각"
@@ -163,7 +163,7 @@ export function VevenoJoinApproveModal({
                 <span>~</span>
                 <input
                   type="time"
-                  className="brew-field__input brew-schedule-time"
+                  className="veveno-field__input veveno-schedule-time"
                   value={bulkEndTime}
                   onChange={(e) => setBulkEndTime(e.target.value)}
                   aria-label="일괄 종료 시각"
@@ -177,11 +177,11 @@ export function VevenoJoinApproveModal({
                   선택 요일에 적용
                 </VevenoButton>
               </div>
-              <p className="brew-field__hint">
+              <p className="veveno-field__hint">
                 요일을 체크한 뒤 적용하면 같은 시간이 들어갑니다.
               </p>
               {bulkHint ? (
-                <p className="brew-field__error" role="alert">
+                <p className="veveno-field__error" role="alert">
                   {bulkHint}
                 </p>
               ) : null}
@@ -190,8 +190,8 @@ export function VevenoJoinApproveModal({
               const dow = i + 1;
               const slot = slots[dow] ?? emptySlot();
               return (
-                <div key={dow} className="brew-schedule-slot-row">
-                  <label className="brew-check">
+                <div key={dow} className="veveno-schedule-slot-row">
+                  <label className="veveno-check">
                     <input
                       type="checkbox"
                       checked={slot.enabled}
@@ -210,7 +210,7 @@ export function VevenoJoinApproveModal({
                   </label>
                   <input
                     type="time"
-                    className="brew-field__input brew-schedule-time"
+                    className="veveno-field__input veveno-schedule-time"
                     value={slot.startTime}
                     disabled={!slot.enabled}
                     onChange={(e) =>
@@ -226,7 +226,7 @@ export function VevenoJoinApproveModal({
                   <span>~</span>
                   <input
                     type="time"
-                    className="brew-field__input brew-schedule-time"
+                    className="veveno-field__input veveno-schedule-time"
                     value={slot.endTime}
                     disabled={!slot.enabled}
                     onChange={(e) =>
@@ -243,11 +243,11 @@ export function VevenoJoinApproveModal({
               );
             })}
           </div>
-          <p className="brew-card-lead">
+          <p className="veveno-card-lead">
             종료 시각이 시작보다 이르면 자정 넘김으로 저장됩니다. 요일을 비워 두면 나중에
             근무 탭에서 지정할 수 있습니다.
           </p>
-          <div className="brew-btn-row">
+          <div className="veveno-btn-row">
             <VevenoButton
               type="button"
               variant="secondary"

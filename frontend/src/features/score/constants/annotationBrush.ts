@@ -1,6 +1,6 @@
 import type { AnnotationBrushSizes } from '../types/scoreAnnotation';
 
-export const ANNOTATION_BRUSH_SIZES_STORAGE_KEY = 'music-viewer:annotation-brush-sizes';
+export const ANNOTATION_BRUSH_SIZES_STORAGE_KEY = 'score-viewer:annotation-brush-sizes';
 
 export const DEFAULT_ANNOTATION_BRUSH_SIZES: AnnotationBrushSizes = {
   pen: 2.5,

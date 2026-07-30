@@ -99,10 +99,11 @@ function usesAppOwnedSplash(pathname: string): boolean {
     || pathname.startsWith('/hobbies/veveno/stores')
     || pathname.startsWith('/hobbies/brew-note')
     || pathname.startsWith('/hobbies/lotto')
+    || pathname.startsWith('/hobbies/6pick')
   );
 }
 
-function LegacyBrewStoreRedirect() {
+function LegacyVevenoStoreRedirect() {
   const { storeId } = useParams<{ storeId: string }>();
   return <Navigate to={`/hobbies/veveno/stores/${storeId ?? ''}`} replace />;
 }
@@ -181,9 +182,17 @@ export default function App() {
               />
               <Route
                 path="/hobbies/brew-note/stores/:storeId"
-                element={<LegacyBrewStoreRedirect />}
+                element={<LegacyVevenoStoreRedirect />}
               />
-              <Route path="/hobbies/lotto" element={<LottoPage />} />
+              <Route path="/hobbies/6pick" element={<LottoPage />} />
+              <Route
+                path="/hobbies/lotto"
+                element={<Navigate to="/hobbies/6pick" replace />}
+              />
+              <Route
+                path="/hobbies/lotto/*"
+                element={<Navigate to="/hobbies/6pick" replace />}
+              />
               <Route path="/hobbies/score-viewer" element={<ScoreLibraryPage />} />
               <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route path="/hobbies/dieta" element={<DietaLandingPage />} />

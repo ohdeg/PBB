@@ -10,7 +10,7 @@
 - **Live:** [app.pbbstudio.com](https://app.pbbstudio.com)
 - **형태:** 개인 프로젝트 — 기획, UX 흐름, React/Spring 구현, 테스트, 인프라와 배포 전 과정 담당
 - **문제:** 서로 다른 취미 도구를 매번 별도 앱으로 관리하지 않고, 공통 인증과 일관된 진입 경험 위에서 사용할 수 있게 구성
-- **해결:** 하나의 PBB 셸 안에 Veveno·6PICK·Score Viewer를 도메인별로 분리하고, 공통 계정·권한·운영 인프라를 공유
+- **해결:** 하나의 PBB 셸 안에 Veveno·6PICK·Dieta·Score Viewer를 도메인별로 분리하고, 공통 계정·권한·운영 인프라를 공유
 - **검증:** JUnit/Mockito, MySQL·Redis Testcontainers, Vitest coverage, Playwright를 GitHub Actions PR 게이트로 연결
 - **운영:** Spring Security 공개/회원/DEV 이중 인가, Actuator health/info, JaCoCo·Vitest coverage artifact
 
@@ -34,10 +34,11 @@ Browser
 | 앱 | 경로 | 설명 |
 |----|------|------|
 | Veveno | `/hobbies/veveno` | 가게 노트. 랜딩 공개 · 허브 `/hub` · 가게 `/stores/:id` (로그인 필수) |
-| 6PICK | `/hobbies/lotto` | 로또 번호 생성·세금 계산·회차 관리 (당첨번호 자동 동기화) |
+| 6PICK | `/hobbies/6pick` | 로또 번호 생성·세금 계산·회차 관리 (당첨번호 자동 동기화) |
+| Dieta | `/hobbies/dieta` | 체중·섭취·활동량 주간 코칭 |
 | Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 
-하위 호환 리다이렉트: `/hobbies/brew-note` → Veveno · `/hobbies/ipbt`·`analyze-baseball`·`pbb`·`/analysis` → 홈
+하위 호환 리다이렉트: `/hobbies/lotto` → 6PICK · `/hobbies/brew-note` → Veveno · `/hobbies/ipbt`·`analyze-baseball`·`pbb`·`/analysis` → 홈
 
 공통 기능: 회원가입(약관 동의) · 로그인 · JWT · 프로필 · 회원 등급(FREE/DEV) · 회원 탈퇴 · 점검/오류/404 화면
 
@@ -71,7 +72,7 @@ com.studiobs.spring_backend
     ├── auth/     # 회원가입·로그인·JWT·탈퇴·rate limit
     ├── user/     # User, UserConsent
     ├── config/   # app_config (추천 앱)
-    ├── brew/     # Veveno (API 접두사 /api/v1/brew)
+    ├── brew/     # Veveno (공개 API `/api/v1/veveno` · 하위 호환 `/api/v1/brew`)
     ├── lotto/    # 6PICK + 동행복권 동기화 스케줄러
     ├── dev/      # DEV 관리 (회원 등급·추천 앱·R2)
     └── mail/
@@ -98,7 +99,7 @@ com.studiobs.spring_backend
 | DELETE | `/api/v1/auth/account` | 회원 탈퇴 |
 | GET | `/api/v1/config/featured-app` | 홈 추천 앱 목록 (공개) |
 | PUT | `/api/v1/dev/featured-app` | 추천 앱 설정 (DEV) |
-| — | `/api/v1/brew/**` | Veveno 가게·메뉴·재고·근무·공지 등 |
+| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·근무·공지 등 |
 | — | `/api/v1/lotto/**` | 6PICK 회차·picks (DEV 회차 관리 포함) |
 
 ## 로컬 실행

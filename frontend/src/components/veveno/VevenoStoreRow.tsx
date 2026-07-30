@@ -19,7 +19,7 @@ export function VevenoStoreRow({
   trailing,
 }: VevenoStoreRowProps) {
   const className = [
-    'brew-store-row',
+    'veveno-store-row',
     selected ? 'is-selected' : '',
     onClick ? 'is-clickable' : '',
   ]
@@ -29,12 +29,12 @@ export function VevenoStoreRow({
   if (onClick) {
     return (
       <button type="button" className={className} onClick={onClick}>
-        <div className="brew-store-row__main">
-          <div className="brew-store-row__title-row">
-            <p className="brew-store-row__name">{name}</p>
+        <div className="veveno-store-row__main">
+          <div className="veveno-store-row__title-row">
+            <p className="veveno-store-row__name">{name}</p>
             {selected ? <VevenoBadge variant="info">선택</VevenoBadge> : null}
           </div>
-          {subtitle ? <p className="brew-store-row__sub">{subtitle}</p> : null}
+          {subtitle ? <p className="veveno-store-row__sub">{subtitle}</p> : null}
         </div>
         {trailing ?? badge}
       </button>
@@ -43,11 +43,11 @@ export function VevenoStoreRow({
 
   return (
     <div className={className}>
-      <div className="brew-store-row__main">
-        <div className="brew-store-row__title-row">
-          <p className="brew-store-row__name">{name}</p>
+      <div className="veveno-store-row__main">
+        <div className="veveno-store-row__title-row">
+          <p className="veveno-store-row__name">{name}</p>
         </div>
-        {subtitle ? <p className="brew-store-row__sub">{subtitle}</p> : null}
+        {subtitle ? <p className="veveno-store-row__sub">{subtitle}</p> : null}
       </div>
       {trailing ?? badge}
     </div>

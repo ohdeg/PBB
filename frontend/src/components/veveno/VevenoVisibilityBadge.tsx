@@ -6,7 +6,7 @@ export function VevenoVisibilityBadge({ isPublic }: VevenoVisibilityBadgeProps) 
   const label = isPublic ? '공개 가게' : '비공개 가게';
   return (
     <span
-      className={`brew-visibility ${isPublic ? 'brew-visibility--open' : 'brew-visibility--closed'}`}
+      className={`veveno-visibility ${isPublic ? 'veveno-visibility--open' : 'veveno-visibility--closed'}`}
       role="img"
       aria-label={label}
       title={label}

@@ -29,11 +29,11 @@ export function VevenoStoreDeleteDialog({
 
   return (
     <VevenoModal open={open} title="가게 삭제" onClose={onCancel} closeOnBackdrop={!loading}>
-      <p className="brew-modal__lead">
+      <p className="veveno-modal__lead">
         <strong>&quot;{storeName}&quot;</strong> 가게를 삭제하면 메뉴, 레시피, 재고, 구독 등 모든
         데이터가 영구 삭제되며 되돌릴 수 없습니다.
       </p>
-      <div className="brew-modal__field">
+      <div className="veveno-modal__field">
         <VevenoInput
           label={`"${storeName}"을(를) 입력하세요`}
           value={confirmation}
@@ -43,7 +43,7 @@ export function VevenoStoreDeleteDialog({
           disabled={loading}
         />
       </div>
-      <div className="brew-modal__actions">
+      <div className="veveno-modal__actions">
         <VevenoButton variant="secondary" onClick={onCancel} disabled={loading}>
           취소
         </VevenoButton>

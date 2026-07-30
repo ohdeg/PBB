@@ -55,7 +55,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/brew")
+@RequestMapping({"/api/v1/brew", "/api/v1/veveno"})
 @RequiredArgsConstructor
 public class BrewController {
 

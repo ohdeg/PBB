@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
-import { brewApi } from '../api/brewApi';
+import { vevenoApi } from '../api/vevenoApi';
 import { configApi } from '../api/configApi';
 import { devApi } from '../api/devApi';
 import { HOBBY_APPS } from '../data/hobbies';
 import { useAuthStore } from '../stores/authStore';
-import type { BrewStore } from '../types/brew';
+import type { VevenoStore } from '../types/veveno';
 import type { UserClass, UserResponse } from '../types/user';
 import { getErrorMessage } from '../utils/error';
 
@@ -38,8 +38,8 @@ export function ProfilePage() {
   const [featuredSuccess, setFeaturedSuccess] = useState('');
 
   const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('closed');
-  const [ownedStores, setOwnedStores] = useState<BrewStore[]>([]);
-  const [subscribedStores, setSubscribedStores] = useState<BrewStore[]>([]);
+  const [ownedStores, setOwnedStores] = useState<VevenoStore[]>([]);
+  const [subscribedStores, setSubscribedStores] = useState<VevenoStore[]>([]);
   const [withdrawPassword, setWithdrawPassword] = useState('');
   const [withdrawError, setWithdrawError] = useState('');
   const [withdrawLoading, setWithdrawLoading] = useState(false);
@@ -215,8 +215,8 @@ export function ProfilePage() {
     setWithdrawLoading(true);
     try {
       const [ownedRes, subRes] = await Promise.all([
-        brewApi.myStores(),
-        brewApi.subscriptions(),
+        vevenoApi.myStores(),
+        vevenoApi.subscriptions(),
       ]);
       setOwnedStores(ownedRes.data);
       setSubscribedStores(subRes.data);

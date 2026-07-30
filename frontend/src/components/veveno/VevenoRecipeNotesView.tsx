@@ -14,15 +14,15 @@ export function VevenoRecipeNotesView({ notes }: VevenoRecipeNotesViewProps) {
   const blocks = parseNotesToBlocks(notes);
 
   if (blocks.length === 0) {
-    return <p className="brew-empty">노트가 없습니다.</p>;
+    return <p className="veveno-empty">노트가 없습니다.</p>;
   }
 
   return (
-    <div className="brew-recipe-view__notes">
+    <div className="veveno-recipe-view__notes">
       {blocks.map((block, index) => {
         if (block.type === 'paragraph') {
           return (
-            <p key={`p-${index}`} className="brew-notes-paragraph">
+            <p key={`p-${index}`} className="veveno-notes-paragraph">
               {block.text}
             </p>
           );
@@ -32,7 +32,7 @@ export function VevenoRecipeNotesView({ notes }: VevenoRecipeNotesViewProps) {
         return (
           <ul
             key={`list-${index}`}
-            className={`brew-notes-list brew-notes-list--${block.kind}`}
+            className={`veveno-notes-list veveno-notes-list--${block.kind}`}
           >
             {block.items.map((item, itemIndex) => {
               const level = item.indent;
@@ -45,13 +45,13 @@ export function VevenoRecipeNotesView({ notes }: VevenoRecipeNotesViewProps) {
               return (
                 <li
                   key={`list-${index}-${itemIndex}`}
-                  className={`brew-notes-item brew-notes-item--level-${level}`}
+                  className={`veveno-notes-item veveno-notes-item--level-${level}`}
                   style={{ ['--notes-indent' as string]: String(level) }}
                 >
-                  <span className="brew-notes-item__marker" aria-hidden>
+                  <span className="veveno-notes-item__marker" aria-hidden>
                     {marker}
                   </span>
-                  <span className="brew-notes-item__text">{item.text || '\u00A0'}</span>
+                  <span className="veveno-notes-item__text">{item.text || '\u00A0'}</span>
                 </li>
               );
             })}

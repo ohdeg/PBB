@@ -18,9 +18,9 @@ export function VevenoButton({
   ...props
 }: VevenoButtonProps) {
   const classes = [
-    'brew-btn',
-    `brew-btn--${variant}`,
-    `brew-btn--${size}`,
+    'veveno-btn',
+    `veveno-btn--${variant}`,
+    `veveno-btn--${size}`,
     className,
   ]
     .filter(Boolean)

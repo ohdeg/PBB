@@ -11,20 +11,20 @@ export const VevenoInput = forwardRef<HTMLInputElement, VevenoInputProps>(
     const inputId = id ?? (label ? label.replace(/\s/g, '-').toLowerCase() : undefined);
 
     return (
-      <div className={`brew-field ${className}`.trim()}>
+      <div className={`veveno-field ${className}`.trim()}>
         {label ? (
-          <label htmlFor={inputId} className="brew-field__label">
+          <label htmlFor={inputId} className="veveno-field__label">
             {label}
           </label>
         ) : null}
         <input
           ref={ref}
           id={inputId}
-          className={`brew-field__input${error ? ' is-error' : ''}`}
+          className={`veveno-field__input${error ? ' is-error' : ''}`}
           {...props}
         />
-        {hint && !error ? <span className="brew-field__hint">{hint}</span> : null}
-        {error ? <span className="brew-field__error">{error}</span> : null}
+        {hint && !error ? <span className="veveno-field__hint">{hint}</span> : null}
+        {error ? <span className="veveno-field__error">{error}</span> : null}
       </div>
     );
   },

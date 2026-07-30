@@ -7,6 +7,6 @@ interface VevenoBadgeProps {
 
 export function VevenoBadge({ children, variant = 'default' }: VevenoBadgeProps) {
   return (
-    <span className={`brew-badge brew-badge--${variant}`}>{children}</span>
+    <span className={`veveno-badge veveno-badge--${variant}`}>{children}</span>
   );
 }

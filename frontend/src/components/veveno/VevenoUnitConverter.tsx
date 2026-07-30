@@ -100,8 +100,8 @@ export function VevenoUnitConverter() {
   };
 
   return (
-    <div className="brew-tools-block">
-      <div className="brew-tools-seg" role="tablist" aria-label="단위 종류">
+    <div className="veveno-tools-block">
+      <div className="veveno-tools-seg" role="tablist" aria-label="단위 종류">
         {(
           [
             ['mass', '무게'],
@@ -123,9 +123,9 @@ export function VevenoUnitConverter() {
         ))}
       </div>
 
-      <div className="brew-unit-grid">
+      <div className="veveno-unit-grid">
         <VevenoInput
-          id="brew-unit-amount"
+          id="veveno-unit-amount"
           label={kind === 'temp' ? '온도' : kind === 'scale' ? '기준 값' : '값'}
           inputMode="decimal"
           value={amount}
@@ -133,10 +133,10 @@ export function VevenoUnitConverter() {
         />
 
         {kind === 'temp' ? (
-          <label className="brew-field">
-            <span className="brew-field__label">단위</span>
+          <label className="veveno-field">
+            <span className="veveno-field__label">단위</span>
             <select
-              className="brew-field__input"
+              className="veveno-field__input"
               value={tempUnit}
               onChange={(e) => setTempUnit(e.target.value === 'f' ? 'f' : 'c')}
             >
@@ -148,7 +148,7 @@ export function VevenoUnitConverter() {
 
         {kind === 'scale' ? (
           <VevenoInput
-            id="brew-unit-scale"
+            id="veveno-unit-scale"
             label="배율"
             inputMode="decimal"
             value={scale}
@@ -159,10 +159,10 @@ export function VevenoUnitConverter() {
 
         {kind === 'mass' || kind === 'volume' ? (
           <>
-            <label className="brew-field">
-              <span className="brew-field__label">From</span>
+            <label className="veveno-field">
+              <span className="veveno-field__label">From</span>
               <select
-                className="brew-field__input"
+                className="veveno-field__input"
                 value={fromId}
                 onChange={(e) => setFromId(e.target.value)}
               >
@@ -173,10 +173,10 @@ export function VevenoUnitConverter() {
                 ))}
               </select>
             </label>
-            <label className="brew-field">
-              <span className="brew-field__label">To</span>
+            <label className="veveno-field">
+              <span className="veveno-field__label">To</span>
               <select
-                className="brew-field__input"
+                className="veveno-field__input"
                 value={toId}
                 onChange={(e) => setToId(e.target.value)}
               >
@@ -191,9 +191,9 @@ export function VevenoUnitConverter() {
         ) : null}
       </div>
 
-      <div className="brew-unit-result" aria-live="polite">
-        <p className="brew-unit-result__label">{result?.label ?? '결과'}</p>
-        <p className="brew-unit-result__value">
+      <div className="veveno-unit-result" aria-live="polite">
+        <p className="veveno-unit-result__label">{result?.label ?? '결과'}</p>
+        <p className="veveno-unit-result__value">
           {result ? formatNumber(result.value) : '—'}
         </p>
       </div>

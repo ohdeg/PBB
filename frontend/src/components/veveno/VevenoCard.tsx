@@ -9,14 +9,14 @@ interface VevenoCardProps {
 
 export function VevenoCard({ title, action, children, className = '' }: VevenoCardProps) {
   return (
-    <section className={`brew-card ${className}`.trim()}>
+    <section className={`veveno-card ${className}`.trim()}>
       {title || action ? (
-        <div className="brew-card__head">
-          {title ? <h2 className="brew-card__title">{title}</h2> : <span />}
-          {action ? <div className="brew-card__action">{action}</div> : null}
+        <div className="veveno-card__head">
+          {title ? <h2 className="veveno-card__title">{title}</h2> : <span />}
+          {action ? <div className="veveno-card__action">{action}</div> : null}
         </div>
       ) : null}
-      <div className="brew-card__body">{children}</div>
+      <div className="veveno-card__body">{children}</div>
     </section>
   );
 }

@@ -47,6 +47,16 @@ export const HOBBY_APPS: HobbyApp[] = [
     accent: '#5e5ce6',
     available: true,
   },
+  {
+    id: 'dieta',
+    name: 'Dieta',
+    subtitle: '체중 코칭',
+    description: '체중·섭취·활동량으로 한 주씩 부드럽게 조절하는 코칭 노트',
+    category: '라이프',
+    path: '/hobbies/dieta',
+    accent: '#1f7a64',
+    available: true,
+  },
 ];
 
 export function getFeaturedHobby(): HobbyApp {

@@ -29,6 +29,13 @@ info:
     name: PBB API
     description: Play beom's BAG backend
 
+# Dieta Gemini meal finalize (optional — blank api-key → deterministic stub)
+dieta:
+  gemini:
+    api-key: ${DIETA_GEMINI_API_KEY:}
+    base-url: ${DIETA_GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+    model: ${DIETA_GEMINI_MODEL:gemini-2.0-flash}
+
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}

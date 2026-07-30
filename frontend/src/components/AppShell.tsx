@@ -23,6 +23,9 @@ function logoutLandingPath(pathname: string): string {
   if (pathname.startsWith('/hobbies/veveno')) {
     return '/hobbies/veveno';
   }
+  if (pathname.startsWith('/hobbies/dieta')) {
+    return '/hobbies/dieta';
+  }
   return '/';
 }
 

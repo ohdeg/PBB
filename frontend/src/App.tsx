@@ -49,6 +49,46 @@ const ScoreViewerPage = lazy(() =>
     default: module.ScoreViewerPage,
   })),
 );
+const DietaLandingPage = lazy(() =>
+  import('./pages/DietaLandingPage').then((module) => ({
+    default: module.DietaLandingPage,
+  })),
+);
+const DietaLayout = lazy(() =>
+  import('./pages/DietaLayout').then((module) => ({
+    default: module.DietaLayout,
+  })),
+);
+const DietaHomePage = lazy(() =>
+  import('./pages/DietaHomePage').then((module) => ({
+    default: module.DietaHomePage,
+  })),
+);
+const DietaOnboardingPage = lazy(() =>
+  import('./pages/DietaOnboardingPage').then((module) => ({
+    default: module.DietaOnboardingPage,
+  })),
+);
+const DietaMealsPage = lazy(() =>
+  import('./pages/DietaMealsPage').then((module) => ({
+    default: module.DietaMealsPage,
+  })),
+);
+const DietaActivityPage = lazy(() =>
+  import('./pages/DietaActivityPage').then((module) => ({
+    default: module.DietaActivityPage,
+  })),
+);
+const DietaCheckInPage = lazy(() =>
+  import('./pages/DietaCheckInPage').then((module) => ({
+    default: module.DietaCheckInPage,
+  })),
+);
+const DietaSettingsPage = lazy(() =>
+  import('./pages/DietaSettingsPage').then((module) => ({
+    default: module.DietaSettingsPage,
+  })),
+);
 
 const MIN_BOOT_SPLASH_MS = 700;
 
@@ -146,6 +186,23 @@ export default function App() {
               <Route path="/hobbies/lotto" element={<LottoPage />} />
               <Route path="/hobbies/score-viewer" element={<ScoreLibraryPage />} />
               <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
+              <Route path="/hobbies/dieta" element={<DietaLandingPage />} />
+              <Route path="/hobbies/dieta/onboarding" element={<DietaOnboardingPage />} />
+              <Route element={<DietaLayout />}>
+                <Route path="/hobbies/dieta/home" element={<DietaHomePage />} />
+                <Route path="/hobbies/dieta/meals" element={<DietaMealsPage />} />
+                <Route
+                  path="/hobbies/dieta/recipes"
+                  element={<Navigate to="/hobbies/dieta/meals" replace />}
+                />
+                <Route path="/hobbies/dieta/activity" element={<DietaActivityPage />} />
+                <Route
+                  path="/hobbies/dieta/progress"
+                  element={<Navigate to="/hobbies/dieta/home" replace />}
+                />
+                <Route path="/hobbies/dieta/check-in" element={<DietaCheckInPage />} />
+                <Route path="/hobbies/dieta/settings" element={<DietaSettingsPage />} />
+              </Route>
               <Route
                 path="/hobbies/pbb"
                 element={<Navigate to="/" replace />}

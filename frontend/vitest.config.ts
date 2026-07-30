@@ -11,6 +11,8 @@ export default defineConfig({
       reportsDirectory: 'coverage',
       include: [
         'src/features/lotto/utils/**/*.ts',
+        'src/features/dieta/utils/dietaMath.ts',
+        'src/api/dietaMappers.ts',
         'src/features/score/hooks/useScorePlaybackDerived.ts',
         'src/components/veveno/VevenoStoreStocksPanel.tsx',
         'src/hooks/useVevenoNotices.ts',

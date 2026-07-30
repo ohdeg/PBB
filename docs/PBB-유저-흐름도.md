@@ -4,7 +4,7 @@
 FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9J/PBB-%EC%9C%A0%EC%A0%80-%ED%9D%90%EB%A6%84%EB%8F%84)
 
 > FigJam은 Design처럼 페이지가 없어 **기능별 섹션**으로 분리해 두었습니다.  
-> 좌측 레이어/섹션 목록에서 `0.~7.` 섹션을 클릭하면 해당 흐름으로 이동합니다.
+> 좌측 레이어/섹션 목록에서 `0.~8.` · Score Viewer · **13. Dieta** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
 > 취미 앱(6PICK / Score Viewer)과 **Veveno 소개 랜딩**(`/hobbies/veveno`)은 **비로그인 진입 가능**.
 > Veveno **허브·가게**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
@@ -159,6 +159,7 @@ flowchart LR
     featured --> target[선택된 앱 경로]
     life --> brew[/hobbies/veveno]
     life --> lotto[/hobbies/lotto]
+    life --> dieta[/hobbies/dieta]
     music --> score[/hobbies/score-viewer]
 ```
 
@@ -422,6 +423,98 @@ flowchart LR
 
 ---
 
+## 13. Dieta
+
+체중·리듬 기준 주간 코칭. 로그인 필수(랜딩은 비로그인도 볼 수 있음).  
+하단 네비: **홈 · 섭취 · 활동 · 설정** (`/progress`는 홈으로 리다이렉트).
+
+### 13-0. 진입 · 온보딩
+
+```mermaid
+flowchart LR
+    enter(["/hobbies/dieta"]) --> gate{온보딩 완료?}
+    gate -->|"예 · 로그인"| home[홈]
+    gate -->|"아니오"| landing[랜딩]
+    landing -->|"시작하기 · 로그인"| onboard[온보딩]
+    landing -->|"시작하기 · 비로그인"| login(["/login"])
+    login --> onboard
+    onboard --> goalPick[감량 / 증량 / 유지]
+    goalPick --> home
+```
+
+- 온보딩에서 목표 체중(감량·증량)을 두면 **도달 시 자동 MAINTAIN** 전환 안내
+- 완료 후 `/hobbies/dieta/home`
+
+### 13-1. 일상 탭
+
+```mermaid
+flowchart LR
+    home([홈]) --> meals[섭취 · 큐 적재 · 하루 마감 분석]
+    meals --> library[등록 음식 모달 · 추가하기/오늘에 더하기]
+    home --> activity[활동 기록]
+    home --> settings[설정]
+    home --> checkinDue{주간 체크인 due?}
+    checkinDue -->|"예"| checkin["/check-in"]
+    meals --> home
+    library --> meals
+    activity --> home
+```
+
+- 섭취: 큐 적재 · 「등록 음식」(모달 → 선택·mealType·오늘에 더하기 · 「추가하기」=레시피 분석) · 하루 마감 분석
+- `/recipes` 북마크는 `/meals`로 redirect
+- 섭취 마감 Gemini 응답의 `activityHint`는 **백엔드/분석 JSON**용이며, 별도 화면·유저 단계는 없음 (흐름도 생략)
+
+### 13-2. 주간 체크인 · 다음 주 계획 (`keepTargets`)
+
+홈 또는 `/hobbies/dieta/check-in`. 주 시작 후 7일 경과(8일차)에 due.
+
+```mermaid
+flowchart LR
+    checkin([주간 체크인]) --> weight[체크인 체중 입력]
+    weight -->|"LOSS · 선택"| keto[키토플루 체크]
+    weight --> savePlan[저장 · 다음 주 계획 보기]
+    keto --> savePlan
+    savePlan --> modal[다음 주 계획 모달]
+    modal -->|"LOSS · PLATEAU"| plateau{식사 감소 / 활동 증가}
+    plateau --> modal
+    modal -->|"유지 keepTargets=true"| keep[목표·칼로리 유지 적용]
+    modal -->|"체중 기준 조정 keepTargets=false"| adjust[제안 칼로리·활동 적용]
+    keep --> nextWeek[다음 주 시작]
+    adjust --> nextWeek
+```
+
+- 모달 헬퍼: 체중이 같아도 **비체중 신호**에 변동이 있으면 **유지**를 골라도 됨
+- 목표 체중 도달 시에는 조정 경로로 MAINTAIN 전환(유지 선택 분기보다 우선)
+
+### 13-3. 설정 · 유지 모드 토글
+
+```mermaid
+flowchart LR
+    settings([설정]) --> toggle[유지 모드 토글]
+    toggle -->|"ON"| maintain[MAINTAIN · 일일=TDEE]
+    toggle -->|"OFF"| restore[이전 LOSS 또는 GAIN 복귀]
+    auto[목표 체중 도달 · 자동 MAINTAIN] -.-> toggle
+    settings --> editTw[목표 체중 · 주간 W 수정]
+    settings --> reOnboard[온보딩 다시]
+```
+
+- 설정 UI는 **유지 모드 단일 토글** (LOSS/GAIN/MAINTAIN 칩 없음). ON=MAINTAIN, OFF=이전 LOSS|GAIN 복귀
+- 목표 체중 도달 시 자동 MAINTAIN은 그대로 적용되며, 이후 토글을 끄면 이전 감량·증량으로 돌아갈 수 있음
+- MAINTAIN일 때 일일 목표 = TDEE
+
+라우트:
+- `/hobbies/dieta` — 랜딩 (온보딩 완료 시 홈으로 스킵)
+- `/hobbies/dieta/onboarding` — 온보딩 (**로그인 필수**)
+- `/hobbies/dieta/home` — 홈 · 주간 체크인 진입
+- `/hobbies/dieta/meals` — 섭취 (등록 음식 모달 포함)
+- `/hobbies/dieta/recipes` → `/meals` 리다이렉트
+- `/hobbies/dieta/activity` — 활동
+- `/hobbies/dieta/check-in` — 주간 체크인
+- `/hobbies/dieta/settings` — 설정
+- `/hobbies/dieta/progress` → `/home` 리다이렉트
+
+---
+
 ## 라우트 요약
 
 | 경로 | 기능 | 인증 |
@@ -440,6 +533,14 @@ flowchart LR
 | `/hobbies/lotto` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
 | `/hobbies/score-viewer` | 악보 보관함 | 선택 |
 | `/hobbies/score-viewer/:id` | 악보 연습 뷰어 | 선택 |
+| `/hobbies/dieta` | Dieta 랜딩 | 선택 (완료 프로필은 홈 스킵) |
+| `/hobbies/dieta/onboarding` | Dieta 온보딩 | **필수** |
+| `/hobbies/dieta/home` | Dieta 홈 | **필수** |
+| `/hobbies/dieta/meals` | Dieta 섭취 (등록 음식 모달) | **필수** |
+| `/hobbies/dieta/recipes` | → `/meals` redirect | **필수** |
+| `/hobbies/dieta/activity` | Dieta 활동 | **필수** |
+| `/hobbies/dieta/check-in` | Dieta 주간 체크인 | **필수** |
+| `/hobbies/dieta/settings` | Dieta 설정 | **필수** |
 | `/maintenance` | 서버 점검중 화면 | 불필요 |
 | `/error` | 오류 화면 | 불필요 |
 | `*` (그 외) | 404 페이지를 찾을 수 없음 | 불필요 |

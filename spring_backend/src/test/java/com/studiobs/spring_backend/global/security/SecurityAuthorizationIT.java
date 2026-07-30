@@ -32,6 +32,12 @@ class SecurityAuthorizationIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void dietaProfile_rejectsAnonymous() throws Exception {
+        mockMvc.perform(get("/api/v1/dieta/profile"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void healthEndpoint_allowsAnonymous() throws Exception {
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk());

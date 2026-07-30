@@ -116,6 +116,14 @@ docker compose up -d
 
 신규 컨테이너는 `infra/mysql/init.sql`로 전체 스키마가 생성됩니다.
 
+이미 떠 있는 MySQL 볼륨은 `init.sql`이 다시 실행되지 않습니다. Dieta 등 이후에 추가된 테이블이 없으면 Spring이 `ddl-auto: validate`에서 기동 실패합니다. 기존 데이터를 유지하려면 마이그레이션을 적용하세요:
+
+```bash
+docker exec -i baseball-mysql mysql -uroot -proot_password baseball_db < infra/mysql/migrate_dieta.sql
+```
+
+로컬 데이터를 버려도 되면 `docker compose down -v && docker compose up -d`로 볼륨을 재생성하면 `init.sql` 기준으로 맞춰집니다.
+
 ### 2. Spring Backend
 
 ```bash

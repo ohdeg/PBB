@@ -132,7 +132,9 @@ public class BrewStockService {
             );
         }
         stock.update(request.stockName().trim(), request.stockNum(), request.stockMinNum());
-        return StockResponse.from(stockRepository.save(stock));
+        BrewStoreStock saved = stockRepository.save(stock);
+        stockRepository.flush();
+        return StockResponse.from(saved);
     }
 
     @Transactional

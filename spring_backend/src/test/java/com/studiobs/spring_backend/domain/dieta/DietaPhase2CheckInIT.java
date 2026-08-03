@@ -43,7 +43,7 @@ class DietaPhase2CheckInIT extends AbstractIntegrationTest {
         int activityBefore = extractInt(
                 profileBefore.getResponse().getContentAsString(), "weekActivityExtraKcal");
 
-        // Plateau delta → would propose CUT if keepTargets=false
+        // Plateau delta → CUT would go below BMR → product forces ADD_ACTIVITY
         mockMvc.perform(post("/api/v1/dieta/check-ins/apply")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -57,7 +57,7 @@ class DietaPhase2CheckInIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.profile.weekActivityExtraKcal").value(activityBefore))
                 .andExpect(jsonPath("$.profile.weekStartsOn").value(today.toString()))
                 .andExpect(jsonPath("$.proposal.eval").value("PLATEAU"))
-                .andExpect(jsonPath("$.proposal.action").value("CUT_KCAL"));
+                .andExpect(jsonPath("$.proposal.action").value("ADD_ACTIVITY"));
 
         mockMvc.perform(get("/api/v1/dieta/check-ins")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -94,9 +94,11 @@ class DietaPhase2CheckInIT extends AbstractIntegrationTest {
                                 """.formatted(today)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.checkIn.keepTargets").value(false))
-                .andExpect(jsonPath("$.profile.dailyKcal").value(dailyBefore - 175))
+                // daily − cut would be below BMR → ADD_ACTIVITY instead
+                .andExpect(jsonPath("$.profile.dailyKcal").value(dailyBefore))
+                .andExpect(jsonPath("$.profile.weekActivityExtraKcal").value(150))
                 .andExpect(jsonPath("$.profile.weekStartsOn").value(today.toString()))
-                .andExpect(jsonPath("$.proposal.action").value("CUT_KCAL"));
+                .andExpect(jsonPath("$.proposal.action").value("ADD_ACTIVITY"));
     }
 
     @Test

@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -35,6 +36,10 @@ public class BrewStoreStock {
 
     @Column(name = "stock_min_num")
     private Integer stockMinNum;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

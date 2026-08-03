@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
+import axios from 'axios';
 import { vevenoApi } from '../../api/vevenoApi';
 import type { VevenoStockCategory } from '../../types/veveno';
 import { getErrorMessage } from '../../utils/error';
@@ -41,6 +42,8 @@ export function VevenoStoreStocksPanel({
     stockMinNum: 0,
   });
   const [creatingStock, setCreatingStock] = useState(false);
+  const [updatingStockId, setUpdatingStockId] = useState<number | null>(null);
+  const updatingStockIdRef = useRef<number | null>(null);
 
   const canMutateStock = owned || onDuty;
   const normalizedStockSearch = stockSearch.trim().toLowerCase();
@@ -195,12 +198,19 @@ export function VevenoStoreStocksPanel({
     stockName: string,
     stockNum: number,
     stockMinNum: number | null,
+    version: number,
   ) => {
+    if (updatingStockIdRef.current === stockId) {
+      return;
+    }
+    updatingStockIdRef.current = stockId;
+    setUpdatingStockId(stockId);
     try {
       const { data } = await vevenoApi.updateStock(stockId, {
         stockName,
         stockNum,
         stockMinNum,
+        version,
       });
       setStockCategories((prev) =>
         prev.map((cat) =>
@@ -213,7 +223,25 @@ export function VevenoStoreStocksPanel({
         ),
       );
     } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        try {
+          const { data } = await vevenoApi.listStocks(storeId);
+          setStockCategories(data);
+        } catch {
+          /* refetch 실패해도 충돌 메시지는 표시 */
+        }
+        onError(
+          getErrorMessage(
+            err,
+            '다른 사용자가 재고를 수정했습니다. 다시 불러온 뒤 수정하세요.',
+          ),
+        );
+        return;
+      }
       onError(getErrorMessage(err, '재고 수량 변경에 실패했습니다.'));
+    } finally {
+      updatingStockIdRef.current = null;
+      setUpdatingStockId(null);
     }
   };
 
@@ -384,6 +412,7 @@ export function VevenoStoreStocksPanel({
                                 <VevenoButton
                                   size="sm"
                                   variant="secondary"
+                                  disabled={updatingStockId === stock.id}
                                   onClick={() => {
                                     void handleUpdateStockQty(
                                       stock.id,
@@ -391,6 +420,7 @@ export function VevenoStoreStocksPanel({
                                       stock.stockName,
                                       Math.max(0, stock.stockNum - 1),
                                       stock.stockMinNum,
+                                      stock.version,
                                     );
                                   }}
                                 >
@@ -400,6 +430,7 @@ export function VevenoStoreStocksPanel({
                                 <VevenoButton
                                   size="sm"
                                   variant="secondary"
+                                  disabled={updatingStockId === stock.id}
                                   onClick={() => {
                                     void handleUpdateStockQty(
                                       stock.id,
@@ -407,6 +438,7 @@ export function VevenoStoreStocksPanel({
                                       stock.stockName,
                                       stock.stockNum + 1,
                                       stock.stockMinNum,
+                                      stock.version,
                                     );
                                   }}
                                 >

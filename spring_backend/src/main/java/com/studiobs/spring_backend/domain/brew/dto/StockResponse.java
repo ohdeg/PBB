@@ -9,6 +9,7 @@ public record StockResponse(
         String stockName,
         int stockNum,
         Integer stockMinNum,
+        int version,
         boolean lowStock,
         LocalDateTime updatedAt
 ) {
@@ -19,6 +20,7 @@ public record StockResponse(
                 stock.getStockName(),
                 stock.getStockNum(),
                 stock.getStockMinNum(),
+                stock.getVersion() == null ? 0 : stock.getVersion(),
                 stock.isLowStock(),
                 stock.getUpdatedAt()
         );

@@ -148,7 +148,12 @@ export const vevenoApi = {
 
   updateStock(
     stockId: number,
-    payload: { stockName: string; stockNum: number; stockMinNum: number | null },
+    payload: {
+      stockName: string;
+      stockNum: number;
+      stockMinNum: number | null;
+      version: number;
+    },
   ) {
     return apiClient.patch<VevenoStock>(`/api/v1/veveno/stocks/${stockId}`, payload);
   },

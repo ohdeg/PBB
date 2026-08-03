@@ -41,6 +41,8 @@ export interface VevenoStock {
   stockName: string;
   stockNum: number;
   stockMinNum: number | null;
+  /** JPA @Version — PATCH 시 필수 */
+  version: number;
   lowStock: boolean;
   updatedAt: string;
 }

@@ -114,7 +114,7 @@ class BrewServicePermissionTest {
         assertThatThrownBy(() -> brewStockService.createStock(
                         "staff@example.com",
                         categoryId,
-                        new StockRequest("Milk", 10, 2)))
+                        new StockRequest("Milk", 10, 2, null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;

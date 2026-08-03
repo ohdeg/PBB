@@ -15,6 +15,10 @@ public record StockRequest(
         Integer stockNum,
 
         @Min(0)
-        Integer stockMinNum
+        Integer stockMinNum,
+
+        /** 수정(PATCH) 시 필수. 생성(POST) 시 생략. */
+        @Min(0)
+        Integer version
 ) {
 }

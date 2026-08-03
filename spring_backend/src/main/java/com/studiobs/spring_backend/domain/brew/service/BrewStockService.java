@@ -121,6 +121,16 @@ public class BrewStockService {
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
         requireStockMutator(category.getStoreId(), user.getId());
         validateStockNums(request.stockNum(), request.stockMinNum());
+        if (request.version() == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "재고 version이 필요합니다.");
+        }
+        int currentVersion = stock.getVersion() == null ? 0 : stock.getVersion();
+        if (currentVersion != request.version()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "다른 사용자가 재고를 수정했습니다. 다시 불러온 뒤 수정하세요."
+            );
+        }
         stock.update(request.stockName().trim(), request.stockNum(), request.stockMinNum());
         return StockResponse.from(stockRepository.save(stock));
     }

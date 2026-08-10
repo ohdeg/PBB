@@ -78,18 +78,25 @@ export function unlockTimerAudio(): void {
   }
 }
 
+const STEP_BEEP_PEAK = 0.65;
+const STEP_BEEP_HARMONIC_PEAK = 0.4;
+const FINISH_BEEP_PEAK = 0.65;
+const FINISH_BEEP_HARMONIC_PEAK = 0.4;
+
 function beepAt(
   ctx: AudioContext,
   at: number,
   freq: number,
   durSec: number,
+  peakGain: number,
+  type: OscillatorType = 'sine',
 ): OscillatorNode {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  osc.type = 'sine';
+  osc.type = type;
   osc.frequency.value = freq;
   gain.gain.setValueAtTime(0.0001, at);
-  gain.gain.exponentialRampToValueAtTime(0.18, at + 0.02);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain), at + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, at + durSec);
   osc.connect(gain);
   gain.connect(ctx.destination);
@@ -107,12 +114,19 @@ function playBeep(kind: 'step' | 'finish'): OscillatorNode[] {
     }
     const now = ctx.currentTime;
     if (kind === 'step') {
-      return [beepAt(ctx, now, 880, 0.35)];
+      return [
+        beepAt(ctx, now, 880, 0.35, STEP_BEEP_PEAK),
+        beepAt(ctx, now, 1760, 0.35, STEP_BEEP_HARMONIC_PEAK, 'triangle'),
+      ];
     }
+    // 완료음: 기본음 + 배음으로 근무 중에도 잘 들리게
     return [
-      beepAt(ctx, now, 880, 0.28),
-      beepAt(ctx, now + 0.36, 880, 0.28),
-      beepAt(ctx, now + 0.72, 1174.66, 0.5),
+      beepAt(ctx, now, 880, 0.34, FINISH_BEEP_PEAK),
+      beepAt(ctx, now, 1760, 0.34, FINISH_BEEP_HARMONIC_PEAK, 'triangle'),
+      beepAt(ctx, now + 0.4, 880, 0.34, FINISH_BEEP_PEAK),
+      beepAt(ctx, now + 0.4, 1760, 0.34, FINISH_BEEP_HARMONIC_PEAK, 'triangle'),
+      beepAt(ctx, now + 0.8, 1174.66, 0.55, FINISH_BEEP_PEAK),
+      beepAt(ctx, now + 0.8, 2349.32, 0.55, FINISH_BEEP_HARMONIC_PEAK, 'triangle'),
     ];
   } catch {
     return [];
@@ -196,7 +210,75 @@ function anyRunning(): boolean {
   return state.timers.some((timer) => timer.status === 'running');
 }
 
+type WakeLockSentinelLike = {
+  released: boolean;
+  release: () => Promise<void>;
+  addEventListener: (type: 'release', listener: () => void) => void;
+};
+
+let wakeLock: WakeLockSentinelLike | null = null;
+let wakeLockVisibilityBound = false;
+
+function bindWakeLockVisibility(): void {
+  if (wakeLockVisibilityBound || typeof document === 'undefined') return;
+  wakeLockVisibilityBound = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && anyRunning()) {
+      void syncWakeLock();
+    }
+  });
+}
+
+async function syncWakeLock(): Promise<void> {
+  bindWakeLockVisibility();
+  const needLock = anyRunning();
+
+  if (!needLock) {
+    if (wakeLock) {
+      try {
+        await wakeLock.release();
+      } catch {
+        // already released
+      }
+      wakeLock = null;
+    }
+    return;
+  }
+
+  if (wakeLock && !wakeLock.released) return;
+  if (typeof navigator === 'undefined') return;
+
+  const wakeLockApi = (
+    navigator as Navigator & {
+      wakeLock?: {
+        request: (type: 'screen') => Promise<WakeLockSentinelLike>;
+      };
+    }
+  ).wakeLock;
+  if (!wakeLockApi) return;
+
+  try {
+    const sentinel = await wakeLockApi.request('screen');
+    wakeLock = sentinel;
+    sentinel.addEventListener('release', () => {
+      if (wakeLock === sentinel) {
+        wakeLock = null;
+      }
+      if (
+        anyRunning()
+        && typeof document !== 'undefined'
+        && document.visibilityState === 'visible'
+      ) {
+        void syncWakeLock();
+      }
+    });
+  } catch {
+    // 미지원·권한 거부·절전 정책 등으로 실패할 수 있음
+  }
+}
+
 function ensureTick(): void {
+  void syncWakeLock();
   if (tickId !== null) return;
   if (!anyRunning()) return;
   tickId = window.setInterval(() => {
@@ -205,11 +287,15 @@ function ensureTick(): void {
 }
 
 function stopTickIfIdle(): void {
-  if (anyRunning()) return;
+  if (anyRunning()) {
+    void syncWakeLock();
+    return;
+  }
   if (tickId !== null) {
     window.clearInterval(tickId);
     tickId = null;
   }
+  void syncWakeLock();
 }
 
 function syncFromClock(): void {

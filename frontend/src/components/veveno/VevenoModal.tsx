@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Dialog } from '../ui/Dialog';
 
 interface VevenoModalProps {
   open: boolean;
@@ -15,84 +16,17 @@ export function VevenoModal({
   children,
   closeOnBackdrop = true,
 }: VevenoModalProps) {
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const dialog = dialogRef.current;
-    if (!dialog) {
-      return;
-    }
-    const firstFocusable = dialog.querySelector<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    firstFocusable?.focus();
-  }, [open]);
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      onClose();
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    const dialog = dialogRef.current;
-    if (!dialog) {
-      return;
-    }
-    const focusableElements = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusableElements.length === 0) {
-      return;
-    }
-    const first = focusableElements[0];
-    const last = focusableElements[focusableElements.length - 1];
-    const activeElement = document.activeElement;
-    if (event.shiftKey && activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div
-      className="veveno-modal-backdrop"
-      onClick={closeOnBackdrop ? onClose : undefined}
-      role="presentation"
+    <Dialog
+      open={open}
+      title={title}
+      onClose={onClose}
+      closeOnBackdrop={closeOnBackdrop}
+      backdropClassName="veveno-modal-backdrop"
+      panelClassName="veveno-modal"
     >
-      <div
-        ref={dialogRef}
-        className="veveno-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={handleKeyDown}
-      >
+      {({ titleId }) => (
+        <>
         <div className="veveno-modal__head">
           <h2 id={titleId} className="veveno-modal__title">
             {title}
@@ -107,7 +41,8 @@ export function VevenoModal({
           </button>
         </div>
         <div className="veveno-modal__body">{children}</div>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

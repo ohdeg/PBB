@@ -1429,6 +1429,66 @@
   color: var(--sranko-ink);
 }
 
+.sranko-status--row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.sranko-spinner {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--sranko-ink) 18%, transparent);
+  border-top-color: var(--sranko-ink);
+  animation: sranko-spin 0.75s linear infinite;
+}
+
+.sranko-spinner--lg {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-width: 3px;
+}
+
+.sranko-tryon-busy {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, #fff 72%, transparent);
+  backdrop-filter: blur(2px);
+  border-radius: inherit;
+}
+
+.sranko-tryon-busy__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+  max-width: 16rem;
+}
+
+.sranko-tryon-busy__inner p {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--sranko-ink);
+}
+
+.sranko-modal__card--tryon-busy {
+  position: relative;
+}
+
+@keyframes sranko-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .sranko-modal__actions {
   display: flex;
   flex-wrap: wrap;

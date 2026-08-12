@@ -135,7 +135,7 @@ function warmthAccent(value: number): string {
 export function SrankoClosetPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const { items, reload: reloadItems } = useSrankoItems();
-  const { prefs, savePrefs, reload: reloadPrefs } = useSrankoPrefs();
+  const { prefs, savePrefs } = useSrankoPrefs();
   const { saveItem, removeItem, saveLook, tryOn, uploadImage, deleteUpload, predictItem } =
     useSrankoMutations();
 
@@ -914,26 +914,23 @@ export function SrankoClosetPage() {
       return;
     }
     const bodyReady = hasBodyMeasurements(prefs.bodyMeasurements);
-    if (bodyReady && garments.length === 1) {
-      try {
+    setBusy(true);
+    setError('');
+    try {
+      if (bodyReady && garments.length === 1) {
         const preview = await srankoApi.fitCheck(garments[0].id);
         setFitParts(preview.parts);
         if (preview.muchTooSmall) {
+          setBusy(false);
           const ok = window.confirm(
             '선택한 옷이 등록된 신체 사이즈보다 많이 작아 보입니다. 타이트하게 착용한 모습으로 볼까요?',
           );
           if (!ok) {
             return;
           }
+          setBusy(true);
         }
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : '핏 미리보기에 실패했습니다.');
-        return;
       }
-    }
-    setBusy(true);
-    setError('');
-    try {
       await savePrefs({
         tryOnConsent: true,
       });
@@ -951,7 +948,11 @@ export function SrankoClosetPage() {
       setTryOnMuchTooSmall(Boolean(result.muchTooSmall));
       setModal('tryon-result');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '입어보기에 실패했습니다.');
+      setError(
+        e instanceof Error
+          ? e.message
+          : '미리보기 생성에 실패했습니다.',
+      );
     } finally {
       setBusy(false);
     }
@@ -1508,10 +1509,13 @@ export function SrankoClosetPage() {
                   <img className="sranko-preview" src={localPreviewUrl} alt="선택한 사진" />
                 ) : null}
                 {busy ? (
-                  <p className="sranko-status" role="status">
-                    {extractWornGarment
-                      ? '착용 사진에서 옷 추출·분류 중… 잠시만 기다려 주세요.'
-                      : '분류·배경제거 중… 잠시만 기다려 주세요.'}
+                  <p className="sranko-status sranko-status--row" role="status">
+                    <span className="sranko-spinner" aria-hidden />
+                    <span>
+                      {extractWornGarment
+                        ? '착용 사진에서 옷 추출·분류 중… 잠시만 기다려 주세요.'
+                        : '분류·배경제거 중… 잠시만 기다려 주세요.'}
+                    </span>
                   </p>
                 ) : null}
                 {extractionWarning ? (
@@ -1733,7 +1737,7 @@ export function SrankoClosetPage() {
           closeOnBackdrop={false}
           closeOnEscape={!busy}
           backdropClassName="sranko-modal"
-          panelClassName="sranko-modal__card sranko-modal__card--wide"
+          panelClassName={`sranko-modal__card sranko-modal__card--wide${busy ? ' sranko-modal__card--tryon-busy' : ''}`}
         >
           {({ titleId }) => {
             const garments =
@@ -1741,6 +1745,14 @@ export function SrankoClosetPage() {
             const primary = garments[0];
             return (
               <>
+                {busy ? (
+                  <div className="sranko-tryon-busy" role="status" aria-live="polite">
+                    <div className="sranko-tryon-busy__inner">
+                      <span className="sranko-spinner sranko-spinner--lg" aria-hidden />
+                      <p>미리보기 생성 중…</p>
+                    </div>
+                  </div>
+                ) : null}
                 <h2 id={titleId}>
                   {garments.length > 1 ? '룩 입어보기' : '입어보기'}
                 </h2>
@@ -1851,6 +1863,7 @@ export function SrankoClosetPage() {
                   <button
                     type="button"
                     className="sranko-btn sranko-btn--ghost"
+                    disabled={busy}
                     onClick={clearTryOnSession}
                   >
                     닫기
@@ -1861,7 +1874,16 @@ export function SrankoClosetPage() {
                     disabled={busy || garments.length === 0}
                     onClick={() => void runTryOn()}
                   >
-                    {busy ? '생성 중…' : garments.length > 1 ? '룩 입어보기 실행' : '입어보기 실행'}
+                    {busy ? (
+                      <span className="sranko-status--row">
+                        <span className="sranko-spinner" aria-hidden />
+                        생성 중…
+                      </span>
+                    ) : garments.length > 1 ? (
+                      '룩 입어보기 실행'
+                    ) : (
+                      '입어보기 실행'
+                    )}
                   </button>
                 </div>
               </>

@@ -4,6 +4,7 @@ Allow: /hobbies/6pick
 Allow: /hobbies/score-viewer
 Allow: /hobbies/veveno
 Allow: /hobbies/dieta
+Allow: /hobbies/sranko
 
 Disallow: /login
 Disallow: /signup
@@ -12,6 +13,9 @@ Disallow: /reset-password
 Disallow: /profile
 Disallow: /hobbies/veveno/hub
 Disallow: /hobbies/veveno/stores
+Disallow: /hobbies/sranko/closet
+Disallow: /hobbies/sranko/looks
+Disallow: /hobbies/sranko/community
 Disallow: /maintenance
 Disallow: /error
 

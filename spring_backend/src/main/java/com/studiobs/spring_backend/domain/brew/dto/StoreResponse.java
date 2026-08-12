@@ -39,7 +39,7 @@ public record StoreResponse(
                 owned,
                 subscribed,
                 owned || canEditStock,
-                owned || onDuty,
+                onDuty,
                 leaveDate,
                 store.getCreatedAt(),
                 store.getUpdatedAt()

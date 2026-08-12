@@ -36,7 +36,7 @@ export function VevenoStoreRow({
           </div>
           {subtitle ? <p className="veveno-store-row__sub">{subtitle}</p> : null}
         </div>
-        {trailing ?? badge}
+        {trailing ?? (badge ? <div className="veveno-store-row__badges">{badge}</div> : null)}
       </button>
     );
   }
@@ -49,7 +49,7 @@ export function VevenoStoreRow({
         </div>
         {subtitle ? <p className="veveno-store-row__sub">{subtitle}</p> : null}
       </div>
-      {trailing ?? badge}
+      {trailing ?? (badge ? <div className="veveno-store-row__badges">{badge}</div> : null)}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import type {
 } from '../../features/dieta/types';
 import { DIETA_MEAL_LABELS } from '../../features/dieta/types';
 import { DietaRecipeModal } from './DietaRecipeModal';
+import { Dialog } from '../ui/Dialog';
 
 const MEAL_ORDER: DietaMealType[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
 
@@ -137,16 +138,20 @@ export function DietaRecipeLibraryModal({
 
   return (
     <>
-      <div className="dieta-modal-backdrop" role="presentation" onClick={onClose}>
-        <div
-          className="dieta-modal"
-          role="dialog"
-          aria-modal
-          aria-labelledby="dieta-recipe-library-title"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <Dialog
+        open={open}
+        title="등록 음식"
+        onClose={onClose}
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy && !createOpen}
+        backdropClassName="dieta-modal-backdrop"
+        panelClassName="dieta-modal"
+        description
+      >
+        {({ titleId, descriptionId }) => (
+          <>
           <div className="dieta-title-row">
-            <h2 id="dieta-recipe-library-title">등록 음식</h2>
+            <h2 id={titleId}>등록 음식</h2>
             <button
               type="button"
               className="dieta-btn dieta-btn--ghost dieta-btn--compact"
@@ -156,7 +161,7 @@ export function DietaRecipeLibraryModal({
               추가하기
             </button>
           </div>
-          <p className="dieta-muted">
+          <p id={descriptionId} className="dieta-muted">
             등록해 둔 음식을 골라 끼니를 선택한 뒤 오늘 섭취에 더하거나, 「추가하기」로
             새 레시피를 분석해요. 저장된 영양은 1인분당 값입니다.
           </p>
@@ -258,8 +263,9 @@ export function DietaRecipeLibraryModal({
               닫기
             </button>
           </div>
-        </div>
-      </div>
+          </>
+        )}
+      </Dialog>
 
       <DietaRecipeModal
         open={createOpen}

@@ -30,6 +30,8 @@ export interface MonteCarloPickOptions {
 export const DEFAULT_MONTE_CARLO_ITERATIONS = 10_000
 export const MIN_MONTE_CARLO_ITERATIONS = 1
 export const MAX_MONTE_CARLO_ITERATIONS = 9_999_999
+/** 단순 무작위 모드: 가벼운 후보 추첨 후 패턴 점수 선별 */
+export const RANDOM_PATTERN_ITERATIONS = 100
 
 export function clampMonteCarloIterations(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_MONTE_CARLO_ITERATIONS

@@ -6,6 +6,7 @@ import {
   type ConsentGroup,
   type ConsentKey,
 } from '../data/consents';
+import { Dialog } from './ui/Dialog';
 
 interface SignupConsentPanelProps {
   consents: Record<ConsentKey, boolean>;
@@ -138,23 +139,25 @@ function ConsentDocumentModal({
   onClose: () => void;
 }) {
   return (
-    <div className="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-modal-title">
-      <button
-        type="button"
-        className="consent-modal-backdrop"
-        aria-label="닫기"
-        onClick={onClose}
-      />
-      <div className="consent-modal-panel">
+    <Dialog
+      open
+      title={item.title}
+      onClose={onClose}
+      backdropClassName="consent-modal"
+      panelClassName="consent-modal-panel"
+    >
+      {({ titleId }) => (
+        <>
         <header className="consent-modal-header">
-          <h4 id="consent-modal-title">{item.title}</h4>
+          <h4 id={titleId}>{item.title}</h4>
           <button type="button" className="consent-modal-close" onClick={onClose}>
             닫기
           </button>
         </header>
         <p className="consent-modal-version">버전 {item.version}</p>
         <pre className="consent-modal-body">{item.body}</pre>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

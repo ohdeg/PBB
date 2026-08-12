@@ -15,8 +15,12 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionR
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,11 +41,26 @@ public class BrewStockService {
     public List<StockCategoryResponse> listStockCategories(UUID storeId, String email) {
         User user = requireUser(email);
         requireStockEditor(storeId, user.getId());
-        return stockCategoryRepository.findByStoreIdOrderByCategoryNameAsc(storeId).stream()
-                .map(category -> StockCategoryResponse.from(
-                        category,
-                        stockRepository.findByCategoryIdOrderByStockNameAsc(category.getId())))
-                .toList();
+        List<BrewStoreStockCategory> categories =
+                stockCategoryRepository.findByStoreIdOrderByCategoryNameAsc(storeId);
+        if (categories.isEmpty()) {
+            return List.of();
+        }
+        Map<Integer, List<BrewStoreStock>> stocksByCategory = stockRepository
+                .findByCategoryIdInOrderByStockNameAsc(
+                        categories.stream().map(BrewStoreStockCategory::getId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(
+                        BrewStoreStock::getCategoryId,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+        List<StockCategoryResponse> result = new ArrayList<>(categories.size());
+        for (BrewStoreStockCategory category : categories) {
+            result.add(StockCategoryResponse.from(
+                    category,
+                    stocksByCategory.getOrDefault(category.getId(), List.of())));
+        }
+        return result;
     }
 
     @Transactional

@@ -12,12 +12,11 @@ export function LottoButton({
   ...props
 }: LottoButtonProps) {
   const baseStyle =
-    'px-6 py-3 rounded-2xl font-bold transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed';
+    'px-[22px] py-[11px] rounded-full text-[17px] font-normal tracking-[-0.374px] transition-transform duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100';
   const variants = {
-    primary:
-      'bg-blue-500 text-white hover:bg-blue-600 shadow-md shadow-blue-500/20',
-    secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-    outline: 'border-2 border-blue-500 text-blue-500 hover:bg-blue-50',
+    primary: 'bg-[#0066CC] text-white',
+    secondary: 'bg-[#FAFAFC] text-[#333333] border-[3px] border-[#F0F0F0]',
+    outline: 'border border-[#0066CC] text-[#0066CC] bg-transparent',
   };
 
   return (

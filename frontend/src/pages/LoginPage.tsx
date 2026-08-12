@@ -3,7 +3,9 @@ import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { AuthLayout, FormField } from '../components/AuthForm';
+import { Button } from '../components/ui/Button';
 import { useAuthStore } from '../stores/authStore';
+import { toast, useToastStore } from '../stores/toastStore';
 import { getErrorMessage } from '../utils/error';
 import { isValidEmail } from '../utils/validation';
 
@@ -18,39 +20,47 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const dismissToast = useToastStore((state) => state.dismiss);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const canSubmit =
+    isValidEmail(email.trim()) && password.length > 0 && !loading;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFormError('');
     setEmailError('');
 
     if (!isValidEmail(email)) {
       setEmailError('올바른 이메일 형식을 입력해 주세요.');
+      toast('올바른 이메일을 입력해 주세요.', 'error');
       return;
     }
     if (!password) {
-      setFormError('비밀번호를 입력해 주세요.');
+      toast('비밀번호를 입력해 주세요.', 'error');
       return;
     }
 
     setLoading(true);
+    const loadingId = toast('로그인 중…', 'loading');
     try {
       const { data } = await authApi.login({
         email: email.trim(),
         password,
       });
       setAccessToken(data.accessToken);
+      dismissToast(loadingId);
+      toast('로그인했어요.', 'success');
       const state = location.state as { from?: unknown } | null;
       void navigate(resolvePostLoginPath(state?.from));
     } catch (error: unknown) {
-      setFormError(
+      dismissToast(loadingId);
+      toast(
         getErrorMessage(error, '이메일 혹은 비밀번호가 일치하지 않습니다.'),
+        'error',
       );
     } finally {
       setLoading(false);
@@ -71,7 +81,7 @@ export function LoginPage() {
         </>
       }
     >
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
         <FormField
           id="login-email"
           label="이메일"
@@ -91,14 +101,9 @@ export function LoginPage() {
           autoComplete="current-password"
           disabled={loading}
         />
-        {formError ? (
-          <p className="form-error" role="alert">
-            {formError}
-          </p>
-        ) : null}
-        <button type="submit" className="btn-primary" disabled={loading}>
+        <Button type="submit" disabled={!canSubmit} className="w-full">
           {loading ? '로그인 중…' : '로그인'}
-        </button>
+        </Button>
       </form>
     </AuthLayout>
   );

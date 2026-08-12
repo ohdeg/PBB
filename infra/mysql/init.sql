@@ -450,3 +450,124 @@ CREATE TABLE IF NOT EXISTS dieta_check_in_logs (
     INDEX idx_dieta_check_in_user_day (user_id, logged_on)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Dieta 주간 체크인 확정 로그 (apply API Phase 2+)';
+
+-- Sranko (슈란코) hobby
+CREATE TABLE IF NOT EXISTS sranko_prefs (
+    user_id                  CHAR(36)       NOT NULL PRIMARY KEY COMMENT 'FK users.id',
+    try_on_consent           TINYINT(1)     NOT NULL DEFAULT 0,
+    sex                      CHAR(1)        NULL COMMENT 'M|F; null treats as M for default mannequin',
+    body_measurements_json   JSON           NOT NULL COMMENT 'lengths cm, weight kg, shoeSize mm',
+    places_json              JSON           NOT NULL DEFAULT (JSON_ARRAY()) COMMENT '[{id,label,kind:HOME|WORK|FAVORITE,lat,lon,query?}]',
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_prefs_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 사용자 설정·성별·신체 사이즈';
+
+CREATE TABLE IF NOT EXISTS sranko_items (
+    id                       CHAR(36)       NOT NULL PRIMARY KEY,
+    user_id                  CHAR(36)       NOT NULL,
+    slot                     VARCHAR(16)    NOT NULL COMMENT 'TOP|BOTTOM|OUTER|SHOES|DRESS|BAG|HAT|JEWELRY',
+    category_code            VARCHAR(64)    NOT NULL,
+    warmth                   TINYINT        NULL COMMENT 'warmth 1-5; NULL for shoes / unset',
+    name                     VARCHAR(120)   NOT NULL,
+    image_url                VARCHAR(512)   NOT NULL COMMENT 'R2 public URL',
+    measurements_json        JSON           NOT NULL COMMENT '{} or measurement map',
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_items_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_sranko_items_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 옷장 아이템';
+
+CREATE TABLE IF NOT EXISTS sranko_looks (
+    id                       CHAR(36)       NOT NULL PRIMARY KEY,
+    user_id                  CHAR(36)       NOT NULL,
+    name                     VARCHAR(120)   NOT NULL,
+    image_url                VARCHAR(512)   NOT NULL COMMENT 'R2 public URL',
+    item_ids_json            JSON           NOT NULL COMMENT 'UUID[] of sranko_items',
+    source                   VARCHAR(16)    NOT NULL COMMENT 'COMPOSE|TRY_ON',
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_looks_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_sranko_looks_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 룩 (입어보기·합성 결과)';
+
+CREATE TABLE IF NOT EXISTS sranko_posts (
+    id                       CHAR(36)       NOT NULL PRIMARY KEY,
+    author_user_id           CHAR(36)       NOT NULL,
+    subject                  VARCHAR(200)   NOT NULL,
+    content                  TEXT           NOT NULL,
+    image_url                VARCHAR(512)   NOT NULL COMMENT 'R2 public URL (cover / first)',
+    image_urls               JSON           NOT NULL COMMENT 'string[] R2 public URLs (1–10)',
+    read_count               INT            NOT NULL DEFAULT 0,
+    like_count               INT            NOT NULL DEFAULT 0,
+    comment_count            INT            NOT NULL DEFAULT 0,
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_posts_author
+        FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_sranko_posts_created (created_at),
+    INDEX idx_sranko_posts_reads (read_count),
+    INDEX idx_sranko_posts_author (author_user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 커뮤니티 게시글';
+
+CREATE TABLE IF NOT EXISTS sranko_post_likes (
+    id                       CHAR(36)       NOT NULL PRIMARY KEY,
+    post_id                  CHAR(36)       NOT NULL,
+    user_id                  CHAR(36)       NOT NULL,
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_post_likes_post
+        FOREIGN KEY (post_id) REFERENCES sranko_posts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sranko_post_likes_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_sranko_post_likes_post_user (post_id, user_id),
+    INDEX idx_sranko_post_likes_user_post (user_id, post_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 게시글 좋아요';
+
+CREATE TABLE IF NOT EXISTS sranko_post_comments (
+    id                       CHAR(36)       NOT NULL PRIMARY KEY,
+    post_id                  CHAR(36)       NOT NULL,
+    author_user_id           CHAR(36)       NOT NULL,
+    parent_id                CHAR(36)       NULL COMMENT 'NULL=root; non-null must point to root comment',
+    body                     VARCHAR(500)   NOT NULL,
+    like_count               INT            NOT NULL DEFAULT 0,
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_post_comments_post
+        FOREIGN KEY (post_id) REFERENCES sranko_posts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sranko_post_comments_author
+        FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sranko_post_comments_parent
+        FOREIGN KEY (parent_id) REFERENCES sranko_post_comments(id) ON DELETE CASCADE,
+    INDEX idx_sranko_post_comments_post_created (post_id, created_at),
+    INDEX idx_sranko_post_comments_parent (post_id, parent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 게시 댓글·대댓글(2단)';
+
+CREATE TABLE IF NOT EXISTS sranko_post_comment_likes (
+    id                       CHAR(36)       NOT NULL PRIMARY KEY,
+    comment_id               CHAR(36)       NOT NULL,
+    user_id                  CHAR(36)       NOT NULL,
+    created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_sranko_post_comment_likes_comment
+        FOREIGN KEY (comment_id) REFERENCES sranko_post_comments(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sranko_post_comment_likes_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_sranko_comment_likes_comment_user (comment_id, user_id),
+    INDEX idx_sranko_comment_likes_user_comment (user_id, comment_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='슈란코 댓글 좋아요';

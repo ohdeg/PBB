@@ -1,5 +1,9 @@
 import { apiClient } from './axios';
-import type { LottoDraw, LottoHistoryItem } from '../types/lotto';
+import type {
+  LottoDraw,
+  LottoHistoryItem,
+  LottoPatternProfilesDto,
+} from '../types/lotto';
 import type { ApiMessageResponse } from '../types/auth';
 
 interface LottoUserPicksApiResponse {
@@ -28,6 +32,12 @@ export const lottoApi = {
     return apiClient.get<LottoDraw>('/api/v1/lotto/draws/latest');
   },
 
+  patternProfiles() {
+    return apiClient.get<LottoPatternProfilesDto>(
+      '/api/v1/lotto/pattern-profiles',
+    );
+  },
+
   upsertDraw(payload: {
     round: number;
     mainNumbers: number[];
@@ -43,19 +53,26 @@ export const lottoApi = {
     return apiClient.delete<ApiMessageResponse>(`/api/v1/lotto/draws/${round}`);
   },
 
-  replaceDraws(draws: Array<{
-    round: number;
-    mainNumbers: number[];
-    bonusNumber?: number | null;
-    drawDate?: string | null;
-    firstPrizeAmount?: number | null;
-    firstPrizeWinnerCount?: number | null;
-  }>) {
+  replaceDraws(
+    draws: Array<{
+      round: number;
+      mainNumbers: number[];
+      bonusNumber?: number | null;
+      drawDate?: string | null;
+      firstPrizeAmount?: number | null;
+      firstPrizeWinnerCount?: number | null;
+    }>,
+  ) {
     return apiClient.put<LottoDraw[]>('/api/v1/lotto/draws/replace', { draws });
   },
 
-  async getPicks(): Promise<{ targetRound: number | null; items: LottoHistoryItem[] }> {
-    const { data } = await apiClient.get<LottoUserPicksApiResponse>('/api/v1/lotto/picks');
+  async getPicks(): Promise<{
+    targetRound: number | null;
+    items: LottoHistoryItem[];
+  }> {
+    const { data } = await apiClient.get<LottoUserPicksApiResponse>(
+      '/api/v1/lotto/picks',
+    );
     return {
       targetRound: data.targetRound,
       items: parseItems(data.itemsJson),
@@ -64,10 +81,13 @@ export const lottoApi = {
 
   async savePicks(targetRound: number | null, items: LottoHistoryItem[]) {
     const trimmed = items.slice(0, 200);
-    const { data } = await apiClient.put<LottoUserPicksApiResponse>('/api/v1/lotto/picks', {
-      targetRound,
-      itemsJson: JSON.stringify(trimmed),
-    });
+    const { data } = await apiClient.put<LottoUserPicksApiResponse>(
+      '/api/v1/lotto/picks',
+      {
+        targetRound,
+        itemsJson: JSON.stringify(trimmed),
+      },
+    );
     return {
       targetRound: data.targetRound,
       items: parseItems(data.itemsJson),

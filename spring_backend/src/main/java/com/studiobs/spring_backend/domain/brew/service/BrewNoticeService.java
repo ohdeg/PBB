@@ -11,6 +11,7 @@ import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,10 +32,17 @@ public class BrewNoticeService {
         User user = requireUser(email);
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
-        return noticeRepository.findByStoreIdOrderByCreatedAtDesc(storeId).stream()
+        List<BrewStoreNotice> notices =
+                noticeRepository.findByStoreIdOrderByCreatedAtDesc(storeId);
+        if (notices.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, String> nicknames = userService.nicknameMap(
+                notices.stream().map(BrewStoreNotice::getAuthorUserId).toList());
+        return notices.stream()
                 .map(notice -> NoticeResponse.from(
                         notice,
-                        nicknameOf(notice.getAuthorUserId())))
+                        nicknames.getOrDefault(notice.getAuthorUserId(), "")))
                 .toList();
     }
 

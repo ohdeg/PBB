@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { AuthLayout, FormField } from '../components/AuthForm';
+import { Button } from '../components/ui/Button';
+import { toast } from '../stores/toastStore';
 import { getErrorMessage } from '../utils/error';
 import { isValidNickname, NICKNAME_HINT } from '../utils/validation';
 
@@ -10,17 +12,18 @@ export function FindEmailPage() {
   const [nickname, setNickname] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [fieldError, setFieldError] = useState('');
-  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const canSubmit = isValidNickname(nickname.trim()) && !loading;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFieldError('');
-    setFormError('');
     setMaskedEmail('');
 
     if (!isValidNickname(nickname)) {
       setFieldError(NICKNAME_HINT);
+      toast(NICKNAME_HINT, 'error');
       return;
     }
 
@@ -30,9 +33,11 @@ export function FindEmailPage() {
         nickname: nickname.trim(),
       });
       setMaskedEmail(data.email);
+      toast('가입 이메일을 찾았어요.', 'success');
     } catch (error: unknown) {
-      setFormError(
+      toast(
         getErrorMessage(error, '해당 닉네임의 계정을 찾을 수 없습니다.'),
+        'error',
       );
     } finally {
       setLoading(false);
@@ -51,7 +56,7 @@ export function FindEmailPage() {
         </>
       }
     >
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
         <FormField
           id="find-nickname"
           label="닉네임"
@@ -62,18 +67,13 @@ export function FindEmailPage() {
           disabled={loading}
         />
         {maskedEmail ? (
-          <p className="form-success" role="status">
-            가입 이메일: <strong>{maskedEmail}</strong>
+          <p className="m-0 rounded-[14px] bg-[color-mix(in_srgb,#34C759_12%,transparent)] px-4 py-3 text-[0.92rem] font-semibold text-[#34C759]" role="status">
+            가입 이메일: {maskedEmail}
           </p>
         ) : null}
-        {formError ? (
-          <p className="form-error" role="alert">
-            {formError}
-          </p>
-        ) : null}
-        <button type="submit" className="btn-primary" disabled={loading}>
+        <Button type="submit" disabled={!canSubmit} className="w-full">
           {loading ? '조회 중…' : '이메일 찾기'}
-        </button>
+        </Button>
       </form>
     </AuthLayout>
   );

@@ -1,5 +1,12 @@
 /** 로또 통계 패턴 분석·점수 (몬테카를로 필터용) */
 
+import {
+  blendPatternScores,
+  scoreContinuousPreference,
+  scoreDiscretePreference,
+  type LearnedPatternProfile,
+} from './lottoPatternLearn'
+
 const PRIMES = new Set([
   2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43,
 ])
@@ -39,6 +46,8 @@ export interface LottoPatternContext {
   previousDraw?: readonly number[]
   /** true면 1·6번 간격 안전지대 점수를 적용하지 않음 */
   ignoreFirstLastSpan?: boolean
+  /** 선택한 구간에서 학습한 패턴 (있으면 고정 점수와 약한 학습 블렌드) */
+  learnedProfile?: LearnedPatternProfile | null
 }
 
 export interface LottoPatternScoreBreakdown {
@@ -187,18 +196,129 @@ export function scoreLottoPattern(
 
   const odd = numbers.filter((n) => n % 2 === 1).length
   const low = numbers.filter((n) => n <= 22).length
+  const sorted = [...numbers].sort((a, b) => a - b)
+  const filled = DECADE_RANGES.filter(
+    (r) => countInRange(sorted, r.min, r.max) > 0,
+  ).length
+  const decadeEmpty = DECADE_RANGES.length - filled
+  const endings = new Map<number, number>()
+  for (const n of sorted) {
+    const e = n % 10
+    endings.set(e, (endings.get(e) ?? 0) + 1)
+  }
+  const hasSameEnding = [...endings.values()].some((c) => c >= 2) ? 1 : 0
+  let hasConsecutive = 0
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i + 1]! - sorted[i]! === 1) {
+      hasConsecutive = 1
+      break
+    }
+  }
+  const primeCount = numbers.filter((n) => PRIMES.has(n)).length
+  const multipleOf3Count = numbers.filter((n) => n % 3 === 0).length
+  const carryOverlap =
+    context.previousDraw && context.previousDraw.length > 0
+      ? numbers.filter((n) => context.previousDraw!.includes(n)).length
+      : 0
+  const sum = numbers.reduce((a, b) => a + b, 0)
+  const span = getFirstLastSpan(numbers)
+  const ac = calculateACValue(numbers)
 
-  const oddEven = scoreRatioMatch(odd, 3, [2, 4])
-  const lowHigh = scoreRatioMatch(low, 3, [2, 4])
-  const sumRange = scoreSum(numbers)
-  const decadeGap = scoreDecadeGap(numbers)
-  const sameEnding = scoreSameEnding(numbers)
-  const primes = scorePrimes(numbers)
-  const multiplesOf3 = scoreMultiplesOf3(numbers)
-  const consecutive = scoreConsecutive(numbers)
-  const carryOver = scoreCarryOver(numbers, context.previousDraw)
-  const acValue = scoreAC(numbers)
-  const firstLastSpan = scoreFirstLastSpan(numbers, context.ignoreFirstLastSpan)
+  const fixedOddEven = scoreRatioMatch(odd, 3, [2, 4])
+  const fixedLowHigh = scoreRatioMatch(low, 3, [2, 4])
+  const fixedSum = scoreSum(numbers)
+  const fixedDecade = scoreDecadeGap(numbers)
+  const fixedSameEnding = scoreSameEnding(numbers)
+  const fixedPrimes = scorePrimes(numbers)
+  const fixedMultiples = scoreMultiplesOf3(numbers)
+  const fixedConsecutive = scoreConsecutive(numbers)
+  const fixedCarryOver = scoreCarryOver(numbers, context.previousDraw)
+  const fixedAc = scoreAC(numbers)
+  const fixedSpan = scoreFirstLastSpan(numbers, context.ignoreFirstLastSpan)
+
+  const profile = context.learnedProfile
+  const strength = profile?.learnStrength ?? 0
+
+  const oddEven = profile
+    ? blendPatternScores(
+        fixedOddEven,
+        scoreDiscretePreference(odd, profile.oddCount),
+        strength,
+      )
+    : fixedOddEven
+  const lowHigh = profile
+    ? blendPatternScores(
+        fixedLowHigh,
+        scoreDiscretePreference(low, profile.lowCount),
+        strength,
+      )
+    : fixedLowHigh
+  const sumRange = profile
+    ? blendPatternScores(
+        fixedSum,
+        scoreContinuousPreference(sum, profile.sum),
+        strength,
+      )
+    : fixedSum
+  const decadeGap = profile
+    ? blendPatternScores(
+        fixedDecade,
+        scoreDiscretePreference(decadeEmpty, profile.decadeEmpty),
+        strength,
+      )
+    : fixedDecade
+  const sameEnding = profile
+    ? blendPatternScores(
+        fixedSameEnding,
+        scoreDiscretePreference(hasSameEnding, profile.hasSameEnding),
+        strength,
+      )
+    : fixedSameEnding
+  const primes = profile
+    ? blendPatternScores(
+        fixedPrimes,
+        scoreDiscretePreference(primeCount, profile.primeCount),
+        strength,
+      )
+    : fixedPrimes
+  const multiplesOf3 = profile
+    ? blendPatternScores(
+        fixedMultiples,
+        scoreDiscretePreference(multipleOf3Count, profile.multipleOf3Count),
+        strength,
+      )
+    : fixedMultiples
+  const consecutive = profile
+    ? blendPatternScores(
+        fixedConsecutive,
+        scoreDiscretePreference(hasConsecutive, profile.hasConsecutive),
+        strength,
+      )
+    : fixedConsecutive
+  const carryOver = profile
+    ? blendPatternScores(
+        fixedCarryOver,
+        scoreDiscretePreference(carryOverlap, profile.carryOver),
+        strength,
+      )
+    : fixedCarryOver
+  const acValue = profile
+    ? blendPatternScores(
+        fixedAc,
+        scoreContinuousPreference(ac, profile.ac),
+        strength,
+      )
+    : fixedAc
+  const firstLastSpan =
+    context.ignoreFirstLastSpan
+      ? 0
+      : profile
+        ? blendPatternScores(
+            fixedSpan,
+            scoreContinuousPreference(span, profile.span),
+            strength,
+          )
+        : fixedSpan
 
   const total =
     oddEven +

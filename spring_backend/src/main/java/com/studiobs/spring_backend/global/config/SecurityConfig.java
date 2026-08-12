@@ -67,10 +67,16 @@ public class SecurityConfig {
                                 .authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/config/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/sranko/posts/mine").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/sranko/posts").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/sranko/posts/*/comments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/sranko/posts/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/sranko/posts/*/read").permitAll()
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/lotto/draws",
                                 "/api/v1/lotto/draws/latest",
+                                "/api/v1/lotto/pattern-profiles",
                                 "/api/v1/brew/stores/public",
                                 "/api/v1/brew/stores/search",
                                 "/api/v1/veveno/stores/public",

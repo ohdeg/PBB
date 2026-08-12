@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { Button } from '../../../components/ui/Button';
+import { Dialog } from '../../../components/ui/Dialog';
 
 interface ScoreDeleteConfirmProps {
   title: string;
@@ -19,27 +19,20 @@ export function ScoreDeleteConfirm({
 }: ScoreDeleteConfirmProps) {
   const t = useTranslation();
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isDeleting) {
-        onCancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDeleting, onCancel]);
-
   return (
-    <div
-      className="score-delete-confirm-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('score.deleteDialogLabel')}
+    <Dialog
+      open
+      title={t('score.deleteDialogLabel')}
+      onClose={onCancel}
+      closeOnBackdrop={false}
+      closeOnEscape={!isDeleting}
+      backdropClassName="score-delete-confirm-backdrop"
+      panelClassName="score-delete-confirm-card"
     >
-      <div className="score-delete-confirm-card">
+      {({ titleId }) => (
+        <>
         <p className="score-delete-confirm-kicker">{t('score.deleteKicker')}</p>
-        <h3>{t('score.deleteTitle')}</h3>
+        <h3 id={titleId}>{t('score.deleteTitle')}</h3>
         <p className="score-delete-confirm-desc">
           <strong>{title}</strong>
           {t('score.deleteDescSuffix')}
@@ -58,7 +51,8 @@ export function ScoreDeleteConfirm({
             {isDeleting ? t('score.deleting') : t('common.delete')}
           </Button>
         </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

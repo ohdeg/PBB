@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.lotto.controller;
 
 import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
 import com.studiobs.spring_backend.domain.lotto.dto.LottoDrawResponse;
+import com.studiobs.spring_backend.domain.lotto.dto.LottoPatternProfilesResponse;
 import com.studiobs.spring_backend.domain.lotto.dto.LottoUserPicksResponse;
 import com.studiobs.spring_backend.domain.lotto.dto.ReplaceLottoDrawsRequest;
 import com.studiobs.spring_backend.domain.lotto.dto.SaveLottoUserPicksRequest;
@@ -39,6 +40,11 @@ public class LottoController {
     @GetMapping("/draws/latest")
     public LottoDrawResponse latestDraw() {
         return lottoService.latestDraw();
+    }
+
+    @GetMapping("/pattern-profiles")
+    public LottoPatternProfilesResponse patternProfiles() {
+        return lottoService.patternProfiles();
     }
 
     @PutMapping("/draws")

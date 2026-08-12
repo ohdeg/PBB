@@ -39,9 +39,19 @@ const LottoPage = lazy(() =>
     default: module.LottoPage,
   })),
 );
+const SixPickLandingPage = lazy(() =>
+  import('./pages/SixPickLandingPage').then((module) => ({
+    default: module.SixPickLandingPage,
+  })),
+);
 const ScoreLibraryPage = lazy(() =>
   import('./pages/ScoreLibraryPage').then((module) => ({
     default: module.ScoreLibraryPage,
+  })),
+);
+const ScoreViewerLandingPage = lazy(() =>
+  import('./pages/ScoreViewerLandingPage').then((module) => ({
+    default: module.ScoreViewerLandingPage,
   })),
 );
 const ScoreViewerPage = lazy(() =>
@@ -89,6 +99,36 @@ const DietaSettingsPage = lazy(() =>
     default: module.DietaSettingsPage,
   })),
 );
+const SrankoLandingPage = lazy(() =>
+  import('./pages/SrankoLandingPage').then((module) => ({
+    default: module.SrankoLandingPage,
+  })),
+);
+const SrankoLayout = lazy(() =>
+  import('./pages/SrankoLayout').then((module) => ({
+    default: module.SrankoLayout,
+  })),
+);
+const SrankoClosetPage = lazy(() =>
+  import('./pages/SrankoClosetPage').then((module) => ({
+    default: module.SrankoClosetPage,
+  })),
+);
+const SrankoLooksPage = lazy(() =>
+  import('./pages/SrankoLooksPage').then((module) => ({
+    default: module.SrankoLooksPage,
+  })),
+);
+const SrankoCommunityPage = lazy(() =>
+  import('./pages/SrankoCommunityPage').then((module) => ({
+    default: module.SrankoCommunityPage,
+  })),
+);
+const SrankoCommunityStubPage = lazy(() =>
+  import('./pages/SrankoCommunityStubPage').then((module) => ({
+    default: module.SrankoCommunityStubPage,
+  })),
+);
 
 const MIN_BOOT_SPLASH_MS = 700;
 
@@ -99,7 +139,7 @@ function usesAppOwnedSplash(pathname: string): boolean {
     || pathname.startsWith('/hobbies/veveno/stores')
     || pathname.startsWith('/hobbies/brew-note')
     || pathname.startsWith('/hobbies/lotto')
-    || pathname.startsWith('/hobbies/6pick')
+    || pathname.startsWith('/hobbies/6pick/play')
   );
 }
 
@@ -184,7 +224,8 @@ export default function App() {
                 path="/hobbies/brew-note/stores/:storeId"
                 element={<LegacyVevenoStoreRedirect />}
               />
-              <Route path="/hobbies/6pick" element={<LottoPage />} />
+              <Route path="/hobbies/6pick" element={<SixPickLandingPage />} />
+              <Route path="/hobbies/6pick/play" element={<LottoPage />} />
               <Route
                 path="/hobbies/lotto"
                 element={<Navigate to="/hobbies/6pick" replace />}
@@ -193,7 +234,8 @@ export default function App() {
                 path="/hobbies/lotto/*"
                 element={<Navigate to="/hobbies/6pick" replace />}
               />
-              <Route path="/hobbies/score-viewer" element={<ScoreLibraryPage />} />
+              <Route path="/hobbies/score-viewer" element={<ScoreViewerLandingPage />} />
+              <Route path="/hobbies/score-viewer/library" element={<ScoreLibraryPage />} />
               <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route path="/hobbies/dieta" element={<DietaLandingPage />} />
               <Route path="/hobbies/dieta/onboarding" element={<DietaOnboardingPage />} />
@@ -211,6 +253,27 @@ export default function App() {
                 />
                 <Route path="/hobbies/dieta/check-in" element={<DietaCheckInPage />} />
                 <Route path="/hobbies/dieta/settings" element={<DietaSettingsPage />} />
+              </Route>
+              <Route path="/hobbies/sranko" element={<SrankoLandingPage />} />
+              <Route element={<SrankoLayout />}>
+                <Route path="/hobbies/sranko/closet" element={<SrankoClosetPage />} />
+                <Route path="/hobbies/sranko/looks" element={<SrankoLooksPage />} />
+                <Route
+                  path="/hobbies/sranko/community"
+                  element={<SrankoCommunityPage />}
+                />
+                <Route
+                  path="/hobbies/sranko/community/new"
+                  element={<SrankoCommunityStubPage />}
+                />
+                <Route
+                  path="/hobbies/sranko/community/mine"
+                  element={<SrankoCommunityStubPage />}
+                />
+                <Route
+                  path="/hobbies/sranko/community/:postId"
+                  element={<SrankoCommunityStubPage />}
+                />
               </Route>
               <Route
                 path="/hobbies/pbb"

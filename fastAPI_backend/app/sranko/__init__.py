@@ -1,0 +1,1 @@
+"""Sranko FastAPI package."""

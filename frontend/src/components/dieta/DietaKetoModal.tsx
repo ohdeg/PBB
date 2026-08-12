@@ -1,3 +1,5 @@
+import { Dialog } from '../ui/Dialog';
+
 interface DietaKetoModalProps {
   open: boolean;
   onClose: () => void;
@@ -14,16 +16,18 @@ export function DietaKetoModal({
   }
 
   return (
-    <div className="dieta-modal-backdrop" role="presentation" onClick={onClose}>
-      <div
-        className="dieta-modal"
-        role="dialog"
-        aria-modal
-        aria-labelledby="dieta-keto-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="dieta-keto-title">키토플루 대체법</h2>
-        <p className="dieta-muted">
+    <Dialog
+      open={open}
+      title="키토플루 대체법"
+      onClose={onClose}
+      backdropClassName="dieta-modal-backdrop"
+      panelClassName="dieta-modal"
+      description
+    >
+      {({ titleId, descriptionId }) => (
+        <>
+        <h2 id={titleId}>키토플루 대체법</h2>
+        <p id={descriptionId} className="dieta-muted">
           증상의 약 80%는 나트륨·수분 부족에서 옵니다. 탄수가 줄면 인슐린이
           낮아져 신장이 나트륨을 더 배출하기 때문입니다.
         </p>
@@ -83,7 +87,8 @@ export function DietaKetoModal({
             닫기
           </button>
         </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { Button } from '../../../components/ui/Button';
+import { Dialog } from '../../../components/ui/Dialog';
 
 interface FirstUseGuideProps {
   isOpen: boolean;
@@ -21,29 +21,23 @@ export function FirstUseGuide({
 }: FirstUseGuideProps) {
   const t = useTranslation();
   const resolvedCloseLabel = closeLabel ?? t('common.close');
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   return (
-    <div className="first-use-guide-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="first-use-guide-card">
+    <Dialog
+      open={isOpen}
+      title={title}
+      onClose={onClose}
+      backdropClassName="first-use-guide-backdrop"
+      panelClassName="first-use-guide-card"
+      description
+    >
+      {({ titleId, descriptionId }) => (
+        <>
         <p className="first-use-guide-kicker">FIRST VISIT GUIDE</p>
-        <h3>{title}</h3>
-        <p className="first-use-guide-description">{description}</p>
+        <h3 id={titleId}>{title}</h3>
+        <p id={descriptionId} className="first-use-guide-description">
+          {description}
+        </p>
         <ul className="first-use-guide-list">
           {tips.map((tip) => (
             <li key={tip}>{tip}</li>
@@ -52,7 +46,8 @@ export function FirstUseGuide({
         <div className="first-use-guide-actions">
           <Button onClick={onClose}>{resolvedCloseLabel}</Button>
         </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

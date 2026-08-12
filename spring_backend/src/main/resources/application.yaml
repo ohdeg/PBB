@@ -3,9 +3,17 @@ spring:
     name: spring_backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 10MB
 
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    # Sranko multipart uploads (FE-resized images)
+    max-http-form-post-size: 12MB
+    max-swallow-size: 12MB
 
 management:
   endpoints:
@@ -35,6 +43,28 @@ dieta:
     api-key: ${DIETA_GEMINI_API_KEY:}
     base-url: ${DIETA_GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
     model: ${DIETA_GEMINI_MODEL:gemini-2.0-flash}
+
+# Sranko Gemini single-call try-on (enabled=false / no project → stub; live uses ADC).
+# Legacy fit-* keys still bind but are unused by the try-on path.
+sranko:
+  vertex:
+    enabled: ${SRANKO_VERTEX_ENABLED:false}
+    project-id: ${SRANKO_VERTEX_PROJECT_ID:}
+    location: ${SRANKO_VERTEX_LOCATION:us-central1}
+    model: ${SRANKO_VERTEX_MODEL:gemini-2.5-flash-image}
+    fit-enabled: ${SRANKO_VERTEX_FIT_ENABLED:false}
+    fit-model: ${SRANKO_VERTEX_FIT_MODEL:gemini-2.5-flash-image}
+  ml:
+    enabled: ${SRANKO_ML_ENABLED:true}
+    base-url: ${SRANKO_ML_BASE_URL:http://127.0.0.1:8000}
+  weather:
+    api-key: ${WEATHERAPI_KEY:}
+    base-url: ${WEATHERAPI_BASE_URL:https://api.weatherapi.com}
+  try-on:
+    body-cache-enabled: ${SRANKO_TRYON_BODY_CACHE_ENABLED:true}
+    ephemeral-ttl: ${SRANKO_TRYON_EPHEMERAL_TTL:1h}
+    ephemeral-cleanup-enabled: ${SRANKO_TRYON_EPHEMERAL_CLEANUP_ENABLED:true}
+    ephemeral-cleanup-interval-ms: ${SRANKO_TRYON_EPHEMERAL_CLEANUP_INTERVAL_MS:60000}
 
 app:
   cors:

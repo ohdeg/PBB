@@ -4,6 +4,7 @@ import {
   type DietaWeekProposal,
 } from '../../features/dieta/utils/dietaMath';
 import type { DietaProfile } from '../../features/dieta/types';
+import { Dialog } from '../ui/Dialog';
 
 interface DietaWeekPlanModalProps {
   open: boolean;
@@ -53,16 +54,20 @@ export function DietaWeekPlanModal({
           : null;
 
   return (
-    <div className="dieta-modal-backdrop" role="presentation" onClick={onClose}>
-      <div
-        className="dieta-modal"
-        role="dialog"
-        aria-modal
-        aria-labelledby="dieta-week-plan-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="dieta-week-plan-title">다음 주 계획</h2>
-        <p className="dieta-muted">
+    <Dialog
+      open={open}
+      title="다음 주 계획"
+      onClose={onClose}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      backdropClassName="dieta-modal-backdrop"
+      panelClassName="dieta-modal"
+      description
+    >
+      {({ titleId, descriptionId }) => (
+        <>
+        <h2 id={titleId}>다음 주 계획</h2>
+        <p id={descriptionId} className="dieta-muted">
           한 주 섭취와 변화를 바탕으로 식사·활동을 제안했어요. 확인해야 적용됩니다.
         </p>
 
@@ -173,7 +178,8 @@ export function DietaWeekPlanModal({
             </button>
           </div>
         </section>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

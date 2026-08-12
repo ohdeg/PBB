@@ -38,4 +38,9 @@ export const INDEXABLE_PAGE_SEO: readonly IndexablePageSeo[] = [
     title: 'Dieta · PBB',
     description: '체중·섭취·활동량으로 한 주씩 부드럽게 조절하는 코칭 노트',
   },
+  {
+    path: '/hobbies/sranko',
+    title: '슈란코 · PBB',
+    description: '옷·치수·룩을 모으고 스타일 커뮤니티에 공유하는 디지털 옷장',
+  },
 ] as const;

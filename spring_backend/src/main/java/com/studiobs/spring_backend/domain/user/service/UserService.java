@@ -6,7 +6,10 @@ import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import com.studiobs.spring_backend.domain.user.entity.UserConsent;
 import com.studiobs.spring_backend.domain.user.repository.UserConsentRepository;
 import com.studiobs.spring_backend.domain.user.repository.UserRepository;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,31 @@ public class UserService {
     @Transactional(readOnly = true)
     public Optional<User> findById(UUID id) {
         return userRepository.findById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> findAllById(Iterable<UUID> ids) {
+        return userRepository.findAllById(ids);
+    }
+
+    /** Missing ids map to empty string (same as single-id nickname lookups). */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> nicknameMap(Collection<UUID> ids) {
+        Map<UUID, String> map = new HashMap<>();
+        if (ids == null || ids.isEmpty()) {
+            return map;
+        }
+        List<UUID> distinct = ids.stream().filter(id -> id != null).distinct().toList();
+        for (UUID id : distinct) {
+            map.put(id, "");
+        }
+        if (distinct.isEmpty()) {
+            return map;
+        }
+        for (User user : userRepository.findAllById(distinct)) {
+            map.put(user.getId(), user.getNickname() != null ? user.getNickname() : "");
+        }
+        return map;
     }
 
     @Transactional(readOnly = true)

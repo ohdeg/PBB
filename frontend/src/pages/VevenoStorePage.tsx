@@ -19,6 +19,7 @@ import {
   useVevenoSplash,
 } from '../components/veveno/VevenoSplashScreen';
 import { VevenoVisibilityBadge } from '../components/veveno/VevenoVisibilityBadge';
+import { VevenoBadge } from '../components/veveno/VevenoBadge';
 import { useAuthStore } from '../stores/authStore';
 import {
   formatVevenoNoticeDate as formatNoticeDate,
@@ -636,6 +637,12 @@ export function VevenoStorePage() {
                   {store.owned ? 'Owner' : store.subscribed ? 'Staff' : 'Guest'}
                   {' · '}
                   <VevenoVisibilityBadge isPublic={store.isPublic} />
+                  {store.onDuty ? (
+                    <>
+                      {' · '}
+                      <VevenoBadge variant="success">근무중</VevenoBadge>
+                    </>
+                  ) : null}
                   {store.subscribed && store.leaveDate ? (
                     <>
                       {' · '}

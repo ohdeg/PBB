@@ -1,8 +1,9 @@
 # PBB 운영 스택 (집 리눅스 등 자체 호스트)
 # 실행: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 #
-# - MySQL / Redis 는 호스트 포트를 노출하지 않음 (내부 네트워크로만 접근, 외부 비공개)
+# - MySQL / Redis / FastAPI(ML) 는 호스트 포트를 노출하지 않음 (내부 네트워크로만 접근)
 # - 백엔드는 Cloudflare Tunnel(cloudflared)을 통해서만 인터넷에 노출
+# - FastAPI 모델: 배포 전 fastAPI_backend/models/use.pth 를 호스트에 두어야 함 (볼륨 마운트)
 # - 값은 .env.prod 에서 주입 (이 파일과 같은 디렉터리, git 커밋 금지)
 
 services:
@@ -44,6 +45,26 @@ services:
       timeout: 5s
       retries: 10
 
+  fastapi:
+    build: ./fastAPI_backend
+    container_name: pbb-fastapi
+    restart: unless-stopped
+    environment:
+      SRANKO_MODEL_PATH: /app/models/use.pth
+      SRANKO_WORN_GARMENT_EXTRACTION_ENABLED: ${SRANKO_WORN_GARMENT_EXTRACTION_ENABLED:-true}
+      SRANKO_FIT_WARP_REMBG: ${SRANKO_FIT_WARP_REMBG:-1}
+    volumes:
+      - ./fastAPI_backend/models:/app/models:ro
+      - fastapi_u2net_cache:/root/.u2net
+    networks:
+      - pbb-net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ml/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   backend:
     build: ./spring_backend
     container_name: pbb-backend
@@ -56,11 +77,15 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SRANKO_ML_ENABLED: ${SRANKO_ML_ENABLED:-true}
+      SRANKO_ML_BASE_URL: http://fastapi:8000
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      fastapi:
+        condition: service_started
     networks:
       - pbb-net
 
@@ -79,6 +104,7 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  fastapi_u2net_cache:
 
 networks:
   pbb-net:

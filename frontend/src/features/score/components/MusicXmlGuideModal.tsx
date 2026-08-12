@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { Button } from '../../../components/ui/Button';
+import { Dialog } from '../../../components/ui/Dialog';
 
 const MUSESCORE_COM_URL = 'https://musescore.com';
 const PLAYSCORE_URL = 'https://www.playscore.co';
@@ -13,34 +13,22 @@ interface MusicXmlGuideModalProps {
 export function MusicXmlGuideModal({ isOpen, onClose }: MusicXmlGuideModalProps) {
   const t = useTranslation();
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) {
-    return null;
-  }
-
   return (
-    <div
-      className="music-xml-guide-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('musicXmlGuide.dialogLabel')}
+    <Dialog
+      open={isOpen}
+      title={t('musicXmlGuide.dialogLabel')}
+      onClose={onClose}
+      backdropClassName="music-xml-guide-backdrop"
+      panelClassName="music-xml-guide-card"
+      description
     >
-      <div className="music-xml-guide-card">
+      {({ titleId, descriptionId }) => (
+        <>
         <p className="music-xml-guide-kicker">{t('musicXmlGuide.kicker')}</p>
-        <h3>{t('musicXmlGuide.title')}</h3>
-        <p className="music-xml-guide-desc">{t('musicXmlGuide.desc')}</p>
+        <h3 id={titleId}>{t('musicXmlGuide.title')}</h3>
+        <p id={descriptionId} className="music-xml-guide-desc">
+          {t('musicXmlGuide.desc')}
+        </p>
 
         <section className="music-xml-guide-section">
           <h4>{t('musicXmlGuide.playscoreTitle')}</h4>
@@ -129,7 +117,8 @@ export function MusicXmlGuideModal({ isOpen, onClose }: MusicXmlGuideModalProps)
             {t('musicXmlGuide.openMusescore')}
           </Button>
         </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

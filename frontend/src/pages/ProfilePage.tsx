@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
+import { Dialog } from '../components/ui/Dialog';
 import { vevenoApi } from '../api/vevenoApi';
 import { configApi } from '../api/configApi';
 import { devApi } from '../api/devApi';
@@ -554,16 +555,20 @@ export function ProfilePage() {
       ) : null}
 
       {withdrawStep !== 'closed' ? (
-        <div className="profile-withdraw-overlay" role="presentation">
-          <div
-            className="profile-withdraw-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="withdraw-title"
-          >
+        <Dialog
+          open
+          title={withdrawStep === 'veveno-warning' ? 'Veveno 데이터가 있습니다' : '회원 탈퇴'}
+          onClose={closeWithdraw}
+          closeOnBackdrop={false}
+          closeOnEscape={!withdrawLoading}
+          backdropClassName="profile-withdraw-overlay"
+          panelClassName="profile-withdraw-dialog"
+        >
+          {({ titleId }) => (
+            <>
             {withdrawStep === 'veveno-warning' ? (
               <>
-                <h2 id="withdraw-title">Veveno 데이터가 있습니다</h2>
+                <h2 id={titleId}>Veveno 데이터가 있습니다</h2>
                 <p className="profile-lead">
                   탈퇴와 함께 아래 Veveno 데이터가 <strong>영구 삭제</strong>
                   됩니다. 복구할 수 없습니다.
@@ -624,7 +629,7 @@ export function ProfilePage() {
               </>
             ) : (
               <form onSubmit={(e) => void handleDeleteAccount(e)}>
-                <h2 id="withdraw-title">회원 탈퇴</h2>
+                <h2 id={titleId}>회원 탈퇴</h2>
                 <p className="profile-lead">
                   탈퇴하면 계정과 관련 데이터가 삭제되며 복구할 수 없습니다.
                   {ownedStores.length > 0 || subscribedStores.length > 0
@@ -668,8 +673,9 @@ export function ProfilePage() {
                 </div>
               </form>
             )}
-          </div>
-        </div>
+            </>
+          )}
+        </Dialog>
       ) : null}
     </main>
   );

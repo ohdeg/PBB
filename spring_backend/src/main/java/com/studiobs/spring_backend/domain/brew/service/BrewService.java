@@ -33,6 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -53,17 +55,16 @@ public class BrewService {
     @Transactional(readOnly = true)
     public List<StoreResponse> listMyStores(String email) {
         User user = requireUser(email);
-        return storeRepository.findByOwnerUserIdOrderByUpdatedAtDesc(user.getId()).stream()
-                .map(store -> StoreResponse.from(store, user.getId(), false, false, true, null))
-                .toList();
+        List<BrewStore> stores =
+                storeRepository.findByOwnerUserIdOrderByUpdatedAtDesc(user.getId());
+        return toStoreResponsesBatch(stores, user.getId());
     }
 
     @Transactional(readOnly = true)
     public List<StoreResponse> listPublicStores(String emailOrNull) {
         UUID viewerId = resolveUserId(emailOrNull);
-        return storeRepository.findByIsPublicTrueOrderByUpdatedAtDesc().stream()
-                .map(store -> toStoreResponse(store, viewerId))
-                .toList();
+        List<BrewStore> stores = storeRepository.findByIsPublicTrueOrderByUpdatedAtDesc();
+        return toStoreResponsesBatch(stores, viewerId);
     }
 
     @Transactional(readOnly = true)
@@ -81,29 +82,47 @@ public class BrewService {
         for (BrewStore store : storeRepository.findByNameContainingIgnoreCaseOrderByUpdatedAtDesc(q)) {
             unique.putIfAbsent(store.getId(), store);
         }
-        return unique.values().stream()
-                .map(store -> toStoreResponse(store, viewerId))
-                .toList();
+        return toStoreResponsesBatch(new ArrayList<>(unique.values()), viewerId);
     }
 
     @Transactional
     public List<StoreResponse> listSubscriptions(String email) {
         User user = requireUser(email);
-        List<BrewStoreSubscription> subs =
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+
+        // Phase A: only rows whose leave_date is already past
+        for (BrewStoreSubscription sub :
+                subscriptionRepository.findBySubscriberUserIdAndLeaveDateBefore(user.getId(), today)) {
+            LocalDate leaveDate = sub.getLeaveDate();
+            if (leaveDate != null) {
+                finalizeLeave(sub.getStoreId(), sub.getSubscriberUserId(), leaveDate);
+            }
+        }
+
+        // Phase B: batch-load remaining subscriptions + stores + onDuty
+        List<BrewStoreSubscription> active =
                 subscriptionRepository.findBySubscriberUserIdOrderByCreatedAtDesc(user.getId());
-        List<StoreResponse> result = new ArrayList<>();
-        for (BrewStoreSubscription sub : subs) {
-            processDueLeaveIfNeeded(sub, user.getId());
-            if (!subscriptionRepository.existsBySubscriberUserIdAndStoreId(user.getId(), sub.getStoreId())) {
-                continue;
-            }
-            BrewStoreSubscription fresh = subscriptionRepository
-                    .findBySubscriberUserIdAndStoreId(user.getId(), sub.getStoreId())
-                    .orElse(null);
-            if (fresh == null) {
-                continue;
-            }
-            BrewStore store = storeRepository.findById(fresh.getStoreId()).orElse(null);
+        if (active.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, BrewStoreSubscription> subsByStore = active.stream()
+                .collect(Collectors.toMap(
+                        BrewStoreSubscription::getStoreId,
+                        Function.identity(),
+                        (a, b) -> a,
+                        LinkedHashMap::new));
+        Map<UUID, BrewStore> storesById = storeRepository
+                .findAllById(subsByStore.keySet())
+                .stream()
+                .collect(Collectors.toMap(BrewStore::getId, Function.identity(), (a, b) -> a));
+        Map<UUID, Boolean> onDutyByStore = brewScheduleService.onDutyByStoreIds(
+                user.getId(),
+                subsByStore.keySet(),
+                subsByStore);
+
+        List<StoreResponse> result = new ArrayList<>(active.size());
+        for (BrewStoreSubscription sub : active) {
+            BrewStore store = storesById.get(sub.getStoreId());
             if (store == null) {
                 continue;
             }
@@ -111,9 +130,9 @@ public class BrewService {
                     store,
                     user.getId(),
                     true,
-                    fresh.isCanEditStock(),
-                    false,
-                    fresh.getLeaveDate()));
+                    sub.isCanEditStock(),
+                    Boolean.TRUE.equals(onDutyByStore.get(sub.getStoreId())),
+                    sub.getLeaveDate()));
         }
         return result;
     }
@@ -127,7 +146,13 @@ public class BrewService {
                 .isPublic(request.isPublic())
                 .inviteCode(allocateInviteCode())
                 .build());
-        return StoreResponse.from(store, user.getId(), false, false, true, null);
+        return StoreResponse.from(
+                store,
+                user.getId(),
+                false,
+                false,
+                brewScheduleService.isCurrentlyOnDuty(store.getId(), user.getId()),
+                null);
     }
 
     @Transactional
@@ -135,7 +160,13 @@ public class BrewService {
         User user = requireUser(email);
         BrewStore store = requireOwnedStore(storeId, user.getId());
         store.rotateInviteCode(allocateInviteCode());
-        return StoreResponse.from(storeRepository.save(store), user.getId(), false, false, true, null);
+        return StoreResponse.from(
+                storeRepository.save(store),
+                user.getId(),
+                false,
+                false,
+                brewScheduleService.isCurrentlyOnDuty(storeId, user.getId()),
+                null);
     }
 
     private String allocateInviteCode() {
@@ -162,7 +193,13 @@ public class BrewService {
         User user = requireUser(email);
         BrewStore store = requireOwnedStore(storeId, user.getId());
         store.update(request.name().trim(), request.isPublic());
-        return StoreResponse.from(storeRepository.save(store), user.getId(), false, false, true, null);
+        return StoreResponse.from(
+                storeRepository.save(store),
+                user.getId(),
+                false,
+                false,
+                brewScheduleService.isCurrentlyOnDuty(storeId, user.getId()),
+                null);
     }
 
     @Transactional
@@ -320,10 +357,21 @@ public class BrewService {
         User owner = requireUser(email);
         requireOwnedStore(storeId, owner.getId());
         processDueLeavesForStore(storeId);
-        List<SubscriberResponse> result = new ArrayList<>();
-        for (BrewStoreSubscription sub : subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId)) {
-            userService.findById(sub.getSubscriberUserId()).ifPresent(u ->
-                    result.add(toSubscriberResponse(u, sub)));
+        List<BrewStoreSubscription> subs =
+                subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId);
+        if (subs.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, User> usersById = userService
+                .findAllById(subs.stream().map(BrewStoreSubscription::getSubscriberUserId).toList())
+                .stream()
+                .collect(Collectors.toMap(User::getId, Function.identity(), (a, b) -> a));
+        List<SubscriberResponse> result = new ArrayList<>(subs.size());
+        for (BrewStoreSubscription sub : subs) {
+            User subscriber = usersById.get(sub.getSubscriberUserId());
+            if (subscriber != null) {
+                result.add(toSubscriberResponse(subscriber, sub));
+            }
         }
         return result;
     }
@@ -453,20 +501,12 @@ public class BrewService {
 
     private void processDueLeavesForStore(UUID storeId) {
         LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
-        for (BrewStoreSubscription sub : subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId)) {
-            if (sub.isLeaveDue(today)) {
-                LocalDate leaveDate = sub.getLeaveDate();
-                if (leaveDate != null) {
-                    finalizeLeave(storeId, sub.getSubscriberUserId(), leaveDate);
-                }
+        for (BrewStoreSubscription sub :
+                subscriptionRepository.findByStoreIdAndLeaveDateBefore(storeId, today)) {
+            LocalDate leaveDate = sub.getLeaveDate();
+            if (leaveDate != null) {
+                finalizeLeave(storeId, sub.getSubscriberUserId(), leaveDate);
             }
-        }
-    }
-
-    private void processDueLeaveIfNeeded(BrewStoreSubscription sub, UUID decidedByUserId) {
-        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
-        if (sub.isLeaveDue(today) && sub.getLeaveDate() != null) {
-            finalizeLeave(sub.getStoreId(), sub.getSubscriberUserId(), sub.getLeaveDate());
         }
     }
 
@@ -495,7 +535,7 @@ public class BrewService {
         if (viewerId != null) {
             if (store.getOwnerUserId().equals(viewerId)) {
                 canEditStock = true;
-                onDuty = true;
+                onDuty = brewScheduleService.isCurrentlyOnDuty(store.getId(), viewerId);
             } else {
                 var subOpt = subscriptionRepository
                         .findBySubscriberUserIdAndStoreId(viewerId, store.getId());
@@ -510,14 +550,74 @@ public class BrewService {
                         subscribed = true;
                         canEditStock = sub.isCanEditStock();
                         leaveDate = sub.getLeaveDate();
-                        if (canEditStock) {
-                            onDuty = brewScheduleService.isCurrentlyOnDuty(store.getId(), viewerId);
-                        }
+                        onDuty = brewScheduleService.isCurrentlyOnDuty(store.getId(), viewerId);
                     }
                 }
             }
         }
         return StoreResponse.from(store, viewerId, subscribed, canEditStock, onDuty, leaveDate);
+    }
+
+    /**
+     * List path: batch subscriptions + onDuty. Does not finalize due leaves (read-only lists).
+     */
+    private List<StoreResponse> toStoreResponsesBatch(List<BrewStore> stores, UUID viewerId) {
+        if (stores.isEmpty()) {
+            return List.of();
+        }
+        if (viewerId == null) {
+            return stores.stream()
+                    .map(store -> StoreResponse.from(store, null, false, false, false, null))
+                    .toList();
+        }
+
+        List<UUID> storeIds = stores.stream().map(BrewStore::getId).toList();
+        Map<UUID, BrewStoreSubscription> subsByStore = subscriptionRepository
+                .findBySubscriberUserIdAndStoreIdIn(viewerId, storeIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        BrewStoreSubscription::getStoreId,
+                        Function.identity(),
+                        (a, b) -> a));
+
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        List<UUID> dutyCandidateIds = new ArrayList<>();
+        for (BrewStore store : stores) {
+            if (store.getOwnerUserId().equals(viewerId)) {
+                dutyCandidateIds.add(store.getId());
+                continue;
+            }
+            BrewStoreSubscription sub = subsByStore.get(store.getId());
+            if (sub != null && !sub.isLeaveDue(today)) {
+                dutyCandidateIds.add(store.getId());
+            }
+        }
+        Map<UUID, Boolean> onDutyByStore = brewScheduleService.onDutyByStoreIds(
+                viewerId,
+                dutyCandidateIds,
+                subsByStore);
+
+        List<StoreResponse> result = new ArrayList<>(stores.size());
+        for (BrewStore store : stores) {
+            boolean owned = store.getOwnerUserId().equals(viewerId);
+            boolean subscribed = false;
+            boolean canEditStock = false;
+            LocalDate leaveDate = null;
+            boolean onDuty = Boolean.TRUE.equals(onDutyByStore.get(store.getId()));
+            if (owned) {
+                canEditStock = true;
+            } else {
+                BrewStoreSubscription sub = subsByStore.get(store.getId());
+                if (sub != null && !sub.isLeaveDue(today)) {
+                    subscribed = true;
+                    canEditStock = sub.isCanEditStock();
+                    leaveDate = sub.getLeaveDate();
+                }
+            }
+            result.add(StoreResponse.from(
+                    store, viewerId, subscribed, canEditStock, onDuty, leaveDate));
+        }
+        return result;
     }
 
     private void assertCanView(BrewStore store, UUID viewerId) {

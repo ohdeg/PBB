@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.lotto.service;
 
 import com.studiobs.spring_backend.domain.lotto.dto.LottoDrawResponse;
 import com.studiobs.spring_backend.domain.lotto.dto.LottoDrawSnapshot;
+import com.studiobs.spring_backend.domain.lotto.dto.LottoPatternProfilesResponse;
 import com.studiobs.spring_backend.domain.lotto.dto.LottoUserPicksResponse;
 import com.studiobs.spring_backend.domain.lotto.dto.ReplaceLottoDrawsRequest;
 import com.studiobs.spring_backend.domain.lotto.dto.SaveLottoUserPicksRequest;
@@ -24,6 +25,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -34,12 +37,18 @@ public class LottoService {
     private final LottoDrawRepository drawRepository;
     private final LottoUserPickRepository pickRepository;
     private final UserService userService;
+    private final LottoPatternCacheService patternCacheService;
 
     @Transactional(readOnly = true)
     public List<LottoDrawResponse> listDraws() {
         return drawRepository.findAllByOrderByRoundAsc().stream()
                 .map(LottoDrawResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public LottoPatternProfilesResponse patternProfiles() {
+        return patternCacheService.getOrCompute();
     }
 
     @Transactional(readOnly = true)
@@ -52,13 +61,17 @@ public class LottoService {
     @Transactional
     public LottoDrawResponse upsertDraw(String email, UpsertLottoDrawRequest request) {
         requireDev(email);
-        return LottoDrawResponse.from(saveDrawEntity(request));
+        LottoDrawResponse response = LottoDrawResponse.from(saveDrawEntity(request));
+        invalidatePatternCacheAfterCommit();
+        return response;
     }
 
     /** 시스템(자동 동기화)용 upsert — DEV 권한 검사 없이 회차를 저장한다. */
     @Transactional
     public LottoDrawResponse syncUpsert(UpsertLottoDrawRequest request) {
-        return LottoDrawResponse.from(saveDrawEntity(request));
+        LottoDrawResponse response = LottoDrawResponse.from(saveDrawEntity(request));
+        invalidatePatternCacheAfterCommit();
+        return response;
     }
 
     /** 다음으로 동기화해야 할 회차 (저장된 최신 회차 + 1, 없으면 1). */
@@ -94,10 +107,12 @@ public class LottoService {
                 .map(item -> mergeWithExisting(item, existingByRound.get(item.round())))
                 .map(this::toNewEntity)
                 .toList();
-        return drawRepository.saveAll(entities).stream()
+        List<LottoDrawResponse> saved = drawRepository.saveAll(entities).stream()
                 .sorted(Comparator.comparing(LottoDraw::getRound))
                 .map(LottoDrawResponse::from)
                 .toList();
+        invalidatePatternCacheAfterCommit();
+        return saved;
     }
 
     @Transactional
@@ -107,6 +122,20 @@ public class LottoService {
             throw new BusinessException(HttpStatus.NOT_FOUND, "회차를 찾을 수 없습니다.");
         }
         drawRepository.deleteById(round);
+        invalidatePatternCacheAfterCommit();
+    }
+
+    private void invalidatePatternCacheAfterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            patternCacheService.invalidate();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                patternCacheService.invalidate();
+            }
+        });
     }
 
     @Transactional(readOnly = true)

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { ToastHost } from './components/ui/ToastHost';
 import './index.css';
 import './features/dieta/dieta.css';
 
@@ -15,6 +16,7 @@ createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
       <App />
+      <ToastHost />
     </BrowserRouter>
   </StrictMode>,
 );

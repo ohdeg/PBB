@@ -4,10 +4,10 @@
 FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9J/PBB-%EC%9C%A0%EC%A0%80-%ED%9D%90%EB%A6%84%EB%8F%84)
 
 > FigJam은 Design처럼 페이지가 없어 **기능별 섹션**으로 분리해 두었습니다.  
-> 좌측 레이어/섹션 목록에서 `0.~8.` · Score Viewer · **13. Dieta** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
+> 좌측 레이어/섹션 목록에서 `0.~8.` · Score Viewer · **13. Dieta** · **14. 슈란코** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
-> 취미 앱(6PICK / Score Viewer)과 **Veveno 소개 랜딩**(`/hobbies/veveno`)은 **비로그인 진입 가능**.
-> Veveno **허브·가게**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
+> 취미 앱(6PICK·Score Viewer 랜딩/본체)과 **Veveno·Dieta·슈란코·6PICK·Score Viewer 소개 랜딩**은 **비로그인 진입 가능**.
+> Veveno **허브·가게**·슈란코 **옷장·룩**·**프로필**·Dieta **홈 이후**는 Access Token 필요 (없으면 `/login` 리다이렉트).
 
 ---
 
@@ -142,7 +142,7 @@ flowchart LR
     featuredSet --> featuredSave[PUT /api/v1/dev/featured-app · appIds]
 ```
 
-헤더에서도 로그아웃 가능. Veveno(허브·가게)에서는 **Veveno 랜딩**(`/hobbies/veveno`), 그 외는 **홈 `/`**으로 이동. 직전 경로는 `state.from`에 남겨 재로그인 시 복귀. 로그아웃 중에는 페이지 가드의 `/login` 리다이렉트를 잠시 억제한다.  
+헤더에서도 로그아웃 가능. Veveno(허브·가게)에서는 **Veveno 랜딩**(`/hobbies/veveno`), Dieta는 `/hobbies/dieta`, 슈란코는 `/hobbies/sranko`, 그 외는 **홈 `/`**으로 이동. 직전 경로는 `state.from`에 남겨 재로그인 시 복귀. 로그아웃 중에는 페이지 가드의 `/login` 리다이렉트를 잠시 억제한다.  
 탈퇴: `DELETE /api/v1/auth/account` + `{ password }`. Veveno **소유·구독** 가게가 있으면 삭제 안내 확인 후 비밀번호 단계 — 탈퇴 시 CASCADE로 함께 정리. 완료 후 **홈 `/`**.  
 **dev 전용**: 프로필 dev 패널에서 메인 추천 앱을 **추가 → 드래그(또는 ↑↓)로 순서 지정 → ×로 삭제**, 최대 5개(가득 찬 상태에서 추가하면 마지막 항목이 밀려남). `PUT /api/v1/dev/featured-app`(`{ appIds }`)로 저장 → 전역(`app_config.featured_app_id`, CSV)에 반영. 모든 사용자 메인 상단 캐러셀에 노출되며 여러 개면 자동 로테이션.
 
@@ -152,18 +152,25 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    home([홈]) --> config[GET /api/v1/config/featured-app · appIds]
-    config --> featured[추천 캐러셀 · 최대 5개 자동 로테이션 + 좌우 슬라이드]
-    home --> life[라이프]
-    home --> music[음악]
-    featured --> target[선택된 앱 경로]
-    life --> brew[/hobbies/veveno]
-    life --> lotto[/hobbies/6pick]
-    life --> dieta[/hobbies/dieta]
-    music --> score[/hobbies/score-viewer]
+    home([홈]) --> tabs[상단 탭 · 취미 바로가기]
+    home --> hero[고정 브랜드 히어로 · 취미 둘러보기]
+    hero --> apps["#apps color-block 스크롤"]
+    home --> config[GET /api/v1/config/featured-app · appIds]
+    config --> order[featured → 풀폭 블록 순서]
+    apps --> brew[/hobbies/veveno]
+    apps --> lotto[/hobbies/6pick]
+    apps --> dieta[/hobbies/dieta]
+    apps --> sranko[/hobbies/sranko]
+    apps --> score[/hobbies/score-viewer]
+    tabs --> target[선택된 앱 경로]
+    order --> apps
 ```
 
-메인 상단 추천 영역은 공개 API `GET /api/v1/config/featured-app`로 앱 id 목록(`appIds`, 최대 5)을 받아 **캐러셀**로 렌더 — 5초 자동 로테이션 + 좌우 화살표·터치 스와이프·dots (1개면 단일 카드, `prefers-reduced-motion` 시 자동 전환 off). 조회 실패·미설정 시 프론트/백엔드 기본 폴백 `veveno`. 값은 dev가 프로필에서 설정.
+홈은 Figma 마케팅형 에디토리얼 레이아웃이다.
+- **상단 탭**: 흰 글로벌 내비에 공개 취미 앱 링크 + 계정 pill(로그인/가입·닉네임/로그아웃). 960px 미만은 햄버거 드로어.
+- **히어로**: 고정 브랜드 카피 + CTA「취미 둘러보기」(`#apps` 앵커)·「가입하기». 앱 자동 로테이션 없음.
+- **marquee**: 검정 스트립에 공개 앱 이름.
+- **color-block**: 앱별 파스텔 블록.「시작하기」→ `startPath`(Veveno hub / Dieta home / 슈란코 closet / 6PICK play / Score library).「소개 보기」→ `path`(랜딩; Veveno·Dieta·6PICK·Score 자동 스킵 없음). featured `appIds`가 있으면 그 순서로 앞쪽 배치, 없으면 최근 업데이트순. 상단 2개는 풀폭, 나머지는 2열.
 
 ---
 
@@ -181,14 +188,13 @@ FigJam §8~8-3 + Notion DB 스키마 기준.
 ### 8-0. 진입 (공개 랜딩 → 로그인 후 허브)
 
 홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO).  
-**로그인 + 소유·직원(구독) 가게가 1개 이상**이면 랜딩을 건너뛰고 허브(`/hub`)로 이동(가게 1개여도 허브).  
-그 외는 랜딩을 보고 **시작하기** → 로그인 또는 허브.
+랜딩은 로그인·가게 여부와 관계없이 **항상 표시**(홈「소개 보기」용). **시작하기** → 로그인 또는 허브(`/hub`).  
+허브(내 가게·근무 가게·검색)와 가게 상세 헤더: 열람자 본인이 해당 가게 **현재 근무 구간**이면 「근무중」 뱃지(업주·직원 공통, 정규·승인 대타/추가·자정 넘김). `onDuty`는 업주도 스케줄 기준(상시 true 아님). 재고 수정은 업주 상시, 직원은 `canEditStock`+근무 중.
 
 ```mermaid
 flowchart LR
     home([홈]) --> landing[/hobbies/veveno 랜딩]
-    landing -->|"로그인 · 가게 있음"| hub[허브]
-    landing -->|"시작하기 · 로그인 · 가게 없음"| hub
+    landing -->|"시작하기 · 로그인"| hub[허브]
     landing -->|"시작하기 · 비로그인"| login([/login])
     login --> hub
     hub --> register[업장 등록]
@@ -322,7 +328,7 @@ flowchart LR
 - `brew_store_subscriptions.work_start_date`: 첫 근무일. 달력·근무 중 판정은 이 날짜부터 (`leave_date`까지)
 
 라우트:
-- `/hobbies/veveno` — 공개 소개 랜딩 (SEO)
+- `/hobbies/veveno` — 공개 소개 랜딩 (SEO, 자동 스킵 없음)
 - `/hobbies/veveno/hub` — 허브 (로그인 필수)
 - `/hobbies/veveno/stores/:storeId` — 가게(메뉴·재고·근무·도구·설정·공지). 탭은 `?tab=` 로 유지(새로고침 시 유지)
 - 메뉴 탭 **카테고리(메뉴) 목록**: 일반 클릭은 선택(레시피 조회), **편집** 모드에서 클릭 시 이름 수정·삭제 모달
@@ -333,20 +339,21 @@ flowchart LR
 ## 9. 6PICK
 
 Firebase 로또 앱(6PICK)을 MySQL로 이식. PBB 기존 로그인 유지(Google OAuth 없음).  
-진입 시 **6PICK 스플래시**(로고)를 표시한 뒤 본 화면으로 전환.  
+**소개 랜딩** `/hobbies/6pick` → **시작하기**로 `/hobbies/6pick/play` 진입. play 진입 시 **6PICK 스플래시**(로고) 후 본 화면.  
 당첨 번호 **자동 동기화 구현**: 매주 **토요일 21:00~23:50 KST 10분 간격** 스케줄러가 동행복권에서 최신 회차를 가져와 저장(성공 시 다음 틱 자동 no-op). DEV 수동 등록/엑셀도 병행.
 
 ```mermaid
 flowchart LR
-    enter([진입 /hobbies/6pick]) --> splash[6PICK 스플래시]
+    landing([랜딩 /hobbies/6pick]) --> play[시작하기 /play]
+    play --> splash[6PICK 스플래시]
     splash --> tabs{탭}
     tabs --> draw[번호 생성]
     tabs --> payout[세금 계산]
     tabs --> admin[회차 관리 DEV]
     draw --> mode[생성 방식 선택]
-    mode -->|"몬테카를로"| mc[반복 시뮬레이션 · 패턴 점수]
-    mode -->|"단순 무작위"| rnd[1회 무작위 추첨]
-    draw --> opts[Hot/Cold · 고정수 · 매수 · 풀 유지 ON/OFF]
+    mode -->|"몬테카를로"| mc[구간 패턴 약한 학습 · 반복 시뮬]
+    mode -->|"단순 무작위"| rnd[가벼운 후보 · 같은 패턴 선별]
+    draw --> opts[분석 구간 · Hot/Cold ON/OFF · 고정수 · 매수 · 풀 유지]
     mc --> hist[히스토리]
     rnd --> hist
     hist -->|"로그인"| saveApi[MySQL picks 저장]
@@ -355,12 +362,15 @@ flowchart LR
     sched[토 21시 스케줄러] --> dhl[동행복권 조회]
     dhl --> upsert
     upsert --> drawsDb[lotto_draws]
-    enter --> back[메인]
+    landing --> back[메인]
 ```
 
 - 공개: 회차 목록 조회, 번호 생성·세금 계산
 - 자동 동기화: 토요일 스케줄러가 동행복권 최신 회차를 `lotto_draws`에 upsert (Redis 락으로 중복 방지)
-- 번호 생성 방식 선택: **몬테카를로**(반복 시뮬레이션+패턴 점수) / **단순 무작위**(1회 추첨)
+- 번호 생성 방식 선택: **몬테카를로**(선택한 4/8/12/52/전체 구간에서 당첨 패턴을 **구간별 고정 비율**로 반영 + 반복 시뮬) / **단순 무작위**(가벼운 후보 추첨 후 같은 학습 패턴으로 선별, 더 빠름)
+- 패턴 반영 비율: 전체 70% · 52주 60% · 12주 50% · 8주 40% · 4주 30% (상한 70%, 회차 없으면 0%)
+- 패턴 profile은 **Spring**이 `lotto_draws`로 계산해 Redis(`lotto:pattern:profiles`)에 캐시. FE는 `GET /api/v1/lotto/pattern-profiles`로 받아 채점에만 사용. 회차 upsert/replace/삭제·자동동기화 시 캐시 무효화
+- **분석 구간**은 Hot/Cold와 공유. Hot/Cold는 ON/OFF 가능 — OFF면 **패턴만** 적용
 - 추첨 번호 풀 유지 **ON/OFF**: ON이면 이전 추첨 번호 제외+자동 리셋, OFF이면 매 게임 1~45 전체에서 추첨(중복 허용)
 - 로그인: 생성 히스토리 `lotto_user_picks` 저장
 - DEV(`userClass=dev`): 회차 수동 등록·수정, **엑셀(.xlsx) 일괄 가져오기**(회차·본번호 + 보너스·추첨일·1등 금액·1등 당첨자수 추출, 자동동기화와 동일 필드), 몬테카를로 반복 횟수 조절
@@ -370,9 +380,11 @@ flowchart LR
 
 ## 10. Score Viewer
 
+공개 소개 랜딩 `/hobbies/score-viewer` → **시작하기**로 보관함 `/library`. 연습 뷰어는 `/hobbies/score-viewer/:id`.
+
 ```mermaid
 flowchart LR
-    enter([진입 /hobbies/score-viewer]) --> library[악보 보관함]
+    landing([랜딩 /hobbies/score-viewer]) --> library[보관함 /library]
     library --> import[MusicXML/MXL 가져오기]
     import --> save[IndexedDB 저장]
     save --> list[목록]
@@ -383,7 +395,7 @@ flowchart LR
     render --> transpose[조옮김]
     render --> measure[마디 이동·하이라이트]
     render --> scroll[자동 스크롤]
-    enter --> back[메인]
+    landing --> back[메인]
 ```
 
 보관함에서 악보를 선택한 뒤 연습 뷰어로 진입한다. 광고·클라우드 구독은 이식하지 않음(로컬 IndexedDB만).
@@ -432,16 +444,17 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    enter(["/hobbies/dieta"]) --> gate{온보딩 완료?}
-    gate -->|"예 · 로그인"| home[홈]
-    gate -->|"아니오"| landing[랜딩]
-    landing -->|"시작하기 · 로그인"| onboard[온보딩]
-    landing -->|"시작하기 · 비로그인"| login(["/login"])
-    login --> onboard
+    enter(["/hobbies/dieta 랜딩"]) --> landing[소개 랜딩 · 자동 스킵 없음]
+    landing -->|"시작하기"| homeGate["/hobbies/dieta/home"]
+    homeGate -->|"비로그인"| login(["/login"])
+    homeGate -->|"온보딩 미완료"| onboard[온보딩]
+    homeGate -->|"온보딩 완료"| home[홈]
+    login --> homeGate
     onboard --> goalPick[감량 / 증량 / 유지]
     goalPick --> home
 ```
 
+- 랜딩(`/hobbies/dieta`)은 로그인·온보딩 여부와 관계없이 **항상 표시** (홈「소개 보기」용)
 - 온보딩에서 목표 체중(감량·증량)을 두면 **도달 시 자동 MAINTAIN** 전환 안내
 - 완료 후 `/hobbies/dieta/home`
 
@@ -507,7 +520,7 @@ flowchart LR
 - **온보딩 다시**: 확인 후 `POST /api/v1/dieta/reset`로 프로필·체중·섭취·레시피·체크인·식사 큐를 모두 지운 뒤 `/hobbies/dieta/onboarding`으로 이동 (재온보딩은 최초와 동일, 409 없음)
 
 라우트:
-- `/hobbies/dieta` — 랜딩 (온보딩 완료 시 홈으로 스킵)
+- `/hobbies/dieta` — 랜딩 (자동 스킵 없음)
 - `/hobbies/dieta/onboarding` — 온보딩 (**로그인 필수**)
 - `/hobbies/dieta/home` — 홈 · 주간 체크인 진입
 - `/hobbies/dieta/meals` — 섭취 (등록 음식 모달 포함)
@@ -516,6 +529,139 @@ flowchart LR
 - `/hobbies/dieta/check-in` — 주간 체크인
 - `/hobbies/dieta/settings` — 설정
 - `/hobbies/dieta/progress` → `/home` 리다이렉트
+
+---
+
+## 14. 슈란코 (Ŝranko)
+
+공개 랜딩 `/hobbies/sranko`(SEO). **시작하기** → 로그인 시 옷장(`/closet`), 비로그인이면 `/login` + `from=closet`.  
+커뮤니티 목록·상세는 게스트 열람 가능 · 작성/MY STYLE·좋아요·댓글 쓰기는 로그인 필수.
+
+### 커뮤니티 (좋아요 · 댓글 · 조회)
+
+```mermaid
+flowchart LR
+    list[목록 게스트OK] --> detail[상세]
+    detail --> bump[POST /read · Redis NX 24h]
+    bump --> meta[조회·좋아요·댓글 수]
+    detail --> like[POST /like · 로그인]
+    detail --> share[공유 · WebShare/클립보드]
+    detail --> comments[GET comments flat]
+    comments --> reply[답글 2단]
+    comments --> cLike[댓글 좋아요]
+```
+
+- Post: `read_count` / `like_count` / `comment_count` 역정규화. 좋아요·댓글좋아요는 조인 테이블 + `±1` UPDATE.
+- 게시 이미지: `image_urls` JSON(1–10장) · `image_url`은 커버(첫 장). 목록·상세·글쓰기 미리보기는 카드형 캐러셀.
+- 조회: `POST /posts/{id}/read` + `X-Sranko-Viewer`(게스트) 또는 userId · Redis `sranko:post:view:{postId}:{viewerKey}` NX TTL 24h · 실패 시 +1 스킵.
+- 공개: `GET /posts`, `GET /posts/{id}`, `GET …/comments`, `POST …/read`. 쓰기는 인증.
+- 댓글: flat 로드 · `parentId`만 루트 · N+1 없이 authors/`likedByMe` 배치 IN.
+
+### 옷장 ITEM+ (2단계) · 수정 · 사이즈
+
+```mermaid
+flowchart LR
+    open([ITEM +]) --> photo[1 사진 선택]
+    photo --> worn{착용 사진에서 옷만 추출?}
+    worn -->|"아니오"| classify[기존 분류·배경제거]
+    worn -->|"예"| target[필수 종류 선택 TOP/BOTTOM/OUTER/DRESS]
+    target --> extract[보이는 옷 영역만 분할·투명 PNG]
+    extract -->|"마스크 품질 실패"| blocked[경고 · 미리보기 제거 · 저장 차단]
+    blocked --> photo
+    extract -->|"성공"| details[2 이름·분류·따뜻함·옷사이즈]
+    classify -->|"옷아님·실패"| photo
+    classify -->|"성공"| details
+    details -->|"사진 다시"| photo
+    details --> save[저장]
+    cardEdit([카드 · 수정]) --> editDetails[기존 값 프리필 · 2단계]
+    editDetails -->|"사진 다시"| photo
+    editDetails --> upsert[PUT /items id]
+```
+
+옷장 카드: 이미지·이름·분류·따뜻함만 표시(치수·버튼 없음). **카드 클릭 → 상세 모달**(치수 전체 + 입어보기·수정·삭제; 가방/모자/주얼리는 입어보기 없음).
+슬롯: TOP·BOTTOM·OUTER·SHOES·DRESS·**BAG·HAT·JEWELRY**. 신발·악세서리는 warmth null · 악세서리는 치수 필드 없음.
+옷장 ITEM+: predict가 slot / categoryCode / warmth(1–5, 신발·악세서리는 null) / taxonomyGroup을 프리필. 기본 상품 사진 흐름은 기존 generic rembg를 유지한다. 「착용 사진에서 옷만 추출」을 켜면 TOP/BOTTOM/OUTER/DRESS(신발·악세서리 제외)를 먼저 고르고, `POST /api/v1/sranko/ml/predict` multipart의 `extractWornGarment=true`·`targetSlot`로 요청한다. 성공 시 해당 종류가 classifier보다 우선하며, 사진에 실제로 보이는 의류 픽셀만 crop한 투명 PNG를 사용한다. OUTER는 cloth 모델 한계상 보이는 최외곽 상체 의류 영역이다. 품질 실패는 `garmentExtractionApplied=false`·`extractionWarning`으로 미리보기를 지우고 저장을 막는다. 유저가 대분류·소분류·따뜻함을 수정한 값이 저장·향후 학습 GT. **DRESS 소분류는 소매 타입**(`긴팔`/`반팔`/`민소매`; slot=원피스, 레거시 `원피스`→`긴팔`). BOTTOM 소분류가 기장 스타일(반바지=짧음, 데님·면바지·슬랙스=김, 치마=넓은 허용). DRESS 옷 치수 키는 어깨·가슴·소매길이·허리·엉덩이·총기장 순서.
+**수정**: 상세 「수정」→ 등록과 같은 모달에 기존 값 프리필. 사진 미변경 시 기존 `imageUrl` 유지, 변경 시 재업로드 후 `PUT /items`에 `id`로 upsert(이전 R2 이미지 삭제).
+**다중 선택 바**: 카드 체크로 아이템 다중 선택 → sticky 바에서 「선택 해제」·「삭제」(확인 후 `DELETE` 일괄)·「룩 입어보기」. **룩 입어보기**: OUTER/TOP/BOTTOM/DRESS/**HAT**/**SHOES** (슬롯당 1 · DRESS↔TOP/BOTTOM 배타 · max 5) → Gemini 풀룩 착용 1장 → `POST /looks` `source=TRY_ON`. 가방·주얼리만 선택된 경우 버튼 비활성. 플랫레이 콜라주(COMPOSE)는 제거(기존 COMPOSE 룩은 조회만 가능).
+옷장 **내 사이즈** / **성별(마네킹)**: 헤더 「정보 수정」 모달에서 관리(성별·사이즈 저장/삭제).  
+길이 cm 저장(필드별 inch 입력 가능) · 몸무게 kg 저장(필드별 lb 입력 가능) · 발 mm 저장(EU/US 입력 가능). **사이즈 삭제**로 prefs `body_measurements` 전체 비움 → 이후 입어보기는 옷별 핏 선택.
+
+### 입어보기 (Gemini · 단일/멀티)
+
+인물 사진 업로드는 **없음**. 입어보기는 항상 기본 마네킹(핏 맵과 동일 각도 · BE classpath) — prefs `sex`가 `F`면 여자 마네킹, 그 외(미설정 포함)는 남자. 정보 수정에서 성별(남자/여자) 선택 후 「사이즈 저장」으로 `PATCH /prefs` `sex`.
+
+```mermaid
+flowchart LR
+    tryBtn[입어보기 / 룩 입어보기] --> confirmModal[확인 모달 · 기본 마네킹]
+    confirmModal --> consent{동의?}
+    consent -->|아니오| stop([중단])
+    consent -->|예| bodyOk{신체 사이즈?}
+    bodyOk -->|없음| pickFit[옷별 핏 선택 · 슬림/보통/오버]
+    pickFit --> sizeFacts[아이템 치수 → Garment sizes 프롬프트]
+    sizeFacts --> geminiManual[Gemini · mannequin + fitByItemId + sizes]
+    bodyOk -->|있음| fitPre[GET /fit-check · 단일만]
+    fitPre --> tight{delta ≤ −4?}
+    tight -->|예| tightConfirm[많이 작음 확인]
+    tightConfirm -->|취소| stop
+    tightConfirm -->|OK| gemini[Gemini · mannequin+N + Δ·sizes 프롬프트]
+    tight -->|아니오| gemini
+    gemini --> resultModal[결과 모달 JPEG+뱃지]
+    geminiManual --> resultModal
+    resultModal --> close([닫기 · tryon TTL 1h])
+    resultModal --> saveLook[내 룩 저장 · tryon→looks promote]
+    resultModal --> retry[다시 → 확인 모달]
+```
+
+- 성공 시 확인 모달을 닫고 **결과 모달**을 연다(확인 모달 인라인 결과 없음). 「다시」는 결과만 지우고 같은 아이템 확인 모달로 복귀(자동 재실행 없음).
+- **R2 tryon TTL**: `POST /ml/try-on`(및 `uploads?kind=tryon`) 결과를 `…/tryon/…`에 올리고 Redis ZSET으로 **1시간** 후 스케줄 삭제(`sranko.try-on.ephemeral-ttl`). 「내 룩에 저장」(`POST /looks`) 시 해당 유저 tryon URL이면 **looks/로 복사·TTL 취소·tryon 삭제** 후 DB에는 looks URL 저장.
+- `GET /api/v1/sranko/fit-check?itemId=` · prefs body + 아이템 치수 → `{ fit, muchTooSmall, skipStage2, parts[] }` (primary delta ≤ −4 cm → `muchTooSmall`). `parts[]`: 부위별 `{ key, bodyCm, garmentCm, deltaCm, band }` · 어깨·가슴·허리 등 둘레는 raw Δ · **소매(`armLength`)·하의 기장(`totalLength`↔legLength)은 categoryCode 기준 기대 비율**로 Δ 재계산(반팔·반바지가 항상 매우 타이트로 나오지 않음; 구간 안이면 Δ=0). 전체 입어보기 `analyze`는 소매 길이를 primary에서 제외. TOP/OUTER 어깨·가슴·소매·총장(↔torsoLength), BOTTOM 허리·엉덩이·허벅지·기장, DRESS 어깨·가슴·소매·허리·엉덩이 · SHOES는 빈 배열.
+- **핏 맵**: 확인 모달·결과 모달 모두에 마네킹 실루엣(SVG) 바디맵으로 부위별 핏 표시 — 부위별 측정선 + 좌측 콜아웃 필(매우 타이트함 / 타이트함 / 약간 타이트함 / 딱 맞음 / 약간 루즈함 / 루즈함 / 매우 루즈함 / 측정값 없음, 수치 미노출). 결과 사진은 무드 컷, 정확한 사이즈 정보는 핏 맵이 담당. 신체 사이즈 미등록·SHOES·parts 없음이면 미표시.
+- `POST /api/v1/sranko/ml/try-on` · preferred `itemIds[]` (OUTER/TOP/BOTTOM/DRESS/**HAT**/**SHOES**, max 5) · legacy `itemId`/`garmentImageUrl` · **항상** classpath 마네킹(`sex=F` → female PNG, 그 외 male) · **신체 치수 있으면** prefs 기반 analyze(Δ·fit) · **없으면** `fitByItemId`로 옷별 `slim|regular|loose`(기본 regular, UI 라벨 슬림/보통/오버; HAT·SHOES는 핏 선택 없음). **아이템 `measurements_json`이 있으면** 신체 유무와 관계없이 프롬프트에 `Garment sizes (product label measurements):`로 절대 치수(cm · 신발 mm)를 첨부. print/logo 사전 분석(`print_meta_json`)은 **제거**.
+- `GET /api/v1/sranko/assets/default-person` · 기본 마네킹 PNG (인증 필요 · prefs `sex` 반영).
+- prefs: `sex` (`M`|`F`|null) · 정보 수정에서 설정 · null은 남자 마네킹 폴백. `person_image_url` 컬럼 제거.
+- 파이프라인: **`garments ≥ 4`이면 다단** — ① OUTER/TOP/BOTTOM(또는 DRESS) 몸통 → ② HAT/SHOES → ③ 나머지(있으면). 빈 묶음 스킵. 몸통 JPEG는 Redis `sranko:tryon:body:*` TTL 15분 캐시(악세만 다시 입을 때 몸통 재호출 생략; dev는 캐시 OFF). `< 4`는 단일 Gemini 호출. 영어 프롬프트(레이어링·기존 옷 제거·기장·컷아웃 + slim/regular/loose + **아이템 절대 사이즈** + body 있으면 Δ + 성별·전신·30° pose). print 사전 분석 없음.
+- 결과 뱃지: 슬림/보통/여유 · 많이 작음 시 「타이트 · 옷이 작음」.
+### 날씨 · 자주 가는 곳
+
+```mermaid
+flowchart LR
+    closet[옷장 · 오늘 날씨] --> chips[장소 칩 · 내 위치/검색지/저장장소]
+    closet --> preview[GET /places/search → 결과 클릭]
+    preview --> weather[GET /weather lat lon]
+    chips --> weather
+    weather --> show[현재 날씨]
+    weather --> hourly[현재부터 12시간 예보]
+    profile[정보 수정] --> search[GET /places/search · 집/회사/즐겨찾기]
+    search --> save[PATCH /prefs places]
+    save --> chips
+```
+
+- Spring이 WeatherAPI.com **forecast**를 호출 (현재 + 현지 시각부터 12시간). FE는 WeatherAPI 직접 호출 금지.
+- Redis 키 `sranko:forecast:{lat2}:{lon2}` · TTL 30분.
+- prefs `places_json`: HOME×1 · WORK×1 · FAVORITE≤5 · `{id,label,kind,lat,lon,query?}`.
+- **일회 조회**: 옷장 「오늘 날씨」 검색 → 결과 클릭 → 해당 lat/lon 날씨(prefs 미저장 · 임시 칩).
+- **장소 검색 매칭**: BE 로컬 카탈로그(`sranko/place-catalog.json` · 세계 주요 도시·한국 시/구 + 한글 별칭) 우선 → WeatherAPI search 폴백·병합.
+- **장소 등록**: 정보 수정 「자주 가는 곳」에서 동일 search API 후 집/회사/즐겨찾기.
+- 위치 거부·내 위치만 실패 시 수동 °C (시간별 없음). WeatherAPI free plan 고지 링크 표시.
+- ~~오늘 추천 / `GET /recommend`~~ — 제거됨.
+
+```mermaid
+flowchart LR
+    home([홈]) --> landing[/hobbies/sranko 랜딩]
+    landing -->|"시작하기 · 로그인"| closet[옷장]
+    landing -->|"시작하기 · 비로그인"| login([/login])
+    login --> closet
+    landing --> community[커뮤니티]
+    closet --> looks[내 룩]
+    closet --> community
+```
+
+- `/hobbies/sranko` — 랜딩 (SEO)
+- `/hobbies/sranko/closet` — 옷장 (**로그인 필수**) · **정보 수정**(사진·사이즈) · 카드 클릭 **상세** · 체크 선택 후 **룩 입어보기**(TRY_ON 룩) · ITEM+ (BAG/HAT/JEWELRY 포함) · **날씨**
+- `/hobbies/sranko/looks` — 내 룩 (**로그인 필수**)
+- `/hobbies/sranko/community` — 커뮤니티 목록 (게스트 OK)
+- `/hobbies/sranko/community/new` · `/mine` — 작성·MY STYLE (**로그인 필수**)
+- `/hobbies/sranko/community/:postId` — 상세
 
 ---
 
@@ -534,11 +680,13 @@ flowchart LR
 | `/hobbies/veveno` | Veveno 소개 랜딩 | 불필요 (SEO) |
 | `/hobbies/veveno/hub` | Veveno 허브 | **필수** |
 | `/hobbies/veveno/stores/:storeId` | 가게(메뉴·재고·근무·도구·설정·공지) | **필수** |
-| `/hobbies/6pick` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
+| `/hobbies/6pick` | 6PICK 소개 랜딩 | 선택 |
+| `/hobbies/6pick/play` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
 | `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | — |
-| `/hobbies/score-viewer` | 악보 보관함 | 선택 |
+| `/hobbies/score-viewer` | Score Viewer 소개 랜딩 | 선택 |
+| `/hobbies/score-viewer/library` | 악보 보관함 | 선택 |
 | `/hobbies/score-viewer/:id` | 악보 연습 뷰어 | 선택 |
-| `/hobbies/dieta` | Dieta 랜딩 | 선택 (완료 프로필은 홈 스킵) |
+| `/hobbies/dieta` | Dieta 랜딩 | 선택 |
 | `/hobbies/dieta/onboarding` | Dieta 온보딩 | **필수** |
 | `/hobbies/dieta/home` | Dieta 홈 | **필수** |
 | `/hobbies/dieta/meals` | Dieta 섭취 (등록 음식 모달) | **필수** |
@@ -546,6 +694,13 @@ flowchart LR
 | `/hobbies/dieta/activity` | Dieta 활동 | **필수** |
 | `/hobbies/dieta/check-in` | Dieta 주간 체크인 | **필수** |
 | `/hobbies/dieta/settings` | Dieta 설정 | **필수** |
+| `/hobbies/sranko` | 슈란코 랜딩 | 불필요 (SEO) |
+| `/hobbies/sranko/closet` | 슈란코 옷장 (ITEM+ 2단계) | **필수** |
+| `/hobbies/sranko/looks` | 슈란코 내 룩 | **필수** |
+| `/hobbies/sranko/community` | 슈란코 커뮤니티 | 선택 |
+| `/hobbies/sranko/community/new` | 게시 작성 | **필수** |
+| `/hobbies/sranko/community/mine` | MY STYLE | **필수** |
+| `/hobbies/sranko/community/:postId` | 게시 상세 | 선택 |
 | `/maintenance` | 서버 점검중 화면 | 불필요 |
 | `/error` | 오류 화면 | 불필요 |
 | `*` (그 외) | 404 페이지를 찾을 수 없음 | 불필요 |

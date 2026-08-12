@@ -48,3 +48,8 @@ app:
 logging:
   level:
     org.hibernate.SQL: debug
+
+# Local testing: always re-run multi-pass body Gemini (no Redis body JPEG cache).
+sranko:
+  try-on:
+    body-cache-enabled: false

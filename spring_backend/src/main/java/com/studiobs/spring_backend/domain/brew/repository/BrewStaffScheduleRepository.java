@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.brew.repository;
 
 import com.studiobs.spring_backend.domain.brew.entity.BrewStaffSchedule;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,6 +12,8 @@ public interface BrewStaffScheduleRepository extends JpaRepository<BrewStaffSche
     List<BrewStaffSchedule> findByStoreIdOrderByUserIdAscDayOfWeekAsc(UUID storeId);
 
     List<BrewStaffSchedule> findByStoreIdAndUserIdOrderByDayOfWeekAsc(UUID storeId, UUID userId);
+
+    List<BrewStaffSchedule> findByStoreIdInAndUserId(Collection<UUID> storeIds, UUID userId);
 
     Optional<BrewStaffSchedule> findByStoreIdAndUserIdAndDayOfWeek(
             UUID storeId,

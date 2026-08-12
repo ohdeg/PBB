@@ -22,6 +22,10 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Default JSON Content-Type breaks multipart boundaries — let the runtime set it.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.delete('Content-Type');
+  }
   return config;
 });
 
@@ -60,7 +64,11 @@ apiClient.interceptors.response.use(
       const body = error.response.data as ApiErrorBody | undefined;
       const message =
         body && typeof body.message === 'string' ? body.message : null;
-      useAppStatusStore.getState().setMaintenance(true, message);
+      const url = originalRequest?.url ?? '';
+      // Feature-level outages (sranko R2/ML) must not trip global maintenance UI.
+      if (!url.includes('/sranko/')) {
+        useAppStatusStore.getState().setMaintenance(true, message);
+      }
       return Promise.reject(error);
     }
 

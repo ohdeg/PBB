@@ -228,7 +228,14 @@ export function VevenoPage() {
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
-                      badge={<VevenoVisibilityBadge isPublic={store.isPublic} />}
+                      badge={
+                        <>
+                          <VevenoVisibilityBadge isPublic={store.isPublic} />
+                          {store.onDuty ? (
+                            <VevenoBadge variant="success">근무중</VevenoBadge>
+                          ) : null}
+                        </>
+                      }
                     />
                   ))}
                 </div>
@@ -250,7 +257,14 @@ export function VevenoPage() {
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
-                      badge={<VevenoVisibilityBadge isPublic={store.isPublic} />}
+                      badge={
+                        <>
+                          <VevenoVisibilityBadge isPublic={store.isPublic} />
+                          {store.onDuty ? (
+                            <VevenoBadge variant="success">근무중</VevenoBadge>
+                          ) : null}
+                        </>
+                      }
                     />
                   ))}
                 </div>
@@ -310,6 +324,9 @@ export function VevenoPage() {
                               ) : null}
                               {store.subscribed ? (
                                 <VevenoBadge variant="success">구독 중</VevenoBadge>
+                              ) : null}
+                              {store.onDuty ? (
+                                <VevenoBadge variant="success">근무중</VevenoBadge>
                               ) : null}
                             </div>
                             {!canOpen ? (

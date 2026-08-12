@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -58,10 +59,21 @@ public class BrewScheduleService {
         User user = requireUser(email);
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
-        List<StaffMemberResponse> result = new ArrayList<>();
-        for (var sub : subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId)) {
-            userService.findById(sub.getSubscriberUserId()).ifPresent(u ->
-                    result.add(new StaffMemberResponse(u.getId(), u.getNickname())));
+        List<BrewStoreSubscription> subs =
+                subscriptionRepository.findByStoreIdOrderByCreatedAtDesc(storeId);
+        if (subs.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, User> usersById = userService
+                .findAllById(subs.stream().map(BrewStoreSubscription::getSubscriberUserId).toList())
+                .stream()
+                .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
+        List<StaffMemberResponse> result = new ArrayList<>(subs.size());
+        for (BrewStoreSubscription sub : subs) {
+            User member = usersById.get(sub.getSubscriberUserId());
+            if (member != null) {
+                result.add(new StaffMemberResponse(member.getId(), member.getNickname()));
+            }
         }
         return result;
     }
@@ -566,26 +578,97 @@ public class BrewScheduleService {
                             || c.getRequestedByUserId().equals(user.getId()))
                     .toList();
         }
-        return covers.stream().map(this::toCoverResponse).toList();
+        Set<UUID> nicknameIds = new HashSet<>();
+        for (BrewShiftCover cover : covers) {
+            if (cover.getOriginalUserId() != null) {
+                nicknameIds.add(cover.getOriginalUserId());
+            }
+            if (cover.getCoverUserId() != null) {
+                nicknameIds.add(cover.getCoverUserId());
+            }
+        }
+        Map<UUID, String> nicknames = nicknameMap(nicknameIds);
+        return covers.stream()
+                .map(cover -> toCoverResponse(cover, nicknames))
+                .toList();
+    }
+
+    /**
+     * Batch on-duty check for one viewer across many stores (list endpoints).
+     * Missing / empty storeIds → empty map.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, Boolean> onDutyByStoreIds(
+            UUID userId,
+            Collection<UUID> storeIds,
+            Map<UUID, BrewStoreSubscription> subsByStore
+    ) {
+        Map<UUID, Boolean> result = new HashMap<>();
+        if (userId == null || storeIds == null || storeIds.isEmpty()) {
+            return result;
+        }
+        List<UUID> ids = storeIds.stream().filter(id -> id != null).distinct().toList();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        for (UUID id : ids) {
+            result.put(id, false);
+        }
+
+        LocalDateTime now = BrewShiftTimes.nowSeoul();
+        LocalDate today = now.toLocalDate();
+        LocalDate yesterday = today.minusDays(1);
+        List<LocalDate> nearby = List.of(today, yesterday);
+
+        Map<UUID, List<BrewShiftCover>> asCoverByStore = coverRepository
+                .findByStoreIdInAndCoverUserIdAndWorkDateInAndStatus(
+                        ids, userId, nearby, BrewShiftCover.STATUS_APPROVED)
+                .stream()
+                .collect(Collectors.groupingBy(BrewShiftCover::getStoreId));
+        Map<UUID, List<BrewShiftCover>> asOriginalByStore = coverRepository
+                .findByStoreIdInAndOriginalUserIdAndWorkDateInAndStatus(
+                        ids, userId, nearby, BrewShiftCover.STATUS_APPROVED)
+                .stream()
+                .collect(Collectors.groupingBy(BrewShiftCover::getStoreId));
+        Map<UUID, List<BrewStaffSchedule>> schedulesByStore = scheduleRepository
+                .findByStoreIdInAndUserId(ids, userId)
+                .stream()
+                .collect(Collectors.groupingBy(BrewStaffSchedule::getStoreId));
+
+        Map<UUID, BrewStoreSubscription> subs =
+                subsByStore != null ? subsByStore : Map.of();
+        for (UUID storeId : ids) {
+            result.put(
+                    storeId,
+                    evaluateOnDuty(
+                            now,
+                            today,
+                            yesterday,
+                            subs.get(storeId),
+                            asCoverByStore.getOrDefault(storeId, List.of()),
+                            asOriginalByStore.getOrDefault(storeId, List.of()),
+                            schedulesByStore.getOrDefault(storeId, List.of())));
+        }
+        return result;
     }
 
     @Transactional(readOnly = true)
     public boolean isCurrentlyOnDuty(UUID storeId, UUID userId) {
-        LocalDateTime now = BrewShiftTimes.nowSeoul();
-        LocalDate today = now.toLocalDate();
-        LocalDate yesterday = today.minusDays(1);
+        Map<UUID, BrewStoreSubscription> subs = new HashMap<>();
+        subscriptionRepository.findBySubscriberUserIdAndStoreId(userId, storeId)
+                .ifPresent(sub -> subs.put(storeId, sub));
+        return Boolean.TRUE.equals(onDutyByStoreIds(userId, List.of(storeId), subs).get(storeId));
+    }
 
-        BrewStoreSubscription sub = subscriptionRepository
-                .findBySubscriberUserIdAndStoreId(userId, storeId)
-                .orElse(null);
-
-        List<BrewShiftCover> asCover = coverRepository
-                .findByStoreIdAndCoverUserIdAndWorkDateInAndStatus(
-                        storeId,
-                        userId,
-                        List.of(today, yesterday),
-                        BrewShiftCover.STATUS_APPROVED
-                );
+    private boolean evaluateOnDuty(
+            LocalDateTime now,
+            LocalDate today,
+            LocalDate yesterday,
+            BrewStoreSubscription sub,
+            List<BrewShiftCover> asCover,
+            List<BrewShiftCover> asOriginal,
+            List<BrewStaffSchedule> schedules
+    ) {
         for (BrewShiftCover cover : asCover) {
             if (BrewShiftTimes.isWithinShift(
                     now, cover.getWorkDate(), cover.getStartTime(), cover.getEndTime())) {
@@ -593,21 +676,12 @@ public class BrewScheduleService {
             }
         }
 
-        List<BrewShiftCover> asOriginalToday = coverRepository
-                .findByStoreIdAndOriginalUserIdAndWorkDateInAndStatus(
-                        storeId,
-                        userId,
-                        List.of(today, yesterday),
-                        BrewShiftCover.STATUS_APPROVED
-                );
-        Set<LocalDate> coveredOutDates = asOriginalToday.stream()
+        Set<LocalDate> coveredOutDates = asOriginal.stream()
                 .filter(c -> BrewShiftCover.KIND_COVER.equals(
                         c.getShiftKind() == null ? BrewShiftCover.KIND_COVER : c.getShiftKind()))
                 .map(BrewShiftCover::getWorkDate)
                 .collect(Collectors.toSet());
 
-        List<BrewStaffSchedule> schedules =
-                scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, userId);
         for (BrewStaffSchedule schedule : schedules) {
             if (schedule.getDayOfWeek() == today.getDayOfWeek().getValue()
                     && (sub == null || sub.isActiveOn(today))
@@ -648,10 +722,25 @@ public class BrewScheduleService {
     }
 
     private CoverResponse toCoverResponse(BrewShiftCover cover) {
+        Set<UUID> ids = new HashSet<>();
+        if (cover.getOriginalUserId() != null) {
+            ids.add(cover.getOriginalUserId());
+        }
+        if (cover.getCoverUserId() != null) {
+            ids.add(cover.getCoverUserId());
+        }
+        return toCoverResponse(cover, nicknameMap(ids));
+    }
+
+    private CoverResponse toCoverResponse(BrewShiftCover cover, Map<UUID, String> nicknames) {
         return CoverResponse.from(
                 cover,
-                cover.getOriginalUserId() == null ? "" : nicknameOf(cover.getOriginalUserId()),
-                cover.getCoverUserId() == null ? "" : nicknameOf(cover.getCoverUserId())
+                cover.getOriginalUserId() == null
+                        ? ""
+                        : nicknames.getOrDefault(cover.getOriginalUserId(), ""),
+                cover.getCoverUserId() == null
+                        ? ""
+                        : nicknames.getOrDefault(cover.getCoverUserId(), "")
         );
     }
 
@@ -732,13 +821,7 @@ public class BrewScheduleService {
     }
 
     private Map<UUID, String> nicknameMap(Set<UUID> userIds) {
-        Map<UUID, String> map = new HashMap<>();
-        for (UUID id : userIds) {
-            if (id != null) {
-                map.put(id, nicknameOf(id));
-            }
-        }
-        return map;
+        return userService.nicknameMap(userIds);
     }
 
     private String nicknameOf(UUID userId) {

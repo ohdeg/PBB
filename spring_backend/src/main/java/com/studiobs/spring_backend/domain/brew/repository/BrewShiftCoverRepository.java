@@ -60,4 +60,18 @@ public interface BrewShiftCoverRepository extends JpaRepository<BrewShiftCover, 
             Collection<LocalDate> workDates,
             String status
     );
+
+    List<BrewShiftCover> findByStoreIdInAndCoverUserIdAndWorkDateInAndStatus(
+            Collection<UUID> storeIds,
+            UUID coverUserId,
+            Collection<LocalDate> workDates,
+            String status
+    );
+
+    List<BrewShiftCover> findByStoreIdInAndOriginalUserIdAndWorkDateInAndStatus(
+            Collection<UUID> storeIds,
+            UUID originalUserId,
+            Collection<LocalDate> workDates,
+            String status
+    );
 }

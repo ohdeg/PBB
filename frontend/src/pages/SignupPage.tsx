@@ -10,6 +10,7 @@ import {
   getActiveConsents,
   type ConsentKey,
 } from '../data/consents';
+import { toast } from '../stores/toastStore';
 import { getErrorMessage } from '../utils/error';
 import {
   isValidCode,
@@ -189,6 +190,7 @@ export function SignupPage() {
 
     if (!areRequiredConsentsAgreed(consents)) {
       setFormError('필수 동의 항목에 모두 동의해 주세요.');
+      toast('필수 동의 항목에 모두 동의해 주세요.', 'error');
       return;
     }
 
@@ -204,9 +206,12 @@ export function SignupPage() {
           version: item.version,
         })),
       });
+      toast('회원가입이 완료됐어요. 로그인해 주세요.', 'success');
       void navigate('/login', { replace: true });
     } catch (error: unknown) {
-      setFormError(getErrorMessage(error, '회원가입에 실패했습니다.'));
+      const message = getErrorMessage(error, '회원가입에 실패했습니다.');
+      setFormError(message);
+      toast(message, 'error');
     } finally {
       setLoading(false);
     }

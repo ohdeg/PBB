@@ -33,14 +33,19 @@ nbproject/private/
 !.env.example
 !**/.env.example
 !.env.prod.example
+!.env*.example
+.dev.vars
 *.pem
 *.p12
 *.jks
 *.key
 credentials.json
+**/service-account*.json
+**/google-credentials*.json
 secrets/
 **/application-local.yaml
 **/application-secret.yaml
+**/application-prod-local.yaml
 
 # Logs & debug
 logs/
@@ -50,10 +55,18 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+hs_err_pid*
+
+# Local DB / backups (never ship dumps)
+*.sql.gz
+*.dump
+backup_*.sql
+**/backups/
 
 # =========================
 # Frontend (Vite / Node)
 # =========================
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
@@ -62,6 +75,10 @@ frontend/*.local
 frontend/coverage/
 frontend/test-results/
 frontend/playwright-report/
+frontend/playwright/.cache/
+frontend/blob-report/
+*.tsbuildinfo
+.eslintcache
 
 # =========================
 # Spring Boot (Gradle)
@@ -72,6 +89,7 @@ spring_backend/out/
 spring_backend/bin/
 spring_backend/HELP.md
 !spring_backend/gradle/wrapper/gradle-wrapper.jar
+*.class
 
 # =========================
 # FastAPI (Python)
@@ -88,11 +106,22 @@ fastAPI_backend/htmlcov/
 fastAPI_backend/*.egg-info/
 fastAPI_backend/dist/
 fastAPI_backend/build/
+fastAPI_backend/models/*.pth
+fastAPI_backend/models/*.pt
+fastAPI_backend/models/*.onnx
+.venv/
+venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # =========================
 # Agent / local tooling
 # =========================
 .cursor/
+.wrangler/
 
 # =========================
 # Misc
@@ -107,6 +136,7 @@ coverage/
 .cache/
 .parcel-cache/
 useskill.md
+학습데이터/
 
+# Local deploy notes (may contain host/ops secrets)
 docs/배포가이드.md
-

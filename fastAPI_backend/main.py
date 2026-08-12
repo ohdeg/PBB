@@ -1,13 +1,5 @@
-from fastapi import FastAPI
+"""ASGI entry: `uvicorn main:app --reload --port 8000` from fastAPI_backend/."""
 
-app = FastAPI()
+from app.main import app
 
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
+__all__ = ["app"]

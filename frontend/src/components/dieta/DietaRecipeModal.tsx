@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { DietaRecipeAnalyzeResult } from '../../features/dieta/types';
+import { Dialog } from '../ui/Dialog';
 
 interface DietaRecipeModalProps {
   open: boolean;
@@ -86,16 +87,20 @@ export function DietaRecipeModal({
   };
 
   return (
-    <div className="dieta-modal-backdrop" role="presentation" onClick={resetAndClose}>
-      <div
-        className="dieta-modal"
-        role="dialog"
-        aria-modal
-        aria-labelledby="dieta-recipe-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="dieta-recipe-title">레시피로 추가</h2>
-        <p className="dieta-muted">
+    <Dialog
+      open={open}
+      title="레시피로 추가"
+      onClose={resetAndClose}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      backdropClassName="dieta-modal-backdrop"
+      panelClassName="dieta-modal"
+      description
+    >
+      {({ titleId, descriptionId }) => (
+        <>
+        <h2 id={titleId}>레시피로 추가</h2>
+        <p id={descriptionId} className="dieta-muted">
           제목·재료(분량)·몇 인분을 적으면 1인분당 영양·칼로리를 분석해 오늘 섭취에
           더해요. 끼니(아침/점심/저녁/간식)는 「등록 음식」에서 다시 더할 때 고르세요.
         </p>
@@ -201,7 +206,8 @@ export function DietaRecipeModal({
             </div>
           </>
         )}
-      </div>
-    </div>
+        </>
+      )}
+    </Dialog>
   );
 }

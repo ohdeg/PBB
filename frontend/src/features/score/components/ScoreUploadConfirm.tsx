@@ -1,6 +1,7 @@
-import { useEffect, type FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { Button } from '../../../components/ui/Button';
+import { Dialog } from '../../../components/ui/Dialog';
 
 interface ScoreUploadConfirmProps {
   fileName: string;
@@ -27,32 +28,25 @@ export function ScoreUploadConfirm({
 }: ScoreUploadConfirmProps) {
   const t = useTranslation();
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isUploading) {
-        onCancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isUploading, onCancel]);
-
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     onConfirm();
   };
 
   return (
-    <div
-      className="score-upload-confirm-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('score.uploadDialogLabel')}
+    <Dialog
+      open
+      title={t('score.uploadDialogLabel')}
+      onClose={onCancel}
+      closeOnBackdrop={false}
+      closeOnEscape={!isUploading}
+      backdropClassName="score-upload-confirm-backdrop"
+      panelClassName="score-upload-confirm-card"
     >
-      <form className="score-upload-confirm-card" onSubmit={handleSubmit}>
+      {({ titleId }) => (
+      <form className="contents" onSubmit={handleSubmit}>
         <p className="score-upload-confirm-kicker">{t('score.uploadKicker')}</p>
-        <h3>{t('score.uploadTitle')}</h3>
+        <h3 id={titleId}>{t('score.uploadTitle')}</h3>
         <p className="score-upload-confirm-desc">{t('score.uploadDesc')}</p>
         <p className="score-upload-confirm-file">
           {t('score.uploadFileLabel')}: <span>{fileName}</span>
@@ -91,6 +85,7 @@ export function ScoreUploadConfirm({
           </Button>
         </div>
       </form>
-    </div>
+      )}
+    </Dialog>
   );
 }

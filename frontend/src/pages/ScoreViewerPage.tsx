@@ -35,7 +35,7 @@ function ScoreViewerPageInner() {
 
   return (
     <main className="score-main viewer-page">
-      <Link to="/hobbies/score-viewer" className="back-link">
+      <Link to="/hobbies/score-viewer/library" className="back-link">
         {t('viewer.backToLibrary')}
       </Link>
       <p className="page-kicker">음악</p>

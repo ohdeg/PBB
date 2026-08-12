@@ -1,311 +1,168 @@
-import { useEffect, useRef, useState } from 'react';
-import type { TouchEvent as ReactTouchEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { configApi } from '../api/configApi';
 import {
-  getFeaturedHobby,
   getHobbyById,
-  getHobbiesByCategory,
-  HOBBY_CATEGORIES,
+  getHobbyMediaSrc,
+  HOBBY_APPS,
+  sortHobbiesByRecency,
   type HobbyApp,
+  type HobbyBlockTone,
 } from '../data/hobbies';
-
-const FEATURED_ROTATE_MS = 5000;
+import { useAuthStore } from '../stores/authStore';
 
 export function HomePage() {
-  const [featured, setFeatured] = useState<HobbyApp[]>(() => [getFeaturedHobby()]);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const [featuredIds, setFeaturedIds] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const { data } = await configApi.getFeaturedApps();
-        const apps = data.appIds
-          .map((id) => getHobbyById(id))
-          .filter((app): app is HobbyApp => Boolean(app));
-        if (!cancelled && apps.length > 0) {
-          setFeatured(apps);
+        const ids = data.appIds
+          .map((id) => getHobbyById(id)?.id)
+          .filter((id): id is string => Boolean(id));
+        if (!cancelled) {
+          setFeaturedIds(ids);
         }
       } catch {
-        // 조회 실패 시 기본 추천 앱 유지
+        if (!cancelled) {
+          setFeaturedIds([]);
+        }
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return (
-    <main className="store-main">
-      <header className="store-hero">
-        <div className="store-hero-glow" aria-hidden="true" />
-        <p className="page-kicker">Today</p>
-        <h1>취미를 골라 시작하세요</h1>
-        <p className="store-hero-copy">
-          종류별로 모아둔 취미 앱에 들어가 보세요.
-        </p>
-      </header>
+  const gridApps = useMemo(() => orderHomeApps(featuredIds), [featuredIds]);
+  const marqueeApps = HOBBY_APPS.filter((app) => app.available);
 
-      <section className="store-featured" aria-label="추천 앱">
-        <FeaturedCarousel apps={featured} />
+  return (
+    <main className="figma-home">
+      <section className="figma-hero" aria-label="PBB 소개">
+        <p className="figma-eyebrow">Play beom&apos;s BAG</p>
+        <h1 className="figma-hero__title">취미 앱을 모은 가방</h1>
+        <p className="figma-hero__lead">
+          가게 노트부터 악보·체중·옷장까지. 골라 열고, 바로 이어서.
+        </p>
+        <div className="figma-hero__actions">
+          <a href="#apps" className="figma-pill figma-pill--primary">
+            취미 둘러보기
+          </a>
+          {!accessToken ? (
+            <Link to="/signup" className="figma-pill figma-pill--secondary">
+              가입하기
+            </Link>
+          ) : null}
+        </div>
       </section>
 
-      {HOBBY_CATEGORIES.map((category) => {
-        const apps = getHobbiesByCategory(category);
-        if (apps.length === 0) {
-          return null;
-        }
+      <div className="figma-marquee" aria-hidden="true">
+        <div className="figma-marquee__track">
+          {[...marqueeApps, ...marqueeApps].map((app, i) => (
+            <span key={`${app.id}-${i}`} className="figma-marquee__item">
+              {app.name}
+            </span>
+          ))}
+        </div>
+      </div>
 
-        return (
-          <section key={category} className="store-category" aria-label={category}>
-            <div className="store-category-head">
-              <h2>{category}</h2>
-              <span className="store-category-count">{apps.length}</span>
-            </div>
-            <ul className="store-row">
-              {apps.map((app) => (
-                <li key={app.id}>
-                  <HobbyAppTile app={app} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      <section id="apps" className="figma-apps" aria-label="취미 앱">
+        <div className="figma-apps__featured">
+          {gridApps.slice(0, 2).map((app) => (
+            <ColorBlock key={app.id} app={app} featured />
+          ))}
+        </div>
+        <div className="figma-apps__grid">
+          {gridApps.slice(2).map((app) => (
+            <ColorBlock key={app.id} app={app} />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
 
-function FeaturedCarousel({ apps }: { apps: HobbyApp[] }) {
-  const [index, setIndex] = useState(0);
-  const touchStartX = useRef<number | null>(null);
-  const count = apps.length;
-
-  const current = Math.min(index, count - 1);
-
-  const goTo = (next: number) => {
-    setIndex(((next % count) + count) % count);
-  };
-
-  useEffect(() => {
-    if (count <= 1) {
-      return;
-    }
-    if (
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setIndex((prev) => (prev + 1) % count);
-    }, FEATURED_ROTATE_MS);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [count]);
-
-  if (count === 0) {
-    return null;
+function orderHomeApps(featuredIds: string[]): HobbyApp[] {
+  const available = HOBBY_APPS.filter((app) => app.available);
+  if (featuredIds.length === 0) {
+    return sortHobbiesByRecency(available);
   }
 
-  if (count === 1) {
-    return <HobbyFeaturedTile app={apps[0]} />;
+  const byId = new Map(available.map((app) => [app.id, app]));
+  const ordered: HobbyApp[] = [];
+  const seen = new Set<string>();
+
+  for (const id of featuredIds) {
+    const app = byId.get(id);
+    if (app && !seen.has(id)) {
+      ordered.push(app);
+      seen.add(id);
+    }
   }
 
-  const handleTouchStart = (event: ReactTouchEvent) => {
-    touchStartX.current = event.touches[0]?.clientX ?? null;
-  };
-
-  const handleTouchEnd = (event: ReactTouchEvent) => {
-    const start = touchStartX.current;
-    touchStartX.current = null;
-    if (start === null) {
-      return;
+  for (const app of sortHobbiesByRecency(available)) {
+    if (!seen.has(app.id)) {
+      ordered.push(app);
     }
-    const delta = (event.changedTouches[0]?.clientX ?? start) - start;
-    if (Math.abs(delta) < 40) {
-      return;
-    }
-    goTo(delta < 0 ? current + 1 : current - 1);
-  };
+  }
 
-  return (
-    <div className="featured-carousel" aria-roledescription="carousel">
-      <div
-        className="featured-carousel__viewport"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div
-          className="featured-carousel__track"
-          style={{ transform: `translateX(-${current * 100}%)` }}
-        >
-          {apps.map((app, i) => (
-            <div
-              className="featured-carousel__slide"
-              key={app.id}
-              aria-hidden={i !== current}
-            >
-              <HobbyFeaturedTile app={app} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="featured-carousel__controls">
-        <button
-          type="button"
-          className="featured-carousel__arrow"
-          onClick={() => goTo(current - 1)}
-          aria-label="이전 추천 앱"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M10 3.5 5.5 8l4.5 4.5"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-
-        <div className="featured-carousel__dots" role="tablist" aria-label="추천 앱 선택">
-          {apps.map((app, i) => (
-            <button
-              type="button"
-              key={app.id}
-              className={
-                i === current
-                  ? 'featured-carousel__dot featured-carousel__dot--active'
-                  : 'featured-carousel__dot'
-              }
-              onClick={() => goTo(i)}
-              aria-label={`${app.name} 보기`}
-              aria-selected={i === current}
-              role="tab"
-            />
-          ))}
-        </div>
-
-        <button
-          type="button"
-          className="featured-carousel__arrow"
-          onClick={() => goTo(current + 1)}
-          aria-label="다음 추천 앱"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M6 3.5 10.5 8 6 12.5"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
+  return ordered;
 }
 
-function HobbyFeaturedTile({ app }: { app: HobbyApp }) {
-  const content = (
-    <>
-      <div
-        className={`featured-icon${app.iconSrc ? ' has-image' : ''}`}
-        style={app.iconSrc ? undefined : { background: app.accent }}
-      >
-        {app.iconSrc ? (
-          <img src={app.iconSrc} alt="" width={88} height={88} draggable={false} />
-        ) : (
-          app.name.slice(0, 1)
-        )}
-      </div>
-      <div className="featured-copy">
-        <p className="featured-category">{app.category}</p>
-        <h2>{app.name}</h2>
-        <p className="featured-subtitle">{app.subtitle}</p>
-        <p className="featured-desc">{app.description}</p>
-        <span className={`featured-action${app.available ? '' : ' is-soon'}`}>
-          {app.available ? '열기' : '곧 공개'}
-          {app.available ? (
-            <svg
-              className="featured-arrow"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M5.5 3.5 10 8l-4.5 4.5"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : null}
-        </span>
-      </div>
-    </>
-  );
-
-  if (app.available && app.path) {
-    return (
-      <Link to={app.path} className="featured-tile">
-        {content}
-      </Link>
-    );
-  }
+function ColorBlock({
+  app,
+  featured = false,
+}: {
+  app: HobbyApp;
+  featured?: boolean;
+}) {
+  const mediaSrc = getHobbyMediaSrc(app);
+  const tone: HobbyBlockTone = app.blockTone ?? 'cream';
+  const inverse = tone === 'navy';
 
   return (
-    <div className="featured-tile is-disabled" aria-disabled="true">
-      {content}
-    </div>
-  );
-}
-
-function HobbyAppTile({ app }: { app: HobbyApp }) {
-  const body = (
-    <>
-      <div
-        className={`app-icon${app.iconSrc ? ' has-image' : ''}`}
-        style={app.iconSrc ? undefined : { background: app.accent }}
-        aria-hidden="true"
-      >
-        {app.iconSrc ? (
-          <img src={app.iconSrc} alt="" width={50} height={50} draggable={false} />
+    <article
+      className={`figma-block figma-block--${tone}${featured ? ' figma-block--featured' : ''}${inverse ? ' figma-block--inverse' : ''}`}
+    >
+      <div className="figma-block__copy">
+        <p className="figma-eyebrow">{app.category}</p>
+        <h2 className="figma-block__title">{app.name}</h2>
+        <p className="figma-block__subhead">{app.subtitle}</p>
+        <p className="figma-block__body">{app.description}</p>
+        <div className="figma-block__actions">
+          {app.path ? (
+            <>
+              <Link
+                to={app.startPath ?? app.path}
+                className={`figma-pill ${inverse ? 'figma-pill--secondary' : 'figma-pill--primary'}`}
+              >
+                시작하기
+              </Link>
+              {app.startPath && app.startPath !== app.path ? (
+                <Link
+                  to={app.path}
+                  className={`figma-link${inverse ? ' figma-link--inverse' : ''}`}
+                >
+                  소개 보기
+                </Link>
+              ) : null}
+            </>
+          ) : (
+            <span className="figma-pill figma-pill--disabled">준비중</span>
+          )}
+        </div>
+      </div>
+      <div className="figma-block__media" aria-hidden="true">
+        {mediaSrc ? (
+          <img src={mediaSrc} alt="" width={320} height={320} draggable={false} />
         ) : (
-          app.name.slice(0, 1)
+          <span className="figma-block__fallback">{app.name.slice(0, 1)}</span>
         )}
       </div>
-      <div className="app-meta">
-        <p className="app-name">{app.name}</p>
-        <p className="app-subtitle">{app.subtitle}</p>
-      </div>
-      <span className={`app-cta ${app.available ? '' : 'is-soon'}`}>
-        {app.available ? '열기' : '준비중'}
-      </span>
-    </>
-  );
-
-  if (app.available && app.path) {
-    return (
-      <Link to={app.path} className="app-tile">
-        {body}
-      </Link>
-    );
-  }
-
-  return (
-    <div className="app-tile is-disabled" aria-disabled="true">
-      {body}
-    </div>
+    </article>
   );
 }

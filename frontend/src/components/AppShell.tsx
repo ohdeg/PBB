@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
+import { getNavHobbies } from '../data/hobbies';
 import { useAuthStore } from '../stores/authStore';
+import { toast } from '../stores/toastStore';
 import { getErrorMessage } from '../utils/error';
 
 function readReturnPath(state: unknown): string | undefined {
@@ -26,6 +28,9 @@ function logoutLandingPath(pathname: string): string {
   if (pathname.startsWith('/hobbies/dieta')) {
     return '/hobbies/dieta';
   }
+  if (pathname.startsWith('/hobbies/sranko')) {
+    return '/hobbies/sranko';
+  }
   return '/';
 }
 
@@ -38,30 +43,34 @@ export function AppShell() {
   const setSuppressLoginRedirect = useAuthStore(
     (state) => state.setSuppressLoginRedirect,
   );
-  const [logoutError, setLogoutError] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const loginReturnPath = readReturnPath(location.state);
+  const navHobbies = getNavHobbies();
+  const isHome = location.pathname === '/';
 
   useEffect(() => {
-    // pathname이 바뀐 뒤에만 플래그를 해제 (같은 틱에 풀리면 가드가 다시 /login으로 보냄)
     if (!useAuthStore.getState().suppressLoginRedirect) {
       return;
     }
     setSuppressLoginRedirect(false);
   }, [location.pathname, setSuppressLoginRedirect]);
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
   const handleLogout = async () => {
-    setLogoutError('');
     setLoggingOut(true);
     const from = `${location.pathname}${location.search}`;
     const landing = logoutLandingPath(location.pathname);
     try {
       await authApi.logout();
+      toast('로그아웃했어요.', 'success');
     } catch (error: unknown) {
-      setLogoutError(getErrorMessage(error, '로그아웃 요청에 실패했습니다.'));
+      toast(getErrorMessage(error, '로그아웃 요청에 실패했습니다.'), 'error');
     } finally {
-      // 가드가 /login으로 보내기 전에 플래그로 막은 뒤 랜딩으로 이동
       setSuppressLoginRedirect(true);
       void navigate(landing, {
         replace: true,
@@ -73,59 +82,91 @@ export function AppShell() {
   };
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <Link to="/" className="brand-block brand-link">
-          <span className="brand">PBB</span>
-          <span className="brand-full">Play beom&apos;s BAG</span>
-        </Link>
+    <div className={`app-shell${isHome ? ' app-shell--flush' : ''}`}>
+      <header className="global-nav">
+        <div className="global-nav__inner">
+          <Link to="/" className="global-nav__brand" aria-label="PBB 홈">
+            PBB
+          </Link>
 
-        <nav className="home-nav" aria-label="계정">
-          {accessToken ? (
-            <>
-              {nickname ? (
+          <nav className="global-nav__tabs" aria-label="취미 탭">
+            {navHobbies.map((app) => (
+              <NavLink
+                key={app.id}
+                to={app.path ?? '/'}
+                className={({ isActive }) =>
+                  isActive ? 'global-nav__link is-active' : 'global-nav__link'
+                }
+              >
+                {app.name}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="global-nav__actions">
+            {accessToken ? (
+              <>
+                {nickname ? (
+                  <button
+                    type="button"
+                    className="global-nav__link global-nav__link--button"
+                    onClick={() => {
+                      void navigate('/profile');
+                    }}
+                  >
+                    {nickname}
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  className="nav-nickname"
+                  className="figma-pill figma-pill--secondary figma-pill--nav"
                   onClick={() => {
-                    void navigate('/profile');
+                    void handleLogout();
                   }}
+                  disabled={loggingOut}
                 >
-                  {nickname}
+                  {loggingOut ? '…' : '로그아웃'}
                 </button>
-              ) : null}
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  void handleLogout();
-                }}
-                disabled={loggingOut}
-              >
-                {loggingOut ? '로그아웃 중…' : '로그아웃'}
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                state={loginReturnPath ? { from: loginReturnPath } : undefined}
-              >
-                로그인
-              </Link>
-              <Link to="/signup" className="btn-primary link-as-btn">
-                회원가입
-              </Link>
-            </>
-          )}
-        </nav>
-      </header>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="figma-pill figma-pill--secondary figma-pill--nav"
+                  state={loginReturnPath ? { from: loginReturnPath } : undefined}
+                >
+                  로그인
+                </Link>
+                <Link to="/signup" className="figma-pill figma-pill--primary figma-pill--nav">
+                  가입
+                </Link>
+              </>
+            )}
 
-      {logoutError ? (
-        <p className="form-error shell-error" role="alert">
-          {logoutError}
-        </p>
-      ) : null}
+            <button
+              type="button"
+              className="global-nav__menu-btn"
+              aria-expanded={menuOpen}
+              aria-controls="global-nav-drawer"
+              aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span />
+              <span />
+            </button>
+          </div>
+        </div>
+
+        {menuOpen ? (
+          <div id="global-nav-drawer" className="global-nav__drawer">
+            {navHobbies.map((app) => (
+              <Link key={app.id} to={app.path ?? '/'} className="global-nav__drawer-link">
+                {app.name}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </header>
 
       <Outlet />
     </div>

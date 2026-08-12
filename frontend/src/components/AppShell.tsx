@@ -49,6 +49,7 @@ export function AppShell() {
   const loginReturnPath = readReturnPath(location.state);
   const navHobbies = getNavHobbies();
   const isHome = location.pathname === '/';
+  const isSranko = location.pathname.startsWith('/hobbies/sranko');
 
   useEffect(() => {
     if (!useAuthStore.getState().suppressLoginRedirect) {
@@ -82,7 +83,7 @@ export function AppShell() {
   };
 
   return (
-    <div className={`app-shell${isHome ? ' app-shell--flush' : ''}`}>
+    <div className={`app-shell${isHome || isSranko ? ' app-shell--flush' : ''}`}>
       <header className="global-nav">
         <div className="global-nav__inner">
           <Link to="/" className="global-nav__brand" aria-label="PBB 홈">

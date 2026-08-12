@@ -16,10 +16,6 @@ import {
   type ShoeUnit,
   type WeightUnit,
 } from '../features/sranko/measurements';
-import {
-  SRANKO_COMMUNITY,
-  SRANKO_LOOKS,
-} from '../features/sranko/paths';
 import { resizeImageForUpload } from '../features/sranko/resizeImageForUpload';
 import { SrankoFitMap } from '../features/sranko/SrankoFitMap';
 import { SrankoZoomableImage } from '../features/sranko/SrankoZoomableImage';
@@ -160,6 +156,8 @@ export function SrankoClosetPage() {
   const [fitParts, setFitParts] = useState<SrankoFitPart[]>([]);
 
   const [name, setName] = useState('');
+  const [brand, setBrand] = useState('');
+  const [productUrl, setProductUrl] = useState('');
   const [slot, setSlot] = useState<SrankoSlot>('TOP');
   const [categoryCode, setCategoryCode] = useState(SRANKO_CATEGORIES.TOP[0]);
   const [warmth, setWarmth] = useState<number | null>(3);
@@ -543,6 +541,8 @@ export function SrankoClosetPage() {
     setEditingItemId(null);
     setExistingImageUrl(null);
     setName('');
+    setBrand('');
+    setProductUrl('');
     setSlot('TOP');
     setCategoryCode(SRANKO_CATEGORIES.TOP[0]);
     setWarmth(3);
@@ -569,6 +569,8 @@ export function SrankoClosetPage() {
     setEditingItemId(item.id);
     setExistingImageUrl(item.imageUrl);
     setName(item.name);
+    setBrand(item.brand ?? '');
+    setProductUrl(item.productUrl ?? '');
     setSlot(item.slot);
     setCategoryCode(normalizeSrankoCategoryCode(item.slot, item.categoryCode));
     setWarmth(isWarmthlessSlot(item.slot) ? null : (item.warmth ?? 3));
@@ -837,6 +839,8 @@ export function SrankoClosetPage() {
       await saveItem({
         id: editingItemId ?? undefined,
         name: name.trim() || `${SLOT_LABEL[slot]} 아이템`,
+        brand: brand.trim() || null,
+        productUrl: productUrl.trim() || null,
         slot,
         categoryCode,
         warmth: isWarmthlessSlot(slot) ? null : warmth,
@@ -1268,6 +1272,7 @@ export function SrankoClosetPage() {
                   <div className="sranko-card__body">
                     <strong>{item.name}</strong>
                     <span>
+                      {item.brand ? `${item.brand} · ` : ''}
                       {SLOT_LABEL[item.slot]} ·{' '}
                       {formatSrankoCategoryLabel(item.slot, item.categoryCode)}
                       {item.warmth != null ? ` · 따뜻함 ${item.warmth}` : ''}
@@ -1315,16 +1320,6 @@ export function SrankoClosetPage() {
         </div>
       ) : null}
 
-      <p className="sranko-footer-links">
-        <Link className="sranko-link" to={SRANKO_LOOKS}>
-          내 룩
-        </Link>
-        {' · '}
-        <Link className="sranko-link" to={SRANKO_COMMUNITY}>
-          커뮤니티
-        </Link>
-      </p>
-
       {modal === 'detail' && selected ? (
         <Dialog
           open
@@ -1348,10 +1343,23 @@ export function SrankoClosetPage() {
                 alt={selected.name}
               />
               <p className="sranko-detail__meta">
+                {selected.brand ? `${selected.brand} · ` : ''}
                 {SLOT_LABEL[selected.slot]} ·{' '}
                 {formatSrankoCategoryLabel(selected.slot, selected.categoryCode)}
                 {selected.warmth != null ? ` · 따뜻함 ${selected.warmth}` : ''}
               </p>
+              {selected.productUrl ? (
+                <p className="sranko-detail__meta">
+                  <a
+                    className="sranko-link"
+                    href={selected.productUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    상품 링크
+                  </a>
+                </p>
+              ) : null}
               {ITEM_MEASUREMENT_FIELDS[selected.slot].length > 0 ? (
                 <>
                   <h3 className="sranko-detail__section">옷 사이즈</h3>
@@ -1566,6 +1574,25 @@ export function SrankoClosetPage() {
                     value={name ?? ''}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="예: 네이비 니트"
+                  />
+                </label>
+                <label className="sranko-field">
+                  <span>브랜드 (선택)</span>
+                  <input
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    placeholder="예: Uniqlo"
+                    maxLength={80}
+                  />
+                </label>
+                <label className="sranko-field">
+                  <span>상품 URL (선택)</span>
+                  <input
+                    type="url"
+                    value={productUrl}
+                    onChange={(e) => setProductUrl(e.target.value)}
+                    placeholder="https://"
+                    maxLength={512}
                   />
                 </label>
                 <label className="sranko-field">

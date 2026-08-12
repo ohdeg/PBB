@@ -48,7 +48,7 @@ export function SrankoLayout() {
             to={SRANKO_LOOKS}
             className={({ isActive }) => (isActive ? 'is-active' : undefined)}
           >
-            내 룩
+            룩북
           </NavLink>
           <NavLink
             to={SRANKO_COMMUNITY}

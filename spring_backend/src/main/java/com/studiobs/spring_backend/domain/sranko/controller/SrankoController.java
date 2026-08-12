@@ -8,6 +8,7 @@ import com.studiobs.spring_backend.domain.sranko.dto.SrankoLikeToggleResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoItemResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoItemUpsertRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookCreateRequest;
+import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookPickerResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostCreateRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostResponse;
@@ -105,6 +106,17 @@ public class SrankoController {
     @GetMapping("/looks")
     public List<SrankoLookResponse> listLooks(HttpServletRequest request) {
         return srankoService.listLooks(accessTokenResolver.requireEmail(request));
+    }
+
+    /** Community write picker — looks only, no item hydrate (1 query). */
+    @GetMapping("/looks/picker")
+    public List<SrankoLookPickerResponse> listLooksForPicker(HttpServletRequest request) {
+        return srankoService.listLooksForPicker(accessTokenResolver.requireEmail(request));
+    }
+
+    @GetMapping("/looks/{lookId}")
+    public SrankoLookResponse getLook(HttpServletRequest request, @PathVariable UUID lookId) {
+        return srankoService.getLook(accessTokenResolver.requireEmail(request), lookId);
     }
 
     @PostMapping("/looks")

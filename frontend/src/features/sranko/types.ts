@@ -69,9 +69,22 @@ export interface SrankoItem {
   /** Warmth 1–5; null for shoes/accessories / unset. User-confirmed = future training GT. */
   warmth: number | null;
   name: string;
+  brand: string | null;
+  productUrl: string | null;
   imageUrl: string;
   measurements: Record<string, string>;
   createdAt: string;
+}
+
+export interface SrankoLookItem {
+  id: string;
+  missing: boolean;
+  slot: SrankoSlot | null;
+  categoryCode: string | null;
+  name: string;
+  brand: string | null;
+  productUrl: string | null;
+  imageUrl: string | null;
 }
 
 export interface SrankoLook {
@@ -79,7 +92,16 @@ export interface SrankoLook {
   name: string;
   imageUrl: string;
   itemIds: string[];
+  items: SrankoLookItem[];
   source: 'COMPOSE' | 'TRY_ON';
+  createdAt: string;
+}
+
+/** Community write picker — no items hydrate. */
+export interface SrankoLookPicker {
+  id: string;
+  name: string;
+  imageUrl: string;
   createdAt: string;
 }
 

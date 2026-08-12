@@ -161,6 +161,8 @@ export function useSrankoMutations() {
       categoryCode: string;
       warmth?: number | null;
       name: string;
+      brand?: string | null;
+      productUrl?: string | null;
       imageUrl: string;
       measurements?: Record<string, string>;
     }) => srankoApi.upsertItem(input),

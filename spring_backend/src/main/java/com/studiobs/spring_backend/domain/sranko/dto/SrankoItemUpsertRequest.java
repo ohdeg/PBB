@@ -12,6 +12,8 @@ public record SrankoItemUpsertRequest(
         @NotBlank @Size(max = 64) String categoryCode,
         Integer warmth,
         @NotBlank @Size(max = 120) String name,
+        @Size(max = 80) String brand,
+        @Size(max = 512) String productUrl,
         @NotBlank @Size(max = 512) String imageUrl,
         Map<String, String> measurements
 ) {

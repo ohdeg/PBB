@@ -7,6 +7,8 @@ import type {
   SrankoFitPart,
   SrankoItem,
   SrankoLook,
+  SrankoLookItem,
+  SrankoLookPicker,
   SrankoPlace,
   SrankoPlaceSearchHit,
   SrankoPost,
@@ -116,9 +118,22 @@ interface SrankoItemApi {
   categoryCode: string;
   warmth: number | null;
   name: string;
+  brand?: string | null;
+  productUrl?: string | null;
   imageUrl: string;
   measurements: Record<string, string>;
   createdAt: string;
+}
+
+interface SrankoLookItemApi {
+  id: string;
+  missing: boolean;
+  slot?: string | null;
+  categoryCode?: string | null;
+  name: string;
+  brand?: string | null;
+  productUrl?: string | null;
+  imageUrl?: string | null;
 }
 
 interface SrankoLookApi {
@@ -126,6 +141,7 @@ interface SrankoLookApi {
   name: string;
   imageUrl: string;
   itemIds: string[];
+  items?: SrankoLookItemApi[] | null;
   source: 'COMPOSE' | 'TRY_ON';
   createdAt: string;
 }
@@ -221,18 +237,46 @@ function mapItem(data: SrankoItemApi): SrankoItem {
     categoryCode: data.categoryCode,
     warmth: data.warmth ?? null,
     name: data.name,
+    brand: data.brand?.trim() ? data.brand.trim() : null,
+    productUrl: data.productUrl?.trim() ? data.productUrl.trim() : null,
     imageUrl: data.imageUrl,
     measurements: data.measurements ?? {},
     createdAt: data.createdAt,
   };
 }
 
+function mapLookItem(data: SrankoLookItemApi): SrankoLookItem {
+  const slot =
+    data.slot === 'TOP'
+    || data.slot === 'BOTTOM'
+    || data.slot === 'OUTER'
+    || data.slot === 'SHOES'
+    || data.slot === 'DRESS'
+    || data.slot === 'BAG'
+    || data.slot === 'HAT'
+    || data.slot === 'JEWELRY'
+      ? data.slot
+      : null;
+  return {
+    id: data.id,
+    missing: Boolean(data.missing),
+    slot,
+    categoryCode: data.categoryCode ?? null,
+    name: data.name,
+    brand: data.brand?.trim() ? data.brand.trim() : null,
+    productUrl: data.productUrl?.trim() ? data.productUrl.trim() : null,
+    imageUrl: data.imageUrl ?? null,
+  };
+}
+
 function mapLook(data: SrankoLookApi): SrankoLook {
+  const items = (data.items ?? []).map(mapLookItem);
   return {
     id: data.id,
     name: data.name,
     imageUrl: data.imageUrl,
-    itemIds: data.itemIds ?? [],
+    itemIds: data.itemIds ?? items.map((i) => i.id),
+    items,
     source: data.source,
     createdAt: data.createdAt,
   };
@@ -373,6 +417,8 @@ export const srankoApi = {
     categoryCode: string;
     warmth?: number | null;
     name: string;
+    brand?: string | null;
+    productUrl?: string | null;
     imageUrl: string;
     measurements?: Record<string, string>;
   }): Promise<SrankoItem> {
@@ -383,6 +429,8 @@ export const srankoApi = {
         categoryCode: input.categoryCode,
         warmth: input.warmth ?? null,
         name: input.name,
+        brand: input.brand?.trim() ? input.brand.trim() : null,
+        productUrl: input.productUrl?.trim() ? input.productUrl.trim() : null,
         imageUrl: input.imageUrl,
         measurements: input.measurements ?? {},
       });
@@ -404,6 +452,32 @@ export const srankoApi = {
     try {
       const { data } = await apiClient.get<SrankoLookApi[]>(`${BASE}/looks`);
       return data.map(mapLook);
+    } catch (error) {
+      rethrow(error, '룩을 불러오지 못했어요.');
+    }
+  },
+
+  /** Community write — no items hydrate (1 query on server). */
+  async listLooksPicker(): Promise<SrankoLookPicker[]> {
+    try {
+      const { data } = await apiClient.get<
+        Array<{ id: string; name: string; imageUrl: string; createdAt: string }>
+      >(`${BASE}/looks/picker`);
+      return data.map((row) => ({
+        id: row.id,
+        name: row.name,
+        imageUrl: row.imageUrl,
+        createdAt: row.createdAt,
+      }));
+    } catch (error) {
+      rethrow(error, '룩을 불러오지 못했어요.');
+    }
+  },
+
+  async getLook(lookId: string): Promise<SrankoLook> {
+    try {
+      const { data } = await apiClient.get<SrankoLookApi>(`${BASE}/looks/${lookId}`);
+      return mapLook(data);
     } catch (error) {
       rethrow(error, '룩을 불러오지 못했어요.');
     }

@@ -10,15 +10,21 @@ public record SrankoLookResponse(
         String name,
         String imageUrl,
         List<UUID> itemIds,
+        List<SrankoLookItemDto> items,
         String source,
         LocalDateTime createdAt
 ) {
-    public static SrankoLookResponse from(SrankoLook look, List<UUID> itemIds) {
+    public static SrankoLookResponse from(
+            SrankoLook look,
+            List<UUID> itemIds,
+            List<SrankoLookItemDto> items
+    ) {
         return new SrankoLookResponse(
                 look.getId(),
                 look.getName(),
                 look.getImageUrl(),
                 itemIds,
+                items != null ? items : List.of(),
                 look.getSource(),
                 look.getCreatedAt()
         );

@@ -11,6 +11,8 @@ import com.studiobs.spring_backend.domain.sranko.dto.SrankoLikeToggleResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoItemResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoItemUpsertRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookCreateRequest;
+import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookItemDto;
+import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookPickerResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostCreateRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostResponse;
@@ -377,6 +379,8 @@ public class SrankoService {
         String measurementsJson = writeJson(
                 body.measurements() != null ? body.measurements() : Map.of()
         );
+        String brand = normalizeOptionalText(body.brand(), 80);
+        String productUrl = normalizeOptionalProductUrl(body.productUrl());
 
         String categoryCode = normalizeCategoryCode(slot, body.categoryCode());
 
@@ -390,6 +394,8 @@ public class SrankoService {
                     categoryCode,
                     warmth,
                     body.name().trim(),
+                    brand,
+                    productUrl,
                     body.imageUrl(),
                     measurementsJson
             );
@@ -406,6 +412,8 @@ public class SrankoService {
                 .categoryCode(categoryCode)
                 .warmth(warmth)
                 .name(body.name().trim())
+                .brand(brand)
+                .productUrl(productUrl)
                 .imageUrl(body.imageUrl())
                 .measurementsJson(measurementsJson)
                 .build();
@@ -425,9 +433,27 @@ public class SrankoService {
     @Transactional(readOnly = true)
     public List<SrankoLookResponse> listLooks(String email) {
         User user = requireUser(email);
+        List<SrankoLook> looks = lookRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        return mapLooks(user.getId(), looks);
+    }
+
+    /**
+     * Community image picker: one query, no item hydrate (avoids unnecessary IN + payload).
+     */
+    @Transactional(readOnly = true)
+    public List<SrankoLookPickerResponse> listLooksForPicker(String email) {
+        User user = requireUser(email);
         return lookRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
-                .map(this::toLookResponse)
+                .map(SrankoLookPickerResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public SrankoLookResponse getLook(String email, UUID lookId) {
+        User user = requireUser(email);
+        SrankoLook look = lookRepository.findByIdAndUserId(lookId, user.getId())
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "룩을 찾을 수 없습니다."));
+        return mapLooks(user.getId(), List.of(look)).get(0);
     }
 
     @Transactional
@@ -443,7 +469,8 @@ public class SrankoService {
                 .itemIdsJson(writeJson(itemIds))
                 .source(body.source())
                 .build();
-        return toLookResponse(lookRepository.save(look));
+        SrankoLook saved = lookRepository.save(look);
+        return mapLooks(user.getId(), List.of(saved)).get(0);
     }
 
     @Transactional
@@ -483,7 +510,7 @@ public class SrankoService {
     @Transactional
     public SrankoPostResponse createPost(String email, SrankoPostCreateRequest body) {
         User user = requireUser(email);
-        List<String> imageUrls = normalizeIncomingPostImageUrls(body.imageUrls());
+        List<String> imageUrls = normalizeIncomingPostImageUrls(user, body.imageUrls());
         SrankoPost post = SrankoPost.builder()
                 .authorUserId(user.getId())
                 .subject(body.subject().trim())
@@ -1266,7 +1293,7 @@ public class SrankoService {
         return SrankoPostResponse.from(post, resolvePostImageUrls(post), nickname, likedByMe, viewCounted);
     }
 
-    private List<String> normalizeIncomingPostImageUrls(List<String> raw) {
+    private List<String> normalizeIncomingPostImageUrls(User user, List<String> raw) {
         if (raw == null || raw.isEmpty()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지를 1장 이상 올려 주세요.");
         }
@@ -1279,7 +1306,7 @@ public class SrankoService {
                 continue;
             }
             String trimmed = url.trim();
-            requireHttpUrl(trimmed);
+            requireOwnedSrankoImageUrl(user, trimmed);
             unique.add(trimmed);
         }
         if (unique.isEmpty()) {
@@ -1289,6 +1316,16 @@ public class SrankoService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지는 최대 " + POST_IMAGE_MAX + "장까지입니다.");
         }
         return List.copyOf(unique);
+    }
+
+    /** Post images must be HTTP URLs under this user's R2 sranko prefix (upload or look). */
+    private void requireOwnedSrankoImageUrl(User user, String url) {
+        requireHttpUrl(url);
+        String expectedPrefix = r2StorageService.keyPrefix() + "sranko/" + user.getId() + "/";
+        Optional<String> key = r2StorageService.keyFromPublicUrl(url);
+        if (key.isEmpty() || !key.get().startsWith(expectedPrefix)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "본인 룩·업로드 이미지만 사용할 수 있습니다.");
+        }
     }
 
     private List<String> resolvePostImageUrls(SrankoPost post) {
@@ -1330,6 +1367,8 @@ public class SrankoService {
                 category,
                 item.getWarmth(),
                 item.getName(),
+                item.getBrand(),
+                item.getProductUrl(),
                 item.getImageUrl(),
                 readStringMap(item.getMeasurementsJson()),
                 item.getCreatedAt()
@@ -1355,8 +1394,75 @@ public class SrankoService {
         return SLOT_DEFAULT_CATEGORY.getOrDefault(normalizedSlot, trimmed);
     }
 
-    private SrankoLookResponse toLookResponse(SrankoLook look) {
-        return SrankoLookResponse.from(look, readUuidList(look.getItemIdsJson()));
+    /**
+     * Batch-hydrate look items: 1 query for all referenced item IDs (no N+1 / no Look↔Item association).
+     */
+    private List<SrankoLookResponse> mapLooks(UUID userId, List<SrankoLook> looks) {
+        if (looks.isEmpty()) {
+            return List.of();
+        }
+        List<List<UUID>> idLists = looks.stream()
+                .map(look -> readUuidList(look.getItemIdsJson()))
+                .toList();
+        Set<UUID> allIds = new HashSet<>();
+        for (List<UUID> ids : idLists) {
+            allIds.addAll(ids);
+        }
+        Map<UUID, SrankoItem> byId = allIds.isEmpty()
+                ? Map.of()
+                : itemRepository.findByUserIdAndIdIn(userId, allIds).stream()
+                        .collect(Collectors.toMap(SrankoItem::getId, i -> i, (a, b) -> a, HashMap::new));
+        List<SrankoLookResponse> out = new ArrayList<>(looks.size());
+        for (int i = 0; i < looks.size(); i++) {
+            SrankoLook look = looks.get(i);
+            List<UUID> ids = idLists.get(i);
+            List<SrankoLookItemDto> items = ids.stream()
+                    .map(id -> {
+                        SrankoItem item = byId.get(id);
+                        if (item == null) {
+                            return SrankoLookItemDto.missing(id);
+                        }
+                        String slot = item.getSlot() != null ? item.getSlot() : "";
+                        return SrankoLookItemDto.from(
+                                item.getId(),
+                                slot,
+                                normalizeCategoryCode(slot, item.getCategoryCode()),
+                                item.getName(),
+                                item.getBrand(),
+                                item.getProductUrl(),
+                                item.getImageUrl()
+                        );
+                    })
+                    .toList();
+            out.add(SrankoLookResponse.from(look, ids, items));
+        }
+        return out;
+    }
+
+    private String normalizeOptionalText(String value, int max) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.length() > max) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "값이 너무 깁니다.");
+        }
+        return trimmed;
+    }
+
+    private String normalizeOptionalProductUrl(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        requireHttpUrl(trimmed);
+        return trimmed;
     }
 
     /**

@@ -473,6 +473,8 @@ CREATE TABLE IF NOT EXISTS sranko_items (
     category_code            VARCHAR(64)    NOT NULL,
     warmth                   TINYINT        NULL COMMENT 'warmth 1-5; NULL for shoes / unset',
     name                     VARCHAR(120)   NOT NULL,
+    brand                    VARCHAR(80)    NULL COMMENT '브랜드 (선택)',
+    product_url              VARCHAR(512)   NULL COMMENT '상품 URL http(s) (선택)',
     image_url                VARCHAR(512)   NOT NULL COMMENT 'R2 public URL',
     measurements_json        JSON           NOT NULL COMMENT '{} or measurement map',
     created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,

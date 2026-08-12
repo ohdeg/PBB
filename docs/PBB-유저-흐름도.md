@@ -549,10 +549,15 @@ flowchart LR
     detail --> comments[GET comments flat]
     comments --> reply[답글 2단]
     comments --> cLike[댓글 좋아요]
+    write[글쓰기 로그인] --> fileUp[파일 업로드]
+    write --> lookPick[GET /looks/picker]
+    lookPick --> post[POST /posts · 본인 R2 URL]
+    fileUp --> post
 ```
 
 - Post: `read_count` / `like_count` / `comment_count` 역정규화. 좋아요·댓글좋아요는 조인 테이블 + `±1` UPDATE.
 - 게시 이미지: `image_urls` JSON(1–10장) · `image_url`은 커버(첫 장). 목록·상세·글쓰기 미리보기는 카드형 캐러셀.
+- 글쓰기 이미지: **파일 업로드** 또는 **「룩에서 선택」** (`GET /looks/picker` · `{ id, name, imageUrl, createdAt }` · 아이템 hydrate 없음). `POST /posts`는 본인 R2 `sranko/{userId}/` URL만 허용.
 - 조회: `POST /posts/{id}/read` + `X-Sranko-Viewer`(게스트) 또는 userId · Redis `sranko:post:view:{postId}:{viewerKey}` NX TTL 24h · 실패 시 +1 스킵.
 - 공개: `GET /posts`, `GET /posts/{id}`, `GET …/comments`, `POST …/read`. 쓰기는 인증.
 - 댓글: flat 로드 · `parentId`만 루트 · N+1 없이 authors/`likedByMe` 배치 IN.
@@ -580,7 +585,7 @@ flowchart LR
 
 옷장 카드: 이미지·이름·분류·따뜻함만 표시(치수·버튼 없음). **카드 클릭 → 상세 모달**(치수 전체 + 입어보기·수정·삭제; 가방/모자/주얼리는 입어보기 없음).
 슬롯: TOP·BOTTOM·OUTER·SHOES·DRESS·**BAG·HAT·JEWELRY**. 신발·악세서리는 warmth null · 악세서리는 치수 필드 없음.
-옷장 ITEM+: predict가 slot / categoryCode / warmth(1–5, 신발·악세서리는 null) / taxonomyGroup을 프리필. 기본 상품 사진 흐름은 기존 generic rembg를 유지한다. 「착용 사진에서 옷만 추출」을 켜면 TOP/BOTTOM/OUTER/DRESS(신발·악세서리 제외)를 먼저 고르고, `POST /api/v1/sranko/ml/predict` multipart의 `extractWornGarment=true`·`targetSlot`로 요청한다. 성공 시 해당 종류가 classifier보다 우선하며, 사진에 실제로 보이는 의류 픽셀만 crop한 투명 PNG를 사용한다. OUTER는 cloth 모델 한계상 보이는 최외곽 상체 의류 영역이다. 품질 실패는 `garmentExtractionApplied=false`·`extractionWarning`으로 미리보기를 지우고 저장을 막는다. 유저가 대분류·소분류·따뜻함을 수정한 값이 저장·향후 학습 GT. **DRESS 소분류는 소매 타입**(`긴팔`/`반팔`/`민소매`; slot=원피스, 레거시 `원피스`→`긴팔`). BOTTOM 소분류가 기장 스타일(반바지=짧음, 데님·면바지·슬랙스=김, 치마=넓은 허용). DRESS 옷 치수 키는 어깨·가슴·소매길이·허리·엉덩이·총기장 순서.
+옷장 ITEM+: predict가 slot / categoryCode / warmth(1–5, 신발·악세서리는 null) / taxonomyGroup을 프리필. 등록·수정 시 **브랜드·상품 URL(선택)** 저장. 기본 상품 사진 흐름은 기존 generic rembg를 유지한다. 「착용 사진에서 옷만 추출」을 켜면 TOP/BOTTOM/OUTER/DRESS(신발·악세서리 제외)를 먼저 고르고, `POST /api/v1/sranko/ml/predict` multipart의 `extractWornGarment=true`·`targetSlot`로 요청한다. 성공 시 해당 종류가 classifier보다 우선하며, 사진에 실제로 보이는 의류 픽셀만 crop한 투명 PNG를 사용한다. OUTER는 cloth 모델 한계상 보이는 최외곽 상체 의류 영역이다. 품질 실패는 `garmentExtractionApplied=false`·`extractionWarning`으로 미리보기를 지우고 저장을 막는다. 유저가 대분류·소분류·따뜻함을 수정한 값이 저장·향후 학습 GT. **DRESS 소분류는 소매 타입**(`긴팔`/`반팔`/`민소매`; slot=원피스, 레거시 `원피스`→`긴팔`). BOTTOM 소분류가 기장 스타일(반바지=짧음, 데님·면바지·슬랙스=김, 치마=넓은 허용). DRESS 옷 치수 키는 어깨·가슴·소매길이·허리·엉덩이·총기장 순서.
 **수정**: 상세 「수정」→ 등록과 같은 모달에 기존 값 프리필. 사진 미변경 시 기존 `imageUrl` 유지, 변경 시 재업로드 후 `PUT /items`에 `id`로 upsert(이전 R2 이미지 삭제).
 **다중 선택 바**: 카드 체크로 아이템 다중 선택 → sticky 바에서 「선택 해제」·「삭제」(확인 후 `DELETE` 일괄)·「룩 입어보기」. **룩 입어보기**: OUTER/TOP/BOTTOM/DRESS/**HAT**/**SHOES** (슬롯당 1 · DRESS↔TOP/BOTTOM 배타 · max 5) → Gemini 풀룩 착용 1장 → `POST /looks` `source=TRY_ON`. 가방·주얼리만 선택된 경우 버튼 비활성. 플랫레이 콜라주(COMPOSE)는 제거(기존 COMPOSE 룩은 조회만 가능).
 옷장 **내 사이즈** / **성별(마네킹)**: 헤더 「정보 수정」 모달에서 관리(성별·사이즈 저장/삭제).  
@@ -614,6 +619,8 @@ flowchart LR
 
 - 성공 시 확인 모달을 닫고 **결과 모달**을 연다(확인 모달 인라인 결과 없음). 「다시」는 결과만 지우고 같은 아이템 확인 모달로 복귀(자동 재실행 없음).
 - **R2 tryon TTL**: `POST /ml/try-on`(및 `uploads?kind=tryon`) 결과를 `…/tryon/…`에 올리고 Redis ZSET으로 **1시간** 후 스케줄 삭제(`sranko.try-on.ephemeral-ttl`). 「내 룩에 저장」(`POST /looks`) 시 해당 유저 tryon URL이면 **looks/로 복사·TTL 취소·tryon 삭제** 후 DB에는 looks URL 저장.
+- **룩 아이템 hydrate**: `item_ids_json` 유지 · 목록/생성/상세 응답에 `items[]`(이름·슬롯·브랜드·productUrl·썸네일). Look↔Item JPA 연관 없음 · ID 모아 `findByUserIdAndIdIn` **1쿼리** (N+1 방지). 삭제된 아이템은 `missing: true`.
+- **룩 상세**: 목록 카드 → **룩 상세 모달**에서 구성 상품 · 상품 클릭 → **상품 상세 모달**. `GET /looks/{id}`는 단건 조회용으로 유지.
 - `GET /api/v1/sranko/fit-check?itemId=` · prefs body + 아이템 치수 → `{ fit, muchTooSmall, skipStage2, parts[] }` (primary delta ≤ −4 cm → `muchTooSmall`). `parts[]`: 부위별 `{ key, bodyCm, garmentCm, deltaCm, band }` · 어깨·가슴·허리 등 둘레는 raw Δ · **소매(`armLength`)·하의 기장(`totalLength`↔legLength)은 categoryCode 기준 기대 비율**로 Δ 재계산(반팔·반바지가 항상 매우 타이트로 나오지 않음; 구간 안이면 Δ=0). 전체 입어보기 `analyze`는 소매 길이를 primary에서 제외. TOP/OUTER 어깨·가슴·소매·총장(↔torsoLength), BOTTOM 허리·엉덩이·허벅지·기장, DRESS 어깨·가슴·소매·허리·엉덩이 · SHOES는 빈 배열.
 - **핏 맵**: 확인 모달·결과 모달 모두에 마네킹 실루엣(SVG) 바디맵으로 부위별 핏 표시 — 부위별 측정선 + 좌측 콜아웃 필(매우 타이트함 / 타이트함 / 약간 타이트함 / 딱 맞음 / 약간 루즈함 / 루즈함 / 매우 루즈함 / 측정값 없음, 수치 미노출). 결과 사진은 무드 컷, 정확한 사이즈 정보는 핏 맵이 담당. 신체 사이즈 미등록·SHOES·parts 없음이면 미표시.
 - `POST /api/v1/sranko/ml/try-on` · preferred `itemIds[]` (OUTER/TOP/BOTTOM/DRESS/**HAT**/**SHOES**, max 5) · legacy `itemId`/`garmentImageUrl` · **항상** classpath 마네킹(`sex=F` → female PNG, 그 외 male) · **신체 치수 있으면** prefs 기반 analyze(Δ·fit) · **없으면** `fitByItemId`로 옷별 `slim|regular|loose`(기본 regular, UI 라벨 슬림/보통/오버; HAT·SHOES는 핏 선택 없음). **아이템 `measurements_json`이 있으면** 신체 유무와 관계없이 프롬프트에 `Garment sizes (product label measurements):`로 절대 치수(cm · 신발 mm)를 첨부. print/logo 사전 분석(`print_meta_json`)은 **제거**.
@@ -658,7 +665,7 @@ flowchart LR
 
 - `/hobbies/sranko` — 랜딩 (SEO)
 - `/hobbies/sranko/closet` — 옷장 (**로그인 필수**) · **정보 수정**(사진·사이즈) · 카드 클릭 **상세** · 체크 선택 후 **룩 입어보기**(TRY_ON 룩) · ITEM+ (BAG/HAT/JEWELRY 포함) · **날씨**
-- `/hobbies/sranko/looks` — 내 룩 (**로그인 필수**)
+- `/hobbies/sranko/looks` — 내 룩 목록 · 상세/상품은 모달 (**로그인 필수**)
 - `/hobbies/sranko/community` — 커뮤니티 목록 (게스트 OK)
 - `/hobbies/sranko/community/new` · `/mine` — 작성·MY STYLE (**로그인 필수**)
 - `/hobbies/sranko/community/:postId` — 상세
@@ -696,7 +703,7 @@ flowchart LR
 | `/hobbies/dieta/settings` | Dieta 설정 | **필수** |
 | `/hobbies/sranko` | 슈란코 랜딩 | 불필요 (SEO) |
 | `/hobbies/sranko/closet` | 슈란코 옷장 (ITEM+ 2단계) | **필수** |
-| `/hobbies/sranko/looks` | 슈란코 내 룩 | **필수** |
+| `/hobbies/sranko/looks` | 슈란코 내 룩 (상세·상품 모달) | **필수** |
 | `/hobbies/sranko/community` | 슈란코 커뮤니티 | 선택 |
 | `/hobbies/sranko/community/new` | 게시 작성 | **필수** |
 | `/hobbies/sranko/community/mine` | MY STYLE | **필수** |

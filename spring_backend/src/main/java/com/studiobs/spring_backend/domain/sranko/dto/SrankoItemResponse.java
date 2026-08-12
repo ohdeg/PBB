@@ -11,6 +11,8 @@ public record SrankoItemResponse(
         String categoryCode,
         Integer warmth,
         String name,
+        String brand,
+        String productUrl,
         String imageUrl,
         Map<String, String> measurements,
         LocalDateTime createdAt
@@ -22,6 +24,8 @@ public record SrankoItemResponse(
                 item.getCategoryCode(),
                 item.getWarmth(),
                 item.getName(),
+                item.getBrand(),
+                item.getProductUrl(),
                 item.getImageUrl(),
                 measurements,
                 item.getCreatedAt()

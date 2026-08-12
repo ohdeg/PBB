@@ -48,6 +48,12 @@ public class SrankoItem {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @Column(length = 80)
+    private String brand;
+
+    @Column(name = "product_url", length = 512)
+    private String productUrl;
+
     @Column(name = "image_url", nullable = false, length = 512)
     private String imageUrl;
 
@@ -70,6 +76,8 @@ public class SrankoItem {
             String categoryCode,
             Integer warmth,
             String name,
+            String brand,
+            String productUrl,
             String imageUrl,
             String measurementsJson
     ) {
@@ -78,6 +86,8 @@ public class SrankoItem {
         this.categoryCode = categoryCode;
         this.warmth = warmth;
         this.name = name;
+        this.brand = brand;
+        this.productUrl = productUrl;
         this.imageUrl = imageUrl;
         this.measurementsJson = measurementsJson != null ? measurementsJson : "{}";
     }
@@ -87,6 +97,8 @@ public class SrankoItem {
             String categoryCode,
             Integer warmth,
             String name,
+            String brand,
+            String productUrl,
             String imageUrl,
             String measurementsJson
     ) {
@@ -94,6 +106,8 @@ public class SrankoItem {
         this.categoryCode = categoryCode;
         this.warmth = warmth;
         this.name = name;
+        this.brand = brand;
+        this.productUrl = productUrl;
         this.imageUrl = imageUrl;
         this.measurementsJson = measurementsJson != null ? measurementsJson : "{}";
     }

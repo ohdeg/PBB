@@ -299,8 +299,8 @@
 .sranko-shell {
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 1.5rem max(1.5rem, env(safe-area-inset-left)) 3rem
-    max(1.5rem, env(safe-area-inset-right));
+  padding: 1.5rem max(0.75rem, env(safe-area-inset-left)) 3rem
+    max(0.75rem, env(safe-area-inset-right));
 }
 
 .sranko-nav {
@@ -342,7 +342,7 @@
   border: 1px solid var(--sranko-line);
   border-radius: var(--radius);
   box-shadow: none;
-  padding: 1.5rem 1.35rem;
+  padding: 1.25rem 0.85rem;
 }
 
 .sranko-panel h1 {
@@ -1084,6 +1084,206 @@
 .sranko-card__body span {
   font-size: 0.78rem;
   color: var(--sranko-mute);
+}
+
+.sranko-look-items {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sranko-look-items__row {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.sranko-look-items__row.is-missing {
+  opacity: 0.65;
+}
+
+.sranko-look-items__row img,
+.sranko-look-items__placeholder {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 8px;
+  object-fit: contain;
+  background: color-mix(in srgb, white 88%, var(--sranko-bg));
+  border: 1px solid var(--sranko-line);
+  padding: 0.15rem;
+  box-sizing: border-box;
+}
+
+.sranko-look-items__placeholder {
+  display: block;
+}
+
+.sranko-look-items__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.sranko-look-items__meta strong {
+  font-size: 0.82rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sranko-look-items__meta span {
+  font-size: 0.72rem;
+}
+
+.sranko-look-items__meta .sranko-link {
+  font-size: 0.72rem;
+  width: fit-content;
+}
+
+.sranko-look-detail-items {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.sranko-look-detail-items__hit {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--sranko-line);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.sranko-look-detail-items__hit:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--sranko-ink) 35%, var(--sranko-line));
+}
+
+.sranko-look-detail-items__hit:disabled,
+.sranko-look-detail-items__hit.is-missing {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.sranko-look-detail-items__hit img {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+  border-radius: 8px;
+  background: color-mix(in srgb, white 88%, var(--sranko-bg));
+  border: 1px solid var(--sranko-line);
+  padding: 0.2rem;
+  box-sizing: border-box;
+}
+
+.sranko-look-detail-items__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.sranko-look-detail-items__meta strong {
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.sranko-look-detail-items__meta span {
+  font-size: 0.78rem;
+  color: var(--sranko-mute);
+}
+
+.sranko-compose-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.sranko-compose-file {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.sranko-compose-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.sranko-look-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+  max-height: min(50vh, 22rem);
+  overflow: auto;
+}
+
+.sranko-look-picker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.35rem;
+  border: 1px solid var(--sranko-line);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.sranko-look-picker-card img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: contain;
+  border-radius: 8px;
+  background: color-mix(in srgb, white 88%, var(--sranko-bg));
+}
+
+.sranko-look-picker-card span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sranko-look-picker-card em {
+  font-size: 0.68rem;
+  font-style: normal;
+  color: var(--sranko-mute);
+}
+
+.sranko-look-picker-card.is-selected {
+  border-color: var(--sranko-ink);
+  box-shadow: inset 0 0 0 1px var(--sranko-ink);
+}
+
+.sranko-look-picker-card.is-used,
+.sranko-look-picker-card:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .sranko-card__measures {

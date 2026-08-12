@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { srankoApi } from '../api/srankoApi';
+import { Dialog } from '../components/ui/Dialog';
 import {
   SRANKO_COMMUNITY,
   SRANKO_COMMUNITY_MINE,
@@ -11,7 +12,7 @@ import {
   postImageUrls,
   SrankoImageCarousel,
 } from '../features/sranko/SrankoImageCarousel';
-import type { SrankoComment, SrankoPost } from '../features/sranko/types';
+import type { SrankoComment, SrankoLookPicker, SrankoPost } from '../features/sranko/types';
 import { useSrankoMutations } from '../features/sranko/useSrankoStore';
 import { useAuthStore } from '../stores/authStore';
 
@@ -517,13 +518,67 @@ function CommunityNewForm() {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [lookPickerOpen, setLookPickerOpen] = useState(false);
+  const [pickerLooks, setPickerLooks] = useState<SrankoLookPicker[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState('');
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(() => new Set());
 
   const maxImages = 10;
+
+  const openLookPicker = () => {
+    setLookPickerOpen(true);
+    setPickerError('');
+    setPickerSelected(new Set());
+    setPickerLoading(true);
+    void srankoApi
+      .listLooksPicker()
+      .then((rows) => setPickerLooks(rows))
+      .catch((err: unknown) => {
+        setPickerLooks([]);
+        setPickerError(err instanceof Error ? err.message : '룩을 불러오지 못했어요.');
+      })
+      .finally(() => setPickerLoading(false));
+  };
+
+  const togglePickerLook = (look: SrankoLookPicker) => {
+    setPickerSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(look.imageUrl)) {
+        next.delete(look.imageUrl);
+      } else {
+        next.add(look.imageUrl);
+      }
+      return next;
+    });
+  };
+
+  const applyLookPicker = () => {
+    const remaining = maxImages - imageUrls.length;
+    if (remaining <= 0) {
+      setError(`이미지는 최대 ${maxImages}장까지입니다.`);
+      setLookPickerOpen(false);
+      return;
+    }
+    const chosen = [...pickerSelected].filter((url) => !imageUrls.includes(url));
+    const toAdd = chosen.slice(0, remaining);
+    if (chosen.length > remaining) {
+      setError(`이미지는 최대 ${maxImages}장까지입니다.`);
+    } else {
+      setError('');
+    }
+    if (toAdd.length > 0) {
+      setImageUrls((prev) => [...prev, ...toAdd]);
+    }
+    setLookPickerOpen(false);
+  };
 
   return (
     <section className="sranko-panel">
       <h1>글쓰기</h1>
-      <p className="sranko-panel__lede">룩 사진과 짧은 소개를 올려 보세요. 이미지는 최대 {maxImages}장.</p>
+      <p className="sranko-panel__lede">
+        룩 사진과 짧은 소개를 올려 보세요. 이미지는 최대 {maxImages}장 · 파일 또는 내 룩에서 선택.
+      </p>
       {error ? <p className="sranko-error">{error}</p> : null}
       <label className="sranko-field">
         <span>제목</span>
@@ -542,45 +597,58 @@ function CommunityNewForm() {
           disabled={busy}
         />
       </label>
-      <label className="sranko-field">
+      <div className="sranko-field">
         <span>이미지 ({imageUrls.length}/{maxImages})</span>
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          disabled={busy || imageUrls.length >= maxImages}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = '';
-            if (files.length === 0) {
-              return;
-            }
-            const remaining = maxImages - imageUrls.length;
-            const batch = files.slice(0, remaining);
-            if (files.length > remaining) {
-              setError(`이미지는 최대 ${maxImages}장까지입니다.`);
-            } else {
-              setError('');
-            }
-            setBusy(true);
-            void (async () => {
-              try {
-                const uploaded: string[] = [];
-                for (const file of batch) {
-                  const resized = await resizeImageForUpload(file);
-                  const result = await uploadImage('post', resized);
-                  uploaded.push(result.url);
+        <div className="sranko-compose-image-actions">
+          <label className="sranko-btn sranko-btn--ghost sranko-btn--sm sranko-compose-file">
+            파일 올리기
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={busy || imageUrls.length >= maxImages}
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = '';
+                if (files.length === 0) {
+                  return;
                 }
-                setImageUrls((prev) => [...prev, ...uploaded]);
-              } catch (err: unknown) {
-                setError(err instanceof Error ? err.message : '업로드 실패');
-              } finally {
-                setBusy(false);
-              }
-            })();
-          }}
-        />
-      </label>
+                const remaining = maxImages - imageUrls.length;
+                const batch = files.slice(0, remaining);
+                if (files.length > remaining) {
+                  setError(`이미지는 최대 ${maxImages}장까지입니다.`);
+                } else {
+                  setError('');
+                }
+                setBusy(true);
+                void (async () => {
+                  try {
+                    const uploaded: string[] = [];
+                    for (const file of batch) {
+                      const resized = await resizeImageForUpload(file);
+                      const result = await uploadImage('post', resized);
+                      uploaded.push(result.url);
+                    }
+                    setImageUrls((prev) => [...prev, ...uploaded]);
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : '업로드 실패');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="sranko-btn sranko-btn--ghost sranko-btn--sm"
+            disabled={busy || imageUrls.length >= maxImages}
+            onClick={openLookPicker}
+          >
+            룩에서 선택
+          </button>
+        </div>
+      </div>
       {imageUrls.length > 0 ? (
         <SrankoImageCarousel
           urls={imageUrls}
@@ -621,6 +689,75 @@ function CommunityNewForm() {
           게시
         </button>
       </div>
+
+      {lookPickerOpen ? (
+        <Dialog
+          open
+          title="룩에서 선택"
+          onClose={() => setLookPickerOpen(false)}
+          closeOnBackdrop
+          closeOnEscape
+          backdropClassName="sranko-modal"
+          panelClassName="sranko-modal__card sranko-modal__card--wide"
+        >
+          {({ titleId }) => (
+            <>
+              <h2 id={titleId}>룩에서 선택</h2>
+              <p className="sranko-muted">
+                남은 자리 {Math.max(0, maxImages - imageUrls.length)}장 · 선택한 룩 이미지를
+                글에 추가합니다.
+              </p>
+              {pickerError ? <p className="sranko-error">{pickerError}</p> : null}
+              {pickerLoading ? (
+                <div className="sranko-empty">불러오는 중…</div>
+              ) : pickerLooks.length === 0 ? (
+                <div className="sranko-empty">선택할 룩이 없습니다.</div>
+              ) : (
+                <div className="sranko-look-picker-grid">
+                  {pickerLooks.map((look) => {
+                    const checked = pickerSelected.has(look.imageUrl);
+                    const already = imageUrls.includes(look.imageUrl);
+                    return (
+                      <button
+                        key={look.id}
+                        type="button"
+                        className={`sranko-look-picker-card${checked ? ' is-selected' : ''}${
+                          already ? ' is-used' : ''
+                        }`}
+                        disabled={already}
+                        onClick={() => togglePickerLook(look)}
+                      >
+                        <img src={look.imageUrl} alt="" />
+                        <span>{look.name}</span>
+                        {already ? <em>이미 추가됨</em> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="sranko-modal__actions">
+                <button
+                  type="button"
+                  className="sranko-btn sranko-btn--ghost"
+                  onClick={() => setLookPickerOpen(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="sranko-btn sranko-btn--primary"
+                  disabled={pickerSelected.size === 0}
+                  onClick={applyLookPicker}
+                >
+                  {pickerSelected.size > 0
+                    ? `${pickerSelected.size}장 추가`
+                    : '추가'}
+                </button>
+              </div>
+            </>
+          )}
+        </Dialog>
+      ) : null}
     </section>
   );
 }

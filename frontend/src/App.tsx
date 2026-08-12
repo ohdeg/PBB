@@ -259,6 +259,10 @@ export default function App() {
                 <Route path="/hobbies/sranko/closet" element={<SrankoClosetPage />} />
                 <Route path="/hobbies/sranko/looks" element={<SrankoLooksPage />} />
                 <Route
+                  path="/hobbies/sranko/looks/:lookId"
+                  element={<Navigate to="/hobbies/sranko/looks" replace />}
+                />
+                <Route
                   path="/hobbies/sranko/community"
                   element={<SrankoCommunityPage />}
                 />

@@ -57,7 +57,8 @@ export function VevenoLandingPage() {
       blockTitle="가게 일을 조금 더 편하게"
       blockSubhead="메뉴 · 재고 · 근무"
       blockBody="만드는 법과 부족한 재고, 누가 언제 오는지까지 한곳에서 이어 가세요."
-      productImage="/hobbies/veveno-product.png"
+      productImage="/hobbies/veveno-product.png?v=angle"
+      productImageDark="/hobbies/veveno-product-dark.png?v=angle"
       features={[
         {
           title: '만드는 법을 살짝 적어 두기',

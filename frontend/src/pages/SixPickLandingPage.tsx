@@ -26,7 +26,8 @@ export function SixPickLandingPage() {
       blockTitle="번호 전략을 가볍게"
       blockSubhead="생성 · 기록 · 계산"
       blockBody="패턴을 반영해 번호를 뽑고, 히스토리와 세금까지 한 흐름으로 이어 보세요."
-      productImage="/hobbies/6pick-product.png"
+      productImage="/hobbies/6pick-product.png?v=angle"
+      productImageDark="/hobbies/6pick-product-dark.png?v=angle"
       features={[
         {
           title: '번호 생성',

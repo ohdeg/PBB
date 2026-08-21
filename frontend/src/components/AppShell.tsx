@@ -90,7 +90,7 @@ export function AppShell() {
       <header className="global-nav">
         <div className="global-nav__inner">
           <Link to="/" className="global-nav__brand" aria-label="PBB 홈">
-            PBB
+            <img src="/pbb-logo.png" alt="" className="global-nav__logo" />
           </Link>
 
           <nav className="global-nav__tabs" aria-label="취미 탭">

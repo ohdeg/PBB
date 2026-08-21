@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { configApi } from '../api/configApi';
+import { HobbyProductShot } from '../components/HobbyProductShot';
 import {
-  getHobbyById,
-  getHobbyMediaSrc,
   HOBBY_APPS,
-  sortHobbiesByRecency,
   type HobbyApp,
   type HobbyBlockTone,
 } from '../data/hobbies';
@@ -13,31 +9,7 @@ import { useAuthStore } from '../stores/authStore';
 
 export function HomePage() {
   const accessToken = useAuthStore((state) => state.accessToken);
-  const [featuredIds, setFeaturedIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { data } = await configApi.getFeaturedApps();
-        const ids = data.appIds
-          .map((id) => getHobbyById(id)?.id)
-          .filter((id): id is string => Boolean(id));
-        if (!cancelled) {
-          setFeaturedIds(ids);
-        }
-      } catch {
-        if (!cancelled) {
-          setFeaturedIds([]);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const gridApps = useMemo(() => orderHomeApps(featuredIds), [featuredIds]);
+  const gridApps = HOBBY_APPS.filter((app) => app.available);
 
   return (
     <main className="figma-home">
@@ -75,33 +47,6 @@ export function HomePage() {
   );
 }
 
-function orderHomeApps(featuredIds: string[]): HobbyApp[] {
-  const available = HOBBY_APPS.filter((app) => app.available);
-  if (featuredIds.length === 0) {
-    return sortHobbiesByRecency(available);
-  }
-
-  const byId = new Map(available.map((app) => [app.id, app]));
-  const ordered: HobbyApp[] = [];
-  const seen = new Set<string>();
-
-  for (const id of featuredIds) {
-    const app = byId.get(id);
-    if (app && !seen.has(id)) {
-      ordered.push(app);
-      seen.add(id);
-    }
-  }
-
-  for (const app of sortHobbiesByRecency(available)) {
-    if (!seen.has(app.id)) {
-      ordered.push(app);
-    }
-  }
-
-  return ordered;
-}
-
 function ColorBlock({
   app,
   featured = false,
@@ -109,7 +54,6 @@ function ColorBlock({
   app: HobbyApp;
   featured?: boolean;
 }) {
-  const mediaSrc = getHobbyMediaSrc(app);
   const tone: HobbyBlockTone = app.blockTone ?? 'cream';
   const inverse = tone === 'navy';
 
@@ -146,11 +90,11 @@ function ColorBlock({
         </div>
       </div>
       <div className="figma-block__media" aria-hidden="true">
-        {mediaSrc ? (
-          <img src={mediaSrc} alt="" width={320} height={320} draggable={false} />
-        ) : (
-          <span className="figma-block__fallback">{app.name.slice(0, 1)}</span>
-        )}
+        <HobbyProductShot
+          light={app.productImage ?? app.iconSrc}
+          dark={app.productImageDark}
+          fallback={app.name.slice(0, 1)}
+        />
       </div>
     </article>
   );

@@ -286,12 +286,19 @@ a:hover {
 
 .global-nav__brand {
   flex-shrink: 0;
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 540;
-  letter-spacing: -0.14px;
-  color: var(--ink);
+  display: flex;
+  align-items: center;
   text-decoration: none;
+}
+
+.global-nav__logo {
+  display: block;
+  height: 22px;
+  width: auto;
+}
+
+html:not([data-theme='dark']) .global-nav__logo {
+  filter: invert(1);
 }
 
 .global-nav__brand:hover {

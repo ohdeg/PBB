@@ -17,7 +17,8 @@ export function DietaLandingPage() {
       blockTitle="한 주씩 부드럽게"
       blockSubhead="목표 · 기록 · 리듬"
       blockBody="하루 식사량과 체중 변화, 활동 갭을 맞춰 가며 코칭을 이어 가세요."
-      productImage="/hobbies/dieta-product.png"
+      productImage="/hobbies/dieta-product.png?v=angle"
+      productImageDark="/hobbies/dieta-product-dark.png?v=angle"
       features={[
         {
           title: '내 목표에 맞는 하루 식사량',

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { HobbyProductShot } from './HobbyProductShot';
 import type { HobbyBlockTone } from '../data/hobbies';
 
 export interface HobbyLandingFeature {
@@ -22,6 +23,7 @@ export interface HobbyLandingLayoutProps {
   blockSubhead: string;
   blockBody: string;
   productImage?: string;
+  productImageDark?: string;
   features: HobbyLandingFeature[];
   closingCopy: string;
   onStart: () => void;
@@ -45,6 +47,7 @@ export function HobbyLandingLayout({
   blockSubhead,
   blockBody,
   productImage,
+  productImageDark,
   features,
   closingCopy,
   onStart,
@@ -129,17 +132,11 @@ export function HobbyLandingLayout({
             </div>
           </div>
           <div className="figma-block__media" aria-hidden="true">
-            {productImage ? (
-              <img
-                src={productImage}
-                alt=""
-                width={320}
-                height={320}
-                draggable={false}
-              />
-            ) : (
-              <span className="figma-block__fallback">{title.slice(0, 1)}</span>
-            )}
+            <HobbyProductShot
+              light={productImage}
+              dark={productImageDark}
+              fallback={title.slice(0, 1)}
+            />
           </div>
         </article>
       </section>

@@ -19,7 +19,8 @@ export function ScoreViewerLandingPage() {
       blockTitle="악보를 크게, 연습은 편하게"
       blockSubhead="보관함 · 연습 뷰어"
       blockBody="오선보를 열고 템포·조·스크롤을 맞춰 가며 손을 악보에 더 오래 두세요."
-      productImage="/hobbies/score-viewer-product.png"
+      productImage="/hobbies/score-viewer-product.png?v=angle"
+      productImageDark="/hobbies/score-viewer-product-dark.png?v=angle"
       features={[
         {
           title: '악보 보관함',

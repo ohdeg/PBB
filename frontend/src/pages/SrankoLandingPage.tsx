@@ -25,7 +25,8 @@ export function SrankoLandingPage() {
       blockTitle="옷을 모아, 룩으로"
       blockSubhead="옷장 · 피팅 · 공유"
       blockBody="사진으로 옷을 채우고, 룩을 만들고, 커뮤니티에 스타일을 남겨 보세요."
-      productImage="/hobbies/sranko-product.png"
+      productImage="/hobbies/sranko-product.png?v=angle"
+      productImageDark="/hobbies/sranko-product-dark.png?v=angle"
       features={[
         {
           title: '사진으로 옷장 채우기',

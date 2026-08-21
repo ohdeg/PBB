@@ -49,7 +49,8 @@ export function VevenoLandingPage() {
     <HobbyLandingLayout
       eyebrow="라이프 · 가게 노트"
       title="Veveno"
-      lead="메뉴, 재고, 근무를 한곳에 모아 두는 작은 노트예요. 사장님과 직원이 같은 화면을 보면서, 하루를 맞춰 가시면 좋을 것 같아요."
+      lead={`메뉴, 재고, 근무 관리를 이 노트 하나에.
+사장님과 직원이 같은 화면을 보며 매장의 하루를 함께 완성해 보세요.`}
       promoBanner={usageNote}
       promoEyebrow="지금 Veveno"
       marqueeItems={['메뉴', '재고', '근무', '도구', '가게 노트', 'Veveno']}
@@ -62,22 +63,21 @@ export function VevenoLandingPage() {
       features={[
         {
           title: '만드는 법을 살짝 적어 두기',
-          body: '메뉴마다 레시피를 남겨 두면, 바쁠 때도 조금 더 마음이 놓여요.',
+          body: '아무리 바빠도 변함없는 맛. 핵심 레시피를 등록하고 마음 편히 일하세요.',
         },
         {
-          title: '무엇이 부족한지 먼저 보기',
-          body: '재고를 한눈에 두고, 필요할 때만 근무 중에 숫자를 고쳐 보시면 좋습니다.',
+          title: '무엇이 부족한지 보기',
+          body: '재고 현황을 한눈에 파악하고, 필요할 때 즉시 재고를 수정하세요.',
         },
         {
-          title: '누가 언제 오는지 맞추기',
-          body: '정규 근무부터 대타·추가까지, 달력으로 보면서 서로 맞춰 가시면 됩니다.',
+          title: '스케줄 관리하기',
+          body: '정규 근무부터 대타·추가 근무까지, 달력으로 보면서 관리하세요.',
         },
         {
           title: '가게에서 바로 쓰는 작은 도구',
-          body: '단위·농도 계산이나 타이머를 맞춰 둘 때, 다른 앱을 따로 찾지 않아도 돼요.',
+          body: '단위·농도 계산부터 타이머까지, 다른 앱 없이 한곳에서 해결하세요.',
         },
       ]}
-      closingCopy="가게를 만들거나 찾아 이어서 적을 수 있어요."
       startLabel="가게 열기"
       onStart={handleStart}
     />

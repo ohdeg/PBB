@@ -480,8 +480,20 @@ html:not([data-theme='dark']) .global-nav__logo {
 }
 
 @media (min-width: 960px) {
+  .global-nav__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
   .global-nav__tabs {
     display: flex;
+    flex: none;
+    justify-self: center;
+  }
+
+  .global-nav__actions {
+    justify-self: end;
+    margin-left: 0;
   }
 
   .global-nav__menu-btn,
@@ -503,6 +515,8 @@ html:not([data-theme='dark']) .global-nav__logo {
 .figma-home {
   width: 100%;
   background: var(--canvas);
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .figma-eyebrow {
@@ -549,6 +563,7 @@ html:not([data-theme='dark']) .global-nav__logo {
   line-height: 1.4;
   letter-spacing: -0.14px;
   color: var(--ink);
+  white-space: pre-line;
 }
 
 .figma-hero__actions,

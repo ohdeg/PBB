@@ -47,10 +47,13 @@
     <script>
       (function () {
         try {
-          var dark = localStorage.getItem('pbb-theme') === 'dark';
-          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        } catch (e) {}
+          var light = localStorage.getItem('pbb-theme') === 'light';
+          document.documentElement.dataset.theme = light ? 'light' : 'dark';
+          document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.style.colorScheme = 'dark';
+        }
       })();
     </script>
   </head>

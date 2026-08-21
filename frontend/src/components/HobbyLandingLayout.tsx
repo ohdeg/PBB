@@ -25,9 +25,9 @@ export interface HobbyLandingLayoutProps {
   productImage?: string;
   productImageDark?: string;
   features: HobbyLandingFeature[];
-  closingCopy: string;
+  closingCopy?: string;
   onStart: () => void;
-  /** 히어로·블록 프라이머리 CTA. 기본 시작하기 */
+  /** 히어로 lead 아래 프라이머리 CTA. 기본 시작하기 */
   startLabel?: string;
   secondaryAction?: { label: string; to: string };
   logoSrc?: string;
@@ -55,7 +55,6 @@ export function HobbyLandingLayout({
   secondaryAction,
   logoSrc,
 }: HobbyLandingLayoutProps) {
-  const inverse = blockTone === 'navy';
   const marquee = [...marqueeItems, ...marqueeItems];
 
   return (
@@ -115,21 +114,6 @@ export function HobbyLandingLayout({
             <h2 className="figma-block__title">{blockTitle}</h2>
             <p className="figma-block__subhead">{blockSubhead}</p>
             <p className="figma-block__body">{blockBody}</p>
-            <div className="figma-block__actions">
-              <button
-                type="button"
-                className={`figma-pill ${inverse ? 'figma-pill--secondary' : 'figma-pill--primary'}`}
-                onClick={onStart}
-              >
-                {startLabel}
-              </button>
-              <a
-                href="#feature-list"
-                className={`figma-link${inverse ? ' figma-link--inverse' : ''}`}
-              >
-                할 수 있는 일
-              </a>
-            </div>
           </div>
           <div className="figma-block__media" aria-hidden="true">
             <HobbyProductShot
@@ -165,16 +149,11 @@ export function HobbyLandingLayout({
         </div>
       </section>
 
-      <section className="hobby-landing__closing" aria-label="시작 유도">
-        <p className="hobby-landing__closing-copy">{closingCopy}</p>
-        <button
-          type="button"
-          className="figma-pill figma-pill--primary"
-          onClick={onStart}
-        >
-          {startLabel}
-        </button>
-      </section>
+      {closingCopy ? (
+        <section className="hobby-landing__closing" aria-label="시작 유도">
+          <p className="hobby-landing__closing-copy">{closingCopy}</p>
+        </section>
+      ) : null}
     </main>
   );
 }

@@ -39,7 +39,6 @@ export function ScoreViewerLandingPage() {
           body: '키를 옮기고, 자동 스크롤로 손을 악보에 더 오래 두게 해요.',
         },
       ]}
-      closingCopy="보관함으로 가서 악보를 열 수 있어요."
       startLabel="악보 열기"
       onStart={() => {
         void navigate(SCORE_VIEWER_LIBRARY);

@@ -14,7 +14,7 @@ export function SixPickLandingPage() {
     <HobbyLandingLayout
       eyebrow="라이프 · 로또 번호"
       title="6PICK"
-      lead="몬테카를로·Hot/Cold로 번호를 만들고, 히스토리를 남기며 당첨 세금을 미리 계산해 보는 로또 노트."
+      lead="스마트한 통계로 번호를 뽑고, 당첨 실수령액까지 한 번에 확인하는 똑똑한 로또 노트"
       note={
         accessToken
           ? undefined
@@ -30,23 +30,22 @@ export function SixPickLandingPage() {
       productImageDark="/hobbies/6pick-product-dark.png?v=angle"
       features={[
         {
-          title: '번호 생성',
-          body: '몬테카를로 또는 단순 무작위로 6번호를 뽑고 Hot/Cold를 반영해요.',
+          title: '스마트 번호 생성',
+          body: '단순 랜덤은 물론, 정밀한 확률 분석(몬테카를로)으로 6개의 번호를 추천해 드려요. 최근 당첨 패턴(Hot/Cold)까지 꼼꼼하게 반영했습니다.',
         },
         {
-          title: '히스토리',
-          body: '뽑은 번호를 모아 두고, 로그인하면 서버에 저장해 이어 볼 수 있어요.',
+          title: '번호 보관함',
+          body: '생성된 번호를 잊지 않게 보관하세요. 로그인하여 내 번호 기록을 안전하게 동기화할 수 있습니다.',
         },
         {
-          title: '세금 계산',
-          body: '당첨 금액 기준으로 실수령·세금을 빠르게 가늠해 봐요.',
+          title: '당첨금 세금 계산',
+          body: '당첨 금액에 따른 정확한 세금과 실수령액을 빠르게 계산해 보세요.',
         },
         {
-          title: '회차·동기화',
-          body: '최신 당첨 번호를 참고하고, DEV는 회차·엑셀도 관리할 수 있어요.',
+          title: '당첨 번호 업데이트',
+          body: '매주 최신 당첨 번호를 빠르게 참고하세요.',
         },
       ]}
-      closingCopy="바로 번호를 뽑는 화면으로 이어집니다."
       startLabel="번호 뽑기"
       onStart={() => {
         void navigate(SIXPICK_PLAY);

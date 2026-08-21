@@ -29,23 +29,22 @@ export function SrankoLandingPage() {
       productImageDark="/hobbies/sranko-product-dark.png?v=angle"
       features={[
         {
-          title: '사진으로 옷장 채우기',
-          body: '업로드하면 분류·배경제거를 도와 주고, 치수와 함께 보관해요.',
+          title: '사진 한 장으로 내 옷장 완성',
+          body: '옷 사진을 올리면 배경을 지우고 종류별로 자동 분류해 드려요. 상세한 치수와 함께 깔끔하게 보관해 보세요.',
         },
         {
-          title: '룩 합성',
-          body: '상의·하의·아우터·신발을 골라 한 장의 룩으로 저장해요.',
+          title: '나만의 코디 만들기',
+          body: '원하는 상·하의와 아우터, 신발을 매치해 보고 마음에 드는 스타일을 한 장의 룩으로 저장해 보세요.',
         },
         {
           title: '입어보기',
           body: '옷장 그리드에서 옷을 고르고, 기본 마네킹으로 가상 피팅을 미리 봅니다.',
         },
         {
-          title: '스타일 공유',
-          body: '커뮤니티에 올리고 MY STYLE로 내 게시만 모아 볼 수 있어요.',
+          title: '나만의 스타일 공유하기',
+          body: '완성된 코디를 커뮤니티에 자랑해 보세요. 내가 올린 스타일은 \'MY STYLE\'에서 나만의 룩북처럼 모아볼 수 있어요.',
         },
       ]}
-      closingCopy="옷장에서 옷을 보고 입어볼 수 있어요."
       startLabel="옷장 열기"
       onStart={handleStart}
       secondaryAction={{ label: '커뮤니티 둘러보기', to: SRANKO_COMMUNITY }}

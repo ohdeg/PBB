@@ -16,7 +16,17 @@
 
 대표적으로 **Veveno**는 소규모 매장의 메뉴·재고(낙관적 락·사용량 일수)·직원 근무(오늘부터/지정일/한번만)·대타/추가 근무·매장 도구를 다루고, **Sranko**는 옷장·가상 입어보기(Vertex Gemini)·룩·커뮤니티와 FastAPI 분류/배경제거를 한 흐름으로 묶습니다.
 
-![PBB 홈](docs/screenshots/pbb-home.png)
+### 미리보기
+
+| 홈 | Veveno |
+|:--:|:--:|
+| ![홈](docs/screenshots/home.png) | ![Veveno](docs/screenshots/veveno.png) |
+| **슈란코** | **Score Viewer** |
+| ![슈란코](docs/screenshots/sranko.png) | ![Score Viewer](docs/screenshots/score-viewer.png) |
+| **6PICK** | **Dieta** |
+| ![6PICK](docs/screenshots/6pick.png) | ![Dieta](docs/screenshots/dieta.png) |
+| **로그인** | **회원가입** |
+| ![로그인](docs/screenshots/login.png) | ![회원가입](docs/screenshots/signup.png) |
 
 ```text
 Browser

@@ -14,7 +14,7 @@ export function Card({
   return (
     <div
       className={[
-        'rounded-[18px] border border-[#E0E0E0] bg-white',
+        'rounded-[18px] border border-[var(--border-strong)] bg-[var(--bg-elevated)]',
         padding === 'lg' ? 'p-6' : 'p-4',
         className,
       ]

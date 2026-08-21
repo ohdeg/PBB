@@ -9,6 +9,7 @@ import type { BeatStrengthLevel } from '../utils/beatStrength';
 import type { BeatSubdivisionId } from '../utils/beatSubdivision';
 import { formatTransposeLabel } from '../utils/transpose';
 import BeatStrengthBarGrid from './BeatStrengthBarGrid';
+import ScoreNumberInput from './ScoreNumberInput';
 import TempoChangesEditor from './TempoChangesEditor';
 import { MAX_MEASURES_PER_LINE, MIN_MEASURES_PER_LINE } from '../constants/scoreLayout';
 import type { TempoChange } from '../types/tempoChange';
@@ -129,12 +130,11 @@ export default function PlaybackControls({
 
       <div className="playback-field">
         <label>BPM</label>
-        <input
-          type="number"
+        <ScoreNumberInput
           min={20}
           max={300}
           value={bpm}
-          onChange={(event) => onBpmChange(Number(event.target.value))}
+          onChange={onBpmChange}
         />
       </div>
 
@@ -158,21 +158,19 @@ export default function PlaybackControls({
 
       <div className="playback-field playback-field-wide">
         <label>{t('playback.timeSignature')}</label>
-        <input
-          type="number"
+        <ScoreNumberInput
           min={1}
           max={16}
           value={timeSignature.beatsPerMeasure}
-          onChange={(event) => onBeatsPerMeasureChange(Number(event.target.value))}
+          onChange={onBeatsPerMeasureChange}
           aria-label={t('playback.beatsPerMeasureAria')}
         />
         <span className="playback-slash">/</span>
-        <input
-          type="number"
+        <ScoreNumberInput
           min={1}
           max={16}
           value={timeSignature.beatType}
-          onChange={(event) => onBeatTypeChange(Number(event.target.value))}
+          onChange={onBeatTypeChange}
           aria-label={t('playback.beatUnitAria')}
         />
         <span className="playback-meta">({formatTimeSignature(timeSignature)})</span>
@@ -181,12 +179,11 @@ export default function PlaybackControls({
       {!isMetronomeMode && onMeasuresPerLineChange && (
         <div className="playback-field">
           <label>{t('playback.measuresPerLine')}</label>
-          <input
-            type="number"
+          <ScoreNumberInput
             min={MIN_MEASURES_PER_LINE}
             max={MAX_MEASURES_PER_LINE}
             value={measuresPerLine}
-            onChange={(event) => onMeasuresPerLineChange(Number(event.target.value))}
+            onChange={onMeasuresPerLineChange}
             aria-label={t('playback.measuresPerLineAria')}
           />
         </div>
@@ -229,25 +226,23 @@ export default function PlaybackControls({
             <label className="playback-inline-label" htmlFor="playback-start-measure">
               {t('playback.startMeasure')}
             </label>
-            <input
+            <ScoreNumberInput
               id="playback-start-measure"
-              type="number"
               min={1}
               max={Math.max(totalMeasures, 1)}
               value={startMeasure}
-              onChange={(event) => onStartMeasureChange(Number(event.target.value))}
+              onChange={onStartMeasureChange}
               className="playback-measure-input"
             />
             <label className="playback-inline-label" htmlFor="playback-end-measure">
               {t('playback.endMeasure')}
             </label>
-            <input
+            <ScoreNumberInput
               id="playback-end-measure"
-              type="number"
               min={1}
               max={Math.max(totalMeasures, 1)}
               value={endMeasure}
-              onChange={(event) => onEndMeasureChange(Number(event.target.value))}
+              onChange={onEndMeasureChange}
               className="playback-measure-input"
             />
           </div>

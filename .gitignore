@@ -120,8 +120,19 @@ venv/
 # =========================
 # Agent / local tooling
 # =========================
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/mcp.json
 .wrangler/
+.direnv/
+.envrc
+
+# =========================
+# Local docker / bind mounts
+# =========================
+docker-compose.override.yml
+infra/mysql/data/
 
 # =========================
 # Misc
@@ -131,10 +142,12 @@ venv/
 *.bak
 *.orig
 *.rej
+*.local
 coverage/
 .turbo/
 .cache/
 .parcel-cache/
+.vite/
 useskill.md
 학습데이터/
 

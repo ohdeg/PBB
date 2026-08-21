@@ -6,17 +6,21 @@ import com.studiobs.spring_backend.domain.brew.dto.AssignCoverRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CoverResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CreateCoverRequest;
 import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
+import com.studiobs.spring_backend.domain.brew.dto.ScheduleReplaceMode;
 import com.studiobs.spring_backend.domain.brew.dto.ScheduleResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ScheduleSlotRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StaffMemberResponse;
 import com.studiobs.spring_backend.domain.brew.entity.BrewShiftCover;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStaffSchedule;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStaffScheduleOverride;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.repository.BrewShiftCoverRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleOverrideRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
+import com.studiobs.spring_backend.domain.brew.support.BrewEffectiveShifts;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
@@ -52,6 +56,7 @@ public class BrewScheduleService {
     private final BrewStoreRepository storeRepository;
     private final BrewStoreSubscriptionRepository subscriptionRepository;
     private final BrewStaffScheduleRepository scheduleRepository;
+    private final BrewStaffScheduleOverrideRepository overrideRepository;
     private final BrewShiftCoverRepository coverRepository;
 
     @Transactional(readOnly = true)
@@ -87,10 +92,12 @@ public class BrewScheduleService {
         List<BrewStaffSchedule> schedules = owner
                 ? scheduleRepository.findByStoreIdOrderByUserIdAscDayOfWeekAsc(storeId)
                 : scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, user.getId());
-        Map<UUID, String> nicknames = nicknameMap(schedules.stream()
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        List<BrewStaffSchedule> asOfToday = BrewEffectiveShifts.weeklyAsOf(schedules, today);
+        Map<UUID, String> nicknames = nicknameMap(asOfToday.stream()
                 .map(BrewStaffSchedule::getUserId)
                 .collect(Collectors.toSet()));
-        return schedules.stream()
+        return asOfToday.stream()
                 .map(s -> ScheduleResponse.from(s, nicknames.getOrDefault(s.getUserId(), "")))
                 .toList();
     }
@@ -106,9 +113,9 @@ public class BrewScheduleService {
         requireOwnedStore(storeId, owner.getId());
         requireSubscriber(storeId, targetUserId);
 
-        Set<Integer> days = new HashSet<>();
+        Map<Integer, ScheduleSlotRequest> slotsByDay = new HashMap<>();
         for (ScheduleSlotRequest slot : request.slots()) {
-            if (!days.add(slot.dayOfWeek())) {
+            if (slotsByDay.put(slot.dayOfWeek(), slot) != null) {
                 throw new BusinessException(HttpStatus.BAD_REQUEST, "같은 요일 슬롯이 중복됩니다.");
             }
             try {
@@ -118,40 +125,22 @@ public class BrewScheduleService {
             }
         }
 
-        List<BrewStaffSchedule> existing =
-                scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, targetUserId);
-        Map<Integer, BrewStaffSchedule> byDay = existing.stream()
-                .collect(Collectors.toMap(BrewStaffSchedule::getDayOfWeek, s -> s));
-
-        Set<Integer> keepDays = request.slots().stream()
-                .map(ScheduleSlotRequest::dayOfWeek)
-                .collect(Collectors.toSet());
-
-        for (BrewStaffSchedule old : existing) {
-            if (!keepDays.contains(old.getDayOfWeek())) {
-                scheduleRepository.delete(old);
-            }
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        ScheduleReplaceMode mode = request.mode();
+        if (mode == ScheduleReplaceMode.ONCE) {
+            saveOnceOverride(storeId, targetUserId, requireApplyDate(request, today), slotsByDay);
+        } else {
+            LocalDate from = mode == ScheduleReplaceMode.FROM_TODAY
+                    ? today
+                    : requireApplyDate(request, today);
+            saveWeeklyFrom(storeId, targetUserId, from, slotsByDay);
         }
 
-        List<BrewStaffSchedule> saved = new ArrayList<>();
-        for (ScheduleSlotRequest slot : request.slots()) {
-            BrewStaffSchedule current = byDay.get(slot.dayOfWeek());
-            if (current == null) {
-                saved.add(scheduleRepository.save(BrewStaffSchedule.builder()
-                        .storeId(storeId)
-                        .userId(targetUserId)
-                        .dayOfWeek(slot.dayOfWeek())
-                        .startTime(slot.startTime())
-                        .endTime(slot.endTime())
-                        .build()));
-            } else {
-                current.updateTimes(slot.startTime(), slot.endTime());
-                saved.add(scheduleRepository.save(current));
-            }
-        }
-
+        List<BrewStaffSchedule> asOfToday = BrewEffectiveShifts.weeklyAsOf(
+                scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, targetUserId),
+                today);
         String nickname = nicknameOf(targetUserId);
-        return saved.stream()
+        return asOfToday.stream()
                 .sorted((a, b) -> Integer.compare(a.getDayOfWeek(), b.getDayOfWeek()))
                 .map(s -> ScheduleResponse.from(s, nickname))
                 .toList();
@@ -173,6 +162,11 @@ public class BrewScheduleService {
         List<BrewStaffSchedule> schedules = owner
                 ? scheduleRepository.findByStoreIdOrderByUserIdAscDayOfWeekAsc(storeId)
                 : scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, user.getId());
+        LocalDate overrideFrom = from.minusDays(1);
+        List<BrewStaffScheduleOverride> overrides = owner
+                ? overrideRepository.findByStoreIdAndWorkDateBetween(storeId, overrideFrom, to)
+                : overrideRepository.findByStoreIdAndUserIdAndWorkDateBetween(
+                        storeId, user.getId(), overrideFrom, to);
 
         LocalDate coverFrom = from.minusDays(1);
         List<BrewShiftCover> coversInRange =
@@ -189,13 +183,16 @@ public class BrewScheduleService {
 
         Set<UUID> userIds = new HashSet<>();
         schedules.forEach(s -> userIds.add(s.getUserId()));
+        overrides.forEach(o -> userIds.add(o.getUserId()));
         coversInRange.forEach(c -> {
             userIds.add(c.getOriginalUserId());
             userIds.add(c.getCoverUserId());
         });
         Map<UUID, String> nicknames = nicknameMap(userIds);
 
-        List<ScheduleResponse> scheduleResponses = schedules.stream()
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        List<ScheduleResponse> scheduleResponses = BrewEffectiveShifts.weeklyAsOf(schedules, today)
+                .stream()
                 .map(s -> ScheduleResponse.from(s, nicknames.getOrDefault(s.getUserId(), "")))
                 .toList();
         List<CoverResponse> coverResponses = coversInRange.stream()
@@ -229,27 +226,40 @@ public class BrewScheduleService {
                         (a, b) -> a
                 ));
 
+        Map<UUID, List<BrewStaffSchedule>> versionsByUser = schedules.stream()
+                .collect(Collectors.groupingBy(BrewStaffSchedule::getUserId));
+        Map<String, BrewStaffScheduleOverride> overrideByUserDate = new HashMap<>();
+        for (BrewStaffScheduleOverride override : overrides) {
+            overrideByUserDate.put(
+                    BrewEffectiveShifts.overrideKey(override.getUserId(), override.getWorkDate()),
+                    override);
+        }
+        Set<UUID> staffIds = new HashSet<>(versionsByUser.keySet());
+        overrides.forEach(o -> staffIds.add(o.getUserId()));
+
         List<CalendarOccurrenceResponse> occurrences = new ArrayList<>();
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
-            int dow = date.getDayOfWeek().getValue();
-            for (BrewStaffSchedule schedule : schedules) {
-                if (schedule.getDayOfWeek() != dow) {
-                    continue;
-                }
-                BrewStoreSubscription sub = subsByUser.get(schedule.getUserId());
+            for (UUID staffId : staffIds) {
+                BrewStoreSubscription sub = subsByUser.get(staffId);
                 if (sub != null && !sub.isActiveOn(date)) {
                     continue;
                 }
-                BrewShiftCover approved = approvedCoverByOriginalDate.get(
-                        schedule.getUserId() + "|" + date);
+                BrewEffectiveShifts.Shift shift = BrewEffectiveShifts.resolve(
+                        versionsByUser.getOrDefault(staffId, List.of()),
+                        overrideByUserDate.get(BrewEffectiveShifts.overrideKey(staffId, date)),
+                        date);
+                if (shift == null) {
+                    continue;
+                }
+                BrewShiftCover approved = approvedCoverByOriginalDate.get(staffId + "|" + date);
                 if (approved != null) {
                     occurrences.add(new CalendarOccurrenceResponse(
                             date,
-                            schedule.getUserId(),
-                            nicknames.getOrDefault(schedule.getUserId(), ""),
-                            schedule.getStartTime(),
-                            schedule.getEndTime(),
-                            schedule.isOvernight(),
+                            staffId,
+                            nicknames.getOrDefault(staffId, ""),
+                            shift.start(),
+                            shift.end(),
+                            shift.overnight(),
                             "COVERED_OUT",
                             approved.getId(),
                             approved.getCoverUserId(),
@@ -258,11 +268,11 @@ public class BrewScheduleService {
                 } else {
                     occurrences.add(new CalendarOccurrenceResponse(
                             date,
-                            schedule.getUserId(),
-                            nicknames.getOrDefault(schedule.getUserId(), ""),
-                            schedule.getStartTime(),
-                            schedule.getEndTime(),
-                            schedule.isOvernight(),
+                            staffId,
+                            nicknames.getOrDefault(staffId, ""),
+                            shift.start(),
+                            shift.end(),
+                            shift.overnight(),
                             "REGULAR",
                             null,
                             null,
@@ -634,6 +644,10 @@ public class BrewScheduleService {
                 .findByStoreIdInAndUserId(ids, userId)
                 .stream()
                 .collect(Collectors.groupingBy(BrewStaffSchedule::getStoreId));
+        Map<UUID, List<BrewStaffScheduleOverride>> overridesByStore = overrideRepository
+                .findByStoreIdInAndUserIdAndWorkDateIn(ids, userId, nearby)
+                .stream()
+                .collect(Collectors.groupingBy(BrewStaffScheduleOverride::getStoreId));
 
         Map<UUID, BrewStoreSubscription> subs =
                 subsByStore != null ? subsByStore : Map.of();
@@ -647,7 +661,8 @@ public class BrewScheduleService {
                             subs.get(storeId),
                             asCoverByStore.getOrDefault(storeId, List.of()),
                             asOriginalByStore.getOrDefault(storeId, List.of()),
-                            schedulesByStore.getOrDefault(storeId, List.of())));
+                            schedulesByStore.getOrDefault(storeId, List.of()),
+                            overridesByStore.getOrDefault(storeId, List.of())));
         }
         return result;
     }
@@ -667,7 +682,8 @@ public class BrewScheduleService {
             BrewStoreSubscription sub,
             List<BrewShiftCover> asCover,
             List<BrewShiftCover> asOriginal,
-            List<BrewStaffSchedule> schedules
+            List<BrewStaffSchedule> schedules,
+            List<BrewStaffScheduleOverride> overrides
     ) {
         for (BrewShiftCover cover : asCover) {
             if (BrewShiftTimes.isWithinShift(
@@ -682,24 +698,27 @@ public class BrewScheduleService {
                 .map(BrewShiftCover::getWorkDate)
                 .collect(Collectors.toSet());
 
-        for (BrewStaffSchedule schedule : schedules) {
-            if (schedule.getDayOfWeek() == today.getDayOfWeek().getValue()
-                    && (sub == null || sub.isActiveOn(today))
-                    && !coveredOutDates.contains(today)
-                    && BrewShiftTimes.isWithinShift(
-                    now, today, schedule.getStartTime(), schedule.getEndTime())) {
-                return true;
-            }
-            if (schedule.isOvernight()
-                    && schedule.getDayOfWeek() == yesterday.getDayOfWeek().getValue()
-                    && (sub == null || sub.isActiveOn(yesterday))
-                    && !coveredOutDates.contains(yesterday)
-                    && BrewShiftTimes.isWithinShift(
-                    now, yesterday, schedule.getStartTime(), schedule.getEndTime())) {
-                return true;
-            }
+        Map<LocalDate, BrewStaffScheduleOverride> overrideByDate = new HashMap<>();
+        for (BrewStaffScheduleOverride override : overrides) {
+            overrideByDate.put(override.getWorkDate(), override);
         }
-        return false;
+
+        BrewEffectiveShifts.Shift todayShift = BrewEffectiveShifts.resolve(
+                schedules, overrideByDate.get(today), today);
+        if (todayShift != null
+                && (sub == null || sub.isActiveOn(today))
+                && !coveredOutDates.contains(today)
+                && BrewShiftTimes.isWithinShift(now, today, todayShift.start(), todayShift.end())) {
+            return true;
+        }
+        BrewEffectiveShifts.Shift yesterdayShift = BrewEffectiveShifts.resolve(
+                schedules, overrideByDate.get(yesterday), yesterday);
+        return yesterdayShift != null
+                && yesterdayShift.overnight()
+                && (sub == null || sub.isActiveOn(yesterday))
+                && !coveredOutDates.contains(yesterday)
+                && BrewShiftTimes.isWithinShift(
+                now, yesterday, yesterdayShift.start(), yesterdayShift.end());
     }
 
     private void assertNoActiveCoverConflict(UUID storeId, UUID originalUserId, LocalDate workDate) {
@@ -775,22 +794,29 @@ public class BrewScheduleService {
 
         List<BrewStaffSchedule> candidateSchedules =
                 scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, coverUserId);
-        for (BrewStaffSchedule schedule : candidateSchedules) {
-            for (LocalDate date : nearbyDates) {
-                if (schedule.getDayOfWeek() != date.getDayOfWeek().getValue()
-                        || coveredOutDates.contains(date)) {
-                    continue;
-                }
-                LocalDateTime shiftFrom =
-                        BrewShiftTimes.rangeStart(date, schedule.getStartTime());
-                LocalDateTime shiftTo = BrewShiftTimes.rangeEnd(
-                        date, schedule.getStartTime(), schedule.getEndTime());
-                if (overlaps(coverFrom, coverTo, shiftFrom, shiftTo)) {
+        List<BrewStaffScheduleOverride> nearbyOverrides =
+                overrideRepository.findByStoreIdAndUserIdAndWorkDateIn(
+                        storeId, coverUserId, nearbyDates);
+        Map<LocalDate, BrewStaffScheduleOverride> overrideByDate = new HashMap<>();
+        for (BrewStaffScheduleOverride override : nearbyOverrides) {
+            overrideByDate.put(override.getWorkDate(), override);
+        }
+        for (LocalDate date : nearbyDates) {
+            if (coveredOutDates.contains(date)) {
+                continue;
+            }
+            BrewEffectiveShifts.Shift shift = BrewEffectiveShifts.resolve(
+                    candidateSchedules, overrideByDate.get(date), date);
+            if (shift == null) {
+                continue;
+            }
+            LocalDateTime shiftFrom = BrewShiftTimes.rangeStart(date, shift.start());
+            LocalDateTime shiftTo = BrewShiftTimes.rangeEnd(date, shift.start(), shift.end());
+            if (overlaps(coverFrom, coverTo, shiftFrom, shiftTo)) {
                 throw new BusinessException(
                         HttpStatus.CONFLICT,
                         "해당 시간에 정규 근무가 있는 직원은 지정할 수 없습니다."
                 );
-                }
             }
         }
 
@@ -826,6 +852,121 @@ public class BrewScheduleService {
 
     private String nicknameOf(UUID userId) {
         return userService.findById(userId).map(User::getNickname).orElse("");
+    }
+
+    private LocalDate requireApplyDate(ReplaceSchedulesRequest request, LocalDate today) {
+        LocalDate from = request.effectiveFrom();
+        if (from == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "적용 날짜를 선택해 주세요.");
+        }
+        if (from.isBefore(today.minusYears(1)) || from.isAfter(today.plusYears(1))) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "적용 날짜는 오늘 기준 1년 이내여야 합니다.");
+        }
+        return from;
+    }
+
+    private void saveOnceOverride(
+            UUID storeId,
+            UUID targetUserId,
+            LocalDate date,
+            Map<Integer, ScheduleSlotRequest> slotsByDay
+    ) {
+        int dow = date.getDayOfWeek().getValue();
+        ScheduleSlotRequest slot = slotsByDay.get(dow);
+        boolean active = slot != null;
+        LocalTime start = active ? slot.startTime() : null;
+        LocalTime end = active ? slot.endTime() : null;
+        BrewStaffScheduleOverride existing = overrideRepository
+                .findByStoreIdAndUserIdAndWorkDate(storeId, targetUserId, date)
+                .orElse(null);
+        if (existing == null) {
+            overrideRepository.save(BrewStaffScheduleOverride.builder()
+                    .storeId(storeId)
+                    .userId(targetUserId)
+                    .workDate(date)
+                    .startTime(start)
+                    .endTime(end)
+                    .active(active)
+                    .build());
+            return;
+        }
+        existing.update(start, end, active);
+        overrideRepository.save(existing);
+    }
+
+    private void saveWeeklyFrom(
+            UUID storeId,
+            UUID targetUserId,
+            LocalDate from,
+            Map<Integer, ScheduleSlotRequest> slotsByDay
+    ) {
+        List<BrewStaffSchedule> existing =
+                scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, targetUserId);
+        List<BrewStaffSchedule> future = existing.stream()
+                .filter(s -> s.getEffectiveFrom().isAfter(from))
+                .toList();
+        if (!future.isEmpty()) {
+            scheduleRepository.deleteAll(future);
+        }
+
+        Map<Integer, BrewStaffSchedule> atFrom = new HashMap<>();
+        Map<Integer, BrewStaffSchedule> latestOnOrBefore = new HashMap<>();
+        for (BrewStaffSchedule schedule : existing) {
+            if (schedule.getEffectiveFrom().isAfter(from)) {
+                continue;
+            }
+            BrewStaffSchedule current = latestOnOrBefore.get(schedule.getDayOfWeek());
+            if (current == null || schedule.getEffectiveFrom().isAfter(current.getEffectiveFrom())) {
+                latestOnOrBefore.put(schedule.getDayOfWeek(), schedule);
+            }
+            if (schedule.getEffectiveFrom().equals(from)) {
+                atFrom.put(schedule.getDayOfWeek(), schedule);
+            }
+        }
+
+        List<BrewStaffSchedule> toSave = new ArrayList<>();
+        for (int day = 1; day <= 7; day++) {
+            ScheduleSlotRequest slot = slotsByDay.get(day);
+            BrewStaffSchedule row = atFrom.get(day);
+            if (slot != null) {
+                if (row == null) {
+                    toSave.add(BrewStaffSchedule.builder()
+                            .storeId(storeId)
+                            .userId(targetUserId)
+                            .dayOfWeek(day)
+                            .startTime(slot.startTime())
+                            .endTime(slot.endTime())
+                            .effectiveFrom(from)
+                            .active(true)
+                            .build());
+                } else {
+                    row.update(slot.startTime(), slot.endTime(), true);
+                    toSave.add(row);
+                }
+                continue;
+            }
+            BrewStaffSchedule prior = latestOnOrBefore.get(day);
+            if (prior == null || !prior.isActive()) {
+                continue;
+            }
+            if (row == null) {
+                toSave.add(BrewStaffSchedule.builder()
+                        .storeId(storeId)
+                        .userId(targetUserId)
+                        .dayOfWeek(day)
+                        .startTime(prior.getStartTime())
+                        .endTime(prior.getEndTime())
+                        .effectiveFrom(from)
+                        .active(false)
+                        .build());
+            } else {
+                row.update(prior.getStartTime(), prior.getEndTime(), false);
+                toSave.add(row);
+            }
+        }
+        if (!toSave.isEmpty()) {
+            scheduleRepository.saveAll(toSave);
+        }
     }
 
     private String trimNote(String note) {
@@ -879,6 +1020,7 @@ public class BrewScheduleService {
     @Transactional
     public void purgeStaffMembership(UUID storeId, UUID userId, LocalDate leaveDate) {
         scheduleRepository.deleteByStoreIdAndUserId(storeId, userId);
+        overrideRepository.deleteByStoreIdAndUserId(storeId, userId);
         deleteCoversAfterLeaveDate(storeId, userId, leaveDate);
     }
 

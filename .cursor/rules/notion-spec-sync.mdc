@@ -1,0 +1,59 @@
+---
+description: 기능·DB 변경 시 Notion 기능명세서와 DB 스키마를 동기화한다
+alwaysApply: true
+---
+
+# PBB Notion 기능명세·DB 스키마 동기화
+
+기능 또는 데이터베이스를 **추가·삭제·변경**하면 코드만 끝내지 말고 **Notion 문서도 같이 갱신**한다.
+Notion MCP(`plugin-notion-workspace-notion` 또는 동등 서버)가 연결되어 있을 때 수행한다. 미연결이면 작업 요약에 갱신 필요·미연결을 알리고, 연결 후 이어서 한다.
+
+## 대상 (루트)
+
+| 산출물 | Notion 위치 |
+|-----|---|
+| 문서 모음 (루트) | [PBB 기능명세서 & DB](https://app.notion.com/p/39e47e18a79981bf9f9ecc0542ff3fd2) |
+| 전체 기능명세 | [기능명세서](https://app.notion.com/p/39e47e18a799815fb994d1592122a02f) |
+| 취미 앱 모음 | [취미 앱 기능명세서](https://app.notion.com/p/39e47e18a79981aa9705e591afefa5ac) |
+| Veveno (구 Brew Note) | [Veveno](https://app.notion.com/p/39e47e18a7998178b3eee1a414e35ef1) |
+| Score Viewer | [Score Viewer](https://app.notion.com/p/39e47e18a79981ef839ef3e1f2f5aba0) |
+| DB 스키마 (단일 출처) | [DB 스키마](https://app.notion.com/p/39e47e18a7998133a99eec647658927a) |
+| 기능 목록 DB | [기능 목록](https://app.notion.com/p/f1a8c985ae494fc9945e7e9c850d5545) |
+| DB 컬럼 DB | [DB 테이블 컬럼](https://app.notion.com/p/0d13d467083e4738b433a69fc0103144) |
+
+## 해야 할 일
+
+1. 변경된 범위에 해당하는 **페이지만** 업데이트한다 (전체 재작성 금지).
+2. **기능 변경** 시:
+   - 전체 [기능명세서](https://app.notion.com/p/39e47e18a799815fb994d1592122a02f)의 해당 섹션
+   - 취미 앱이면 해당 앱별 페이지 (+ 필요 시 취미 모음 요약)
+   - [기능 목록](https://app.notion.com/p/f1a8c985ae494fc9945e7e9c850d5545) DB 행 추가·삭제·상태/라우트/API 갱신
+3. **DB·Redis 등 영속/캐시 스키마 변경** 시:
+   - [DB 스키마](https://app.notion.com/p/39e47e18a7998133a99eec647658927a)에 테이블/키·관계·DDL 반영 (**스키마 단일 출처**)
+   - [DB 테이블 컬럼](https://app.notion.com/p/0d13d467083e4738b433a69fc0103144) DB 행 동기화
+   - 특정 앱이 쓰는 테이블이면 앱 명세 하단에 **관련 테이블 mention**만 추가 (스키마 본문을 앱 페이지에 복제하지 않음)
+4. 작업 요약에 Notion 갱신 여부(어떤 페이지/DB)를 짧게 언급한다.
+
+## 배치 규칙 (새 Notion DB / 스키마 문서)
+
+| 추가 대상 | 위치 |
+|-----|---|
+| MySQL·Redis 등 실제 스키마 정의 | 루트 **DB 스키마** (+ DB 테이블 컬럼) |
+| 앱 전용 관리용 Notion DB (체크리스트·로드맵) | 해당 앱 하위 페이지 |
+| 취미 앱 공통 추적 DB | 취미 앱 기능명세서 아래 |
+| 인증·세션·전체 기능 목록 | 루트 `PBB 기능명세서 & DB` |
+
+## 트리거 예시
+
+- 새 페이지/라우트, API, 회원가입·로그인·동의 단계 변경
+- 취미 앱 UX·기능 추가/삭제/성숙도(스캐폴드↔정식) 변경
+- `users` / `user_consents` 등 테이블·컬럼·FK·인덱스 변경
+- Redis 키 패턴·TTL 변경, 새 영속 엔티티 JPA/DDL 추가
+- 기능 제거 또는 “준비중” ↔ 정식 공개 전환
+
+## 하지 말 것
+
+- UI 카피·스타일만 바꾼 경우처럼 **동작·계약·스키마가 그대로**면 Notion 수정 생략 가능.
+- 스키마 본문을 취미 앱 페이지마다 복제하지 않는다. DB 스키마가 단일 출처다.
+- 관련 없는 페이지·DB 행을 무단으로 지우지 않는다. 변경된 항목만 수정한다.
+- FigJam 유저 흐름도 규칙(`.cursor/rules/figjam-user-flows.mdc`)과 **병행**한다. 유저 단계가 바뀌면 FigJam·docs도 함께 갱신.

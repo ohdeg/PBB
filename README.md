@@ -14,7 +14,7 @@
 - **검증:** JUnit/Mockito, MySQL·Redis Testcontainers, Vitest coverage, Playwright를 GitHub Actions PR 게이트로 연결
 - **운영:** Spring Security 공개/회원/DEV 이중 인가, Actuator health/info, Cloudflare Pages + Tunnel + Docker Compose
 
-대표적으로 **Veveno**는 소규모 매장의 메뉴·재고(낙관적 락)·직원 근무·대타/추가 근무를 다루고, **Sranko**는 옷장·가상 입어보기(Vertex Gemini)·룩·커뮤니티와 FastAPI 분류/배경제거를 한 흐름으로 묶습니다.
+대표적으로 **Veveno**는 소규모 매장의 메뉴·재고(낙관적 락·사용량 일수)·직원 근무(오늘부터/지정일/한번만)·대타/추가 근무·매장 도구를 다루고, **Sranko**는 옷장·가상 입어보기(Vertex Gemini)·룩·커뮤니티와 FastAPI 분류/배경제거를 한 흐름으로 묶습니다.
 
 ![PBB 홈](docs/screenshots/pbb-home.png)
 
@@ -32,7 +32,7 @@ Browser
 
 | 앱 | 경로 | 설명 |
 |----|------|------|
-| Veveno | `/hobbies/veveno` | 가게 노트. 랜딩 공개 · 허브 `/hub` · 가게 `/stores/:id` (로그인 필수) |
+| Veveno | `/hobbies/veveno` | 가게 노트. 랜딩 공개 · 허브 `/hub` · 가게 `/stores/:id` (로그인 필수, 메뉴·재고·근무·도구) |
 | Sranko | `/hobbies/sranko` | 디지털 옷장 · 핏 체크 · Gemini 입어보기 · 룩 · 커뮤니티 |
 | 6PICK | `/hobbies/6pick` | 로또 번호 생성·세금 계산·회차 관리 (당첨번호 자동 동기화) |
 | Dieta | `/hobbies/dieta` | 체중·섭취·활동량 주간 코칭 |
@@ -40,7 +40,8 @@ Browser
 
 하위 호환 리다이렉트: `/hobbies/lotto` → 6PICK · `/hobbies/brew-note` → Veveno · `/hobbies/ipbt`·`analyze-baseball`·`pbb`·`/analysis` → 홈
 
-공통 기능: 회원가입(약관 동의) · 로그인 · JWT · 프로필 · 회원 등급(FREE/DEV) · 회원 탈퇴 · 점검/오류/404 화면
+공통 기능: 회원가입(약관 동의) · 로그인 · 이메일 찾기 · 비밀번호 재설정 · JWT · 프로필 · 라이트/다크 테마(`localStorage`) · 회원 등급(FREE/DEV) · 회원 탈퇴 · 점검/오류/404 화면  
+좁은 화면(<960px)에서는 헤더 닉네임이 설정(`/profile`)·로그아웃 메뉴가 됩니다.
 
 ## 기술 스택
 
@@ -60,10 +61,11 @@ PBB/
 ├── frontend/                 # Vite + React
 ├── spring_backend/           # Spring Boot API
 ├── fastAPI_backend/          # Sranko ML (predict / extract / fit-warp)
-├── infra/mysql/              # init.sql + migrations
+├── infra/mysql/              # init.sql · migrate_*.sql · migrations/
 ├── docker-compose.yml        # 로컬 MySQL + Redis
 ├── docker-compose.prod.yml   # mysql · redis · fastapi · backend · cloudflared
-└── docs/                     # 유저 흐름도 · 배포 가이드
+├── .cursor/rules/            # 팀 Cursor 규칙
+└── docs/                     # 유저 흐름도 (`docs/PBB-유저-흐름도.md`)
 ```
 
 ```text
@@ -168,6 +170,9 @@ com.studiobs.spring_backend
 - 재고: `brew_store_stocks.version` + JPA `@Version`. PATCH에 조회 `version`을 실어 보내고 불일치는 **409**. FE는 해당 stock만 busy 후 refetch.
 - `StoreResponse.onDuty`: 스케줄 기준(업주 상시 true 아님). 목록/검색/허브는 `onDutyByStoreIds`. 닉네임·구독자 등도 배치 IN.
 - FE 허브·검색·가게 헤더에 「근무중」뱃지.
+- 정규 근무 교체: **오늘부터** / **지정일부터**(`effective_from` 버전) / **한번만**(그날 override). 지정일 전 주는 이전 시간을 유지.
+- 재고 **사용량 일수 안내**(가게 설정, 기본 끔): 감소분을 일별 기록해 「약 N일분」·경고선 임박을 표시.
+- 도구 탭(프론트): 단위 변환 · 농도 계산 · 타이머(프리셋만 서버).
 
 **고민과 선택**
 
@@ -280,15 +285,16 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 
 ```bash
 docker compose up -d
+# 로컬 포트·볼륨만 바꿀 때는 docker-compose.override.yml (git 제외)
 ```
 
 | 서비스 | 포트 | 참고 |
 |--------|------|------|
-| MySQL | 3306 | DB `baseball_db` / user `baseball_user` / pw `baseball_password` | (레거시 스키마 재사용)
+| MySQL | 3306 | DB `baseball_db` / user `baseball_user` / pw `baseball_password` (레거시 스키마 재사용) |
 | Redis | 6379 | 비밀번호 없음 |
 
 신규 컨테이너는 `infra/mysql/init.sql`로 전체 스키마가 생성됩니다.  
-이미 떠 있는 볼륨은 `init.sql`이 다시 실행되지 않으므로, 스키마가 뒤처지면 해당 `infra/mysql/migrations/*` 또는 migrate 스크립트를 적용하세요. 데이터를 버려도 되면 `docker compose down -v && docker compose up -d`로 맞출 수 있습니다.
+이미 떠 있는 볼륨은 `init.sql`이 다시 실행되지 않으므로, 스키마가 뒤처지면 해당 `infra/mysql/migrate_*.sql` 또는 `infra/mysql/migrations/`를 적용하세요. 데이터를 버려도 되면 `docker compose down -v && docker compose up -d`로 맞출 수 있습니다.
 
 ### 2. Spring Backend
 
@@ -381,4 +387,4 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 SPA 라우팅: `frontend/public/_redirects` (`/* /index.html 200`)
 
-운영 시크릿(`.env.prod`, `secrets/`, 모델 가중치)은 git에 올리지 않습니다. 예시는 `.env.prod.example`, `spring_backend/.env.example`을 참고하세요.
+운영 시크릿(`.env` / `.env.prod`, `secrets/`, `*.pem`, 모델 가중치)과 로컬 오버라이드(`docker-compose.override.yml`)는 git에 올리지 않습니다. 예시는 `.env.prod.example`, `spring_backend/.env.example`을 참고하세요. 팀 Cursor 규칙(`.cursor/rules/`)과 MCP URL(`.cursor/mcp.json`)은 커밋합니다.

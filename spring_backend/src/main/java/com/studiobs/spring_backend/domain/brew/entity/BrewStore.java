@@ -43,6 +43,12 @@ public class BrewStore {
     @Column(name = "invite_code", nullable = false, length = 8, unique = true)
     private String inviteCode;
 
+    @Column(name = "stock_edit_off_duty", nullable = false)
+    private boolean stockEditOffDuty;
+
+    @Column(name = "stock_usage_hint", nullable = false)
+    private boolean stockUsageHint;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -59,9 +65,11 @@ public class BrewStore {
         this.inviteCode = inviteCode;
     }
 
-    public void update(String name, boolean isPublic) {
+    public void update(String name, boolean isPublic, boolean stockEditOffDuty, boolean stockUsageHint) {
         this.name = name;
         this.isPublic = isPublic;
+        this.stockEditOffDuty = stockEditOffDuty;
+        this.stockUsageHint = stockUsageHint;
     }
 
     public void rotateInviteCode(String inviteCode) {

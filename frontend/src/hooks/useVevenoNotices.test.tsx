@@ -26,6 +26,8 @@ const ownerStore: VevenoStore = {
   subscribed: false,
   canEditStock: true,
   onDuty: true,
+  stockEditOffDuty: false,
+  stockUsageHint: false,
   leaveDate: null,
   createdAt: '2026-07-27T00:00:00Z',
   updatedAt: '2026-07-27T00:00:00Z',

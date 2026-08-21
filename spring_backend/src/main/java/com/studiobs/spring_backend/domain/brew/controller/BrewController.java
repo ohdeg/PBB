@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.brew.controller;
 
 import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
+import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CalendarResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CoverAfterLeaveCountResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CoverResponse;
@@ -65,6 +66,11 @@ public class BrewController {
     private final BrewScheduleService brewScheduleService;
     private final BrewTimerPresetService brewTimerPresetService;
     private final AccessTokenResolver accessTokenResolver;
+
+    @GetMapping("/stats")
+    public BrewStatsResponse stats() {
+        return brewService.getStats();
+    }
 
     @GetMapping("/stores/mine")
     public List<StoreResponse> myStores(HttpServletRequest request) {

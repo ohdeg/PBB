@@ -3,8 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { ToastHost } from './components/ui/ToastHost';
+import { applyTheme, useThemeStore } from './stores/themeStore';
 import './index.css';
 import './features/dieta/dieta.css';
+
+applyTheme(useThemeStore.getState().theme);
 
 const rootElement = document.getElementById('root');
 

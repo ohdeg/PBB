@@ -9,9 +9,18 @@ export interface VevenoStore {
   subscribed: boolean;
   canEditStock: boolean;
   onDuty: boolean;
+  /** 1이면 재고권한 직원이 근무 외에도 수정 가능. 기본 false */
+  stockEditOffDuty: boolean;
+  /** 1이면 사용량으로 재고 일수·곧 부족 안내. 기본 false */
+  stockUsageHint: boolean;
   leaveDate: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VevenoStats {
+  ownerCount: number;
+  storeCount: number;
 }
 
 export interface VevenoMenu {
@@ -44,6 +53,8 @@ export interface VevenoStock {
   /** JPA @Version — PATCH 시 필수 */
   version: number;
   lowStock: boolean;
+  soonLow: boolean;
+  daysOfStock: number | null;
   updatedAt: string;
 }
 
@@ -158,6 +169,8 @@ export interface VevenoScheduleSlotInput {
   startTime: string;
   endTime: string;
 }
+
+export type VevenoScheduleReplaceMode = 'FROM_TODAY' | 'FROM_DATE' | 'ONCE';
 
 export interface VevenoCreateCoverInput {
   originalUserId?: string;

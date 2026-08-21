@@ -1,9 +1,7 @@
 export type HobbyBlockTone =
-  | 'lime'
   | 'lilac'
   | 'cream'
   | 'mint'
-  | 'pink'
   | 'coral'
   | 'navy';
 
@@ -15,7 +13,7 @@ export interface HobbyApp {
   category: string;
   /** 소개 랜딩·내비 기본 경로 */
   path: string | null;
-  /** 홈「시작하기」— 앱 메인 진입 (없으면 path와 동일 → 소개 링크 숨김) */
+  /** 홈「열기」— 앱 메인 진입 (없으면 path와 동일 → 소개 링크 숨김) */
   startPath?: string;
   accent: string;
   available: boolean;

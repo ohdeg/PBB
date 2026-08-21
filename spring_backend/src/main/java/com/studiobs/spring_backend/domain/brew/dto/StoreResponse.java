@@ -16,6 +16,8 @@ public record StoreResponse(
         boolean subscribed,
         boolean canEditStock,
         boolean onDuty,
+        boolean stockEditOffDuty,
+        boolean stockUsageHint,
         /** 열람자 본인의 퇴사 예정일(마지막 근무일). 없으면 null */
         LocalDate leaveDate,
         LocalDateTime createdAt,
@@ -40,6 +42,8 @@ public record StoreResponse(
                 subscribed,
                 owned || canEditStock,
                 onDuty,
+                store.isStockEditOffDuty(),
+                store.isStockUsageHint(),
                 leaveDate,
                 store.getCreatedAt(),
                 store.getUpdatedAt()

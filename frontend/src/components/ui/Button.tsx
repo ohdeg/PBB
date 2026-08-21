@@ -9,13 +9,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
   primary:
-    'bg-black text-white disabled:bg-black/50 disabled:text-white/80',
+    'bg-[var(--primary)] text-[var(--on-primary)] disabled:opacity-50',
   secondary:
-    'bg-white text-black disabled:opacity-50',
+    'bg-[var(--bg-elevated)] text-[var(--text)] disabled:opacity-50',
   outline:
-    'bg-white text-black border border-[#e6e6e6] disabled:opacity-50',
+    'bg-[var(--bg-elevated)] text-[var(--text)] border border-[var(--border-strong)] disabled:opacity-50',
   ghost:
-    'bg-transparent text-black disabled:opacity-50',
+    'bg-transparent text-[var(--text)] disabled:opacity-50',
 };
 
 export function Button({

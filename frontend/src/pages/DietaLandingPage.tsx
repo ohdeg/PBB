@@ -36,7 +36,8 @@ export function DietaLandingPage() {
           body: '활동이 더 필요할 때, 몇 보·몇 분이면 되는지 바로 보여 줘요.',
         },
       ]}
-      closingCopy="준비되면 시작해 보세요. 홈(또는 온보딩)으로 이어집니다."
+      closingCopy="홈(또는 온보딩)으로 이어집니다."
+      startLabel="오늘 보기"
       onStart={() => {
         void navigate(HOME);
       }}

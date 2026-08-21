@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { VevenoConcentrationCalculator } from './VevenoConcentrationCalculator';
 import { VevenoTimers } from './VevenoTimers';
 import { VevenoUnitConverter } from './VevenoUnitConverter';
 
-type ToolsSection = 'units' | 'timers';
+type ToolsSection = 'units' | 'concentration' | 'timers';
 
 interface VevenoToolsPanelProps {
   storeId: string;
@@ -26,6 +27,15 @@ export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
         <button
           type="button"
           role="tab"
+          className={section === 'concentration' ? 'is-active' : ''}
+          aria-selected={section === 'concentration'}
+          onClick={() => setSection('concentration')}
+        >
+          농도
+        </button>
+        <button
+          type="button"
+          role="tab"
           className={section === 'timers' ? 'is-active' : ''}
           aria-selected={section === 'timers'}
           onClick={() => setSection('timers')}
@@ -36,6 +46,8 @@ export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
 
       {section === 'units' ? (
         <VevenoUnitConverter />
+      ) : section === 'concentration' ? (
+        <VevenoConcentrationCalculator />
       ) : (
         <VevenoTimers storeId={storeId} />
       )}

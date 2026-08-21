@@ -31,6 +31,31 @@ function daysForRange(range: WeightRange): number {
   return 92;
 }
 
+function sumIntakeOn(meals: DietaIntakeLog[], day: string) {
+  let kcal = 0;
+  let carbG = 0;
+  let proteinG = 0;
+  let fatG = 0;
+  for (const meal of meals) {
+    if (meal.loggedOn !== day) continue;
+    kcal += meal.kcal;
+    carbG += meal.carbG;
+    proteinG += meal.proteinG;
+    fatG += meal.fatG;
+  }
+  return {
+    kcal: Math.round(kcal),
+    carbG: Math.round(carbG),
+    proteinG: Math.round(proteinG),
+    fatG: Math.round(fatG),
+  };
+}
+
+function barWidthPct(eaten: number, goal: number): number {
+  if (goal <= 0) return 0;
+  return Math.min(100, Math.round((eaten / goal) * 100));
+}
+
 export function DietaHomePage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const userKey = useDietaUserKey();
@@ -82,6 +107,11 @@ export function DietaHomePage() {
     }
     return macrosFromDaily(profile.dailyKcal, profile.macros);
   }, [profile]);
+
+  const todayIntake = useMemo(
+    () => sumIntakeOn(meals, today),
+    [meals, today],
+  );
 
   const weightSeries = useMemo(() => {
     const cut = Date.now() - daysForRange(weightRange) * 86400000;
@@ -265,6 +295,9 @@ export function DietaHomePage() {
         ? '증량 중'
         : '유지 중';
 
+  const kcalPct = barWidthPct(todayIntake.kcal, profile.dailyKcal);
+  const kcalOver = todayIntake.kcal > profile.dailyKcal;
+
   return (
     <>
       <div className="dieta-title-row">
@@ -277,45 +310,72 @@ export function DietaHomePage() {
             </span>
           ) : null}
         </div>
-        {checkInDue ? (
-          <Link className="dieta-link" to="/hobbies/dieta/check-in">
-            주간 체크인
-          </Link>
-        ) : (
-          <span className="dieta-muted">{weekDay}일차</span>
-        )}
+        <span className="dieta-muted">{weekDay}일차</span>
       </div>
 
       {checkInDue ? (
-        <section className="dieta-card" style={{ marginBottom: '0.85rem' }}>
-          <strong>주간 체크인 가능</strong>
+        <section className="dieta-card dieta-card--checkin">
+          <strong>이번 주 체크인</strong>
           <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
-            체크인 체중을 저장하면 직전 체크인(온보딩)과 비교해 다음 주 계획을
-            제안합니다. 평소 매일 기록은 추이용이에요.
+            아래 체중을 저장하면 다음 주 식사량을 제안합니다. 매일 기록은 추이용이에요.
           </p>
+          <Link
+            className="dieta-btn dieta-btn--primary dieta-btn--block"
+            to="/hobbies/dieta/check-in"
+            style={{ marginTop: '0.85rem', textDecoration: 'none' }}
+          >
+            체크인하러 가기
+          </Link>
         </section>
       ) : null}
 
       <section className="dieta-card">
         <div className="dieta-title-row" style={{ marginBottom: '0.55rem' }}>
-          <strong>오늘 목표 {profile.dailyKcal} kcal</strong>
-          <span className="dieta-muted">TDEE {profile.tdeeKcal}</span>
+          <strong>오늘</strong>
+          <Link className="dieta-link" to="/hobbies/dieta/meals">
+            섭취 기록
+          </Link>
         </div>
+        <p className="dieta-kcal-hero">
+          <span>{todayIntake.kcal}</span>
+          <span className="dieta-muted"> / {profile.dailyKcal} kcal</span>
+        </p>
+        <div
+          className="dieta-progress dieta-progress--kcal"
+          role="meter"
+          aria-valuemin={0}
+          aria-valuemax={profile.dailyKcal}
+          aria-valuenow={todayIntake.kcal}
+          aria-label="오늘 섭취 칼로리"
+        >
+          <span
+            className={kcalOver ? 'is-over' : undefined}
+            style={{ width: `${kcalPct}%` }}
+          />
+        </div>
+        <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
+          TDEE {profile.tdeeKcal} kcal
+        </p>
         {macros ? (
-          <div className="dieta-macro-rows">
+          <div className="dieta-macro-rows" style={{ marginTop: '0.85rem' }}>
             {(
               [
-                ['탄', macros.carbG],
-                ['단', macros.proteinG],
-                ['지', macros.fatG],
+                ['탄', todayIntake.carbG, macros.carbG],
+                ['단', todayIntake.proteinG, macros.proteinG],
+                ['지', todayIntake.fatG, macros.fatG],
               ] as const
-            ).map(([label, g]) => (
+            ).map(([label, eaten, goal]) => (
               <div key={label} className="dieta-macro-row">
                 <span>{label}</span>
                 <div className="dieta-progress">
-                  <span style={{ width: '42%' }} />
+                  <span
+                    className={eaten > goal ? 'is-over' : undefined}
+                    style={{ width: `${barWidthPct(eaten, goal)}%` }}
+                  />
                 </div>
-                <span>{g}g</span>
+                <span>
+                  {eaten}/{goal}g
+                </span>
               </div>
             ))}
           </div>

@@ -189,7 +189,6 @@ export function VevenoPage() {
 
         <header className="veveno-shell__hero veveno-shell__hero--hub">
           <p className="veveno-shell__hero-brand">Veveno</p>
-          <p>메뉴·재고·근무를 한곳에 남겨 두는 가벼운 가게 노트</p>
           <div className="veveno-hero-cta">
             <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
             <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
@@ -217,7 +216,6 @@ export function VevenoPage() {
 
         <div className="veveno-hub-grid">
           <section className="veveno-section">
-            <p className="veveno-section__label">My stores</p>
             <VevenoCard title="내 가게">
               {hasOwned ? (
                 <div className="veveno-stack">
@@ -225,6 +223,7 @@ export function VevenoPage() {
                     <VevenoStoreRow
                       key={store.id}
                       name={store.name}
+                      onDuty={store.onDuty}
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
@@ -240,13 +239,12 @@ export function VevenoPage() {
                   ))}
                 </div>
               ) : (
-                <p className="veveno-empty">등록된 가게가 없습니다.</p>
+                <p className="veveno-empty">등록된 가게가 없습니다. 위에서 만들어 보세요.</p>
               )}
             </VevenoCard>
           </section>
 
           <section className="veveno-section">
-            <p className="veveno-section__label">Subscribed</p>
             <VevenoCard title="근무 가게">
               {hasSubs ? (
                 <div className="veveno-stack">
@@ -254,6 +252,7 @@ export function VevenoPage() {
                     <VevenoStoreRow
                       key={store.id}
                       name={store.name}
+                      onDuty={store.onDuty}
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
                       }}
@@ -269,7 +268,7 @@ export function VevenoPage() {
                   ))}
                 </div>
               ) : (
-                <p className="veveno-empty">근무 중인 가게가 없습니다.</p>
+                <p className="veveno-empty">근무 중인 가게가 없습니다. 가게 찾기로 가입해 보세요.</p>
               )}
             </VevenoCard>
           </section>
@@ -279,7 +278,7 @@ export function VevenoPage() {
           <section className="veveno-section veveno-hub-panel" ref={panelRef}>
             <div className="veveno-hub-panel__bar">
               <p className="veveno-section__label">
-                {panel === 'find' ? 'Find a café' : 'Open yours'}
+                {panel === 'find' ? '가게 찾기' : '가게 등록'}
               </p>
               <VevenoButton size="sm" variant="ghost" onClick={() => setPanel('none')}>
                 닫기

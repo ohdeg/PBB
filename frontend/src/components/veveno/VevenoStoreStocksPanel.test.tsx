@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { vevenoApi } from '../../api/vevenoApi'
 import type { VevenoStock, VevenoStockCategory } from '../../types/veveno'
-import { VevenoStoreStocksPanel } from './VevenoStoreStocksPanel'
+import { VevenoStoreStocksPanel, placeStock } from './VevenoStoreStocksPanel'
 
 vi.mock('../../api/vevenoApi', () => ({
   vevenoApi: {
@@ -15,6 +15,7 @@ vi.mock('../../api/vevenoApi', () => ({
     deleteStockCategory: vi.fn(),
     createStock: vi.fn(),
     updateStock: vi.fn(),
+    deleteStock: vi.fn(),
     listStocks: vi.fn(),
   },
 }))
@@ -34,6 +35,8 @@ const categories: VevenoStockCategory[] = [
         stockMinNum: 1,
         version: 0,
         lowStock: false,
+        soonLow: false,
+        daysOfStock: null,
         updatedAt: '2026-07-27T00:00:00Z',
       },
     ],
@@ -52,6 +55,8 @@ const categories: VevenoStockCategory[] = [
         stockMinNum: 2,
         version: 0,
         lowStock: true,
+        soonLow: false,
+        daysOfStock: null,
         updatedAt: '2026-07-27T00:00:00Z',
       },
     ],
@@ -61,10 +66,16 @@ const categories: VevenoStockCategory[] = [
 interface HarnessProps {
   owned: boolean
   onDuty: boolean
+  stockEditOffDuty?: boolean
   onError?: (message: string) => void
 }
 
-function Harness({ owned, onDuty, onError = vi.fn() }: HarnessProps) {
+function Harness({
+  owned,
+  onDuty,
+  stockEditOffDuty = false,
+  onError = vi.fn(),
+}: HarnessProps) {
   const [stockCategories, setStockCategories] =
     useState<VevenoStockCategory[]>(categories)
 
@@ -74,6 +85,7 @@ function Harness({ owned, onDuty, onError = vi.fn() }: HarnessProps) {
       storeId="store-1"
       owned={owned}
       onDuty={onDuty}
+      stockEditOffDuty={stockEditOffDuty}
       stockCategories={stockCategories}
       setStockCategories={setStockCategories}
       onError={onError}
@@ -90,6 +102,17 @@ describe('VevenoStoreStocksPanel', () => {
     cleanup()
   })
 
+  it('keeps list order when quantity is updated in the same category', () => {
+    const first = categories[0].stocks[0]
+    const second: VevenoStock = { ...first, id: 11, stockName: '케냐', stockNum: 5 }
+    const cats: VevenoStockCategory[] = [
+      { ...categories[0], stocks: [first, second] },
+    ]
+    const next = placeStock(cats, { ...first, stockNum: 3, version: 1 })
+    expect(next[0].stocks.map((s) => s.id)).toEqual([10, 11])
+    expect(next[0].stocks[0].stockNum).toBe(3)
+  })
+
   it('keeps off-duty staff in read-only mode and filters stock names', () => {
     render(<Harness owned={false} onDuty={false} />)
 
@@ -103,6 +126,56 @@ describe('VevenoStoreStocksPanel', () => {
     })
     expect(screen.getByText('에티오피아')).toBeInTheDocument()
     expect(screen.queryByText('저지방 우유')).not.toBeInTheDocument()
+  })
+
+  it('lets off-duty staff mutate when stockEditOffDuty is on', () => {
+    render(<Harness owned={false} onDuty={false} stockEditOffDuty />)
+
+    expect(
+      screen.queryByText('근무 시간이 아니라 재고를 수정할 수 없습니다. 조회만 가능합니다.'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ 재고 추가' })).toBeInTheDocument()
+  })
+
+  it('shows only low-stock items in the low tab', () => {
+    render(<Harness owned onDuty={false} />)
+
+    expect(screen.getByRole('tab', { name: /부족/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /부족/ }))
+
+    expect(screen.getByText('부족 목록')).toBeInTheDocument()
+    expect(screen.getByText('저지방 우유')).toBeInTheDocument()
+    expect(screen.queryByText('에티오피아')).not.toBeInTheDocument()
+  })
+
+  it('lists soon-low stock in the low tab with remaining days', () => {
+    function SoonHarness() {
+      const [stockCategories, setStockCategories] = useState<VevenoStockCategory[]>([
+        {
+          ...categories[0],
+          stocks: [{ ...categories[0].stocks[0], soonLow: true, daysOfStock: 4 }],
+        },
+      ])
+      return (
+        <VevenoStoreStocksPanel
+          active
+          storeId="store-1"
+          owned
+          onDuty={false}
+          stockEditOffDuty={false}
+          stockCategories={stockCategories}
+          setStockCategories={setStockCategories}
+          onError={vi.fn()}
+        />
+      )
+    }
+
+    render(<SoonHarness />)
+
+    expect(screen.getByText(/약 4일분/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /부족/ }))
+    expect(screen.getByText('에티오피아')).toBeInTheDocument()
+    expect(screen.getByText('곧 부족 · 재고 확인')).toBeInTheDocument()
   })
 
   it('updates stock quantity for an owner', async () => {
@@ -124,6 +197,7 @@ describe('VevenoStoreStocksPanel', () => {
         stockNum: 3,
         stockMinNum: 1,
         version: 0,
+        categoryId: 1,
       })
     })
     expect(within(container).getByText('3')).toBeInTheDocument()
@@ -206,5 +280,88 @@ describe('VevenoStoreStocksPanel', () => {
       expect(minusButtons[0]).not.toBeDisabled()
       expect(within(container).getByText('3')).toBeInTheDocument()
     })
+  })
+
+  it('adds inbound quantity when the count is tapped', async () => {
+    const updated: VevenoStock = {
+      ...categories[0].stocks[0],
+      stockNum: 12,
+      version: 1,
+    }
+    vi.mocked(vevenoApi.updateStock).mockResolvedValue({
+      data: updated,
+    } as AxiosResponse<VevenoStock>)
+
+    render(<Harness owned onDuty={false} />)
+    fireEvent.click(screen.getByRole('button', { name: '에티오피아 입고, 현재 2개' }))
+    fireEvent.change(screen.getByLabelText('입고 수량'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: '입고' }))
+
+    await waitFor(() => {
+      expect(vevenoApi.updateStock).toHaveBeenCalledWith(10, {
+        stockName: '에티오피아',
+        stockNum: 12,
+        stockMinNum: 1,
+        version: 0,
+        categoryId: 1,
+      })
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: '입고' })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: '에티오피아 입고, 현재 12개' })).toBeInTheDocument()
+  })
+
+  it('edits stock category, qty, name and min from the overflow menu', async () => {
+    const updated: VevenoStock = {
+      ...categories[0].stocks[0],
+      categoryId: 2,
+      stockName: '예가체프',
+      stockNum: 8,
+      stockMinNum: 4,
+      version: 1,
+    }
+    vi.mocked(vevenoApi.updateStock).mockResolvedValue({
+      data: updated,
+    } as AxiosResponse<VevenoStock>)
+
+    render(<Harness owned onDuty={false} />)
+    fireEvent.click(screen.getByRole('button', { name: '편집' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '더보기' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '편집' }))
+    fireEvent.change(screen.getByLabelText('카테고리'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('재고 이름'), { target: { value: '예가체프' } })
+    fireEvent.change(screen.getByLabelText('수량'), { target: { value: '8' } })
+    fireEvent.change(screen.getByLabelText('경고 수량'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => {
+      expect(vevenoApi.updateStock).toHaveBeenCalledWith(10, {
+        stockName: '예가체프',
+        stockNum: 8,
+        stockMinNum: 4,
+        version: 0,
+        categoryId: 2,
+      })
+    })
+    expect(screen.getByText('예가체프')).toBeInTheDocument()
+  })
+
+  it('deletes a stock from the overflow menu', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(vevenoApi.deleteStock).mockResolvedValue({
+      data: { message: 'ok' },
+    } as AxiosResponse<{ message: string }>)
+
+    render(<Harness owned onDuty={false} />)
+    fireEvent.click(screen.getByRole('button', { name: '편집' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '더보기' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '삭제' }))
+
+    await waitFor(() => {
+      expect(vevenoApi.deleteStock).toHaveBeenCalledWith(10)
+    })
+    expect(screen.queryByText('에티오피아')).not.toBeInTheDocument()
+    confirm.mockRestore()
   })
 })

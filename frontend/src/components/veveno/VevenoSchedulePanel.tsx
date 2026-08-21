@@ -6,6 +6,7 @@ import type {
   VevenoCalendarOccurrence,
   VevenoCover,
   VevenoSchedule,
+  VevenoScheduleReplaceMode,
   VevenoScheduleSlotInput,
   VevenoShiftKind,
 } from '../../types/veveno';
@@ -13,6 +14,8 @@ import { getErrorMessage } from '../../utils/error';
 import { VevenoButton } from './VevenoButton';
 import { VevenoCard } from './VevenoCard';
 import { VevenoInput } from './VevenoInput';
+import { VevenoModal } from './VevenoModal';
+import { VevenoTimeInput } from './VevenoTimeInput';
 import { downloadMonthlyWorkJournal } from './vevenoMonthlyJournalExport';
 import VevenoWeekTimelineView from './VevenoWeekTimelineView';
 
@@ -90,10 +93,6 @@ function parseDateKey(dateKey: string): Date | null {
 function isoDayOfWeekFromDateKey(dateKey: string): number | null {
   const date = parseDateKey(dateKey);
   return date ? ((date.getDay() + 6) % 7) + 1 : null;
-}
-
-function isoDayOfWeek(d: Date): number {
-  return ((d.getDay() + 6) % 7) + 1;
 }
 
 function timeToMinutes(t: string): number | null {
@@ -208,6 +207,11 @@ export function VevenoSchedulePanel({
     note: '',
   });
   const [coverSchedules, setCoverSchedules] = useState<VevenoSchedule[]>([]);
+  const [applyPickerMode, setApplyPickerMode] = useState<
+    Extract<VevenoScheduleReplaceMode, 'FROM_DATE' | 'ONCE'> | null
+  >(null);
+  const [pickerAnchor, setPickerAnchor] = useState(() => new Date());
+  const [pickerSelected, setPickerSelected] = useState(() => toDateKey(new Date()));
   const [coverScheduleHint, setCoverScheduleHint] = useState('');
   const [coverAssignments, setCoverAssignments] = useState<Record<string, string>>({});
   const [monthPeekKey, setMonthPeekKey] = useState<string | null>(null);
@@ -389,16 +393,6 @@ export function VevenoSchedulePanel({
     coverSchedules,
   ]);
 
-  const coveredOutKeys = useMemo(
-    () =>
-      new Set(
-        occurrences
-          .filter((occ) => occ.type === 'COVERED_OUT')
-          .map((occ) => `${occ.userId}|${occ.date}`),
-      ),
-    [occurrences],
-  );
-
   /** 후보 직원이 해당 구간에 정규 근무 또는 승인된 대타가 있어 지정 불가한지 */
   const isStaffBusy = useCallback(
     (staffUserId: string, dateKey: string, startTime: string, endTime: string): boolean => {
@@ -411,25 +405,16 @@ export function VevenoSchedulePanel({
         return false;
       }
 
-      const scheduleConflict = coverSchedules.some((schedule) => {
-        if (schedule.userId !== staffUserId) {
+      const scheduleConflict = occurrences.some((occ) => {
+        if (occ.type !== 'REGULAR' || occ.userId !== staffUserId) {
           return false;
         }
-        // 자정 넘김을 고려해 전날·당일·다음날 근무를 겹침 후보로 본다
-        for (let offset = -1; offset <= 1; offset += 1) {
-          const day = addDays(base, offset);
-          if (isoDayOfWeek(day) !== schedule.dayOfWeek) {
-            continue;
-          }
-          if (coveredOutKeys.has(`${staffUserId}|${toDateKey(day)}`)) {
-            continue;
-          }
-          const shift = shiftRangeMs(day, schedule.startTime, schedule.endTime);
-          if (shift && rangesOverlap(target, shift)) {
-            return true;
-          }
+        const day = parseDateKey(occ.date);
+        if (!day) {
+          return false;
         }
-        return false;
+        const shift = shiftRangeMs(day, occ.startTime, occ.endTime);
+        return shift != null && rangesOverlap(target, shift);
       });
       if (scheduleConflict) {
         return true;
@@ -450,7 +435,7 @@ export function VevenoSchedulePanel({
         return shift != null && rangesOverlap(target, shift);
       });
     },
-    [coverSchedules, coveredOutKeys, occurrences],
+    [occurrences],
   );
 
   // 날짜·시간 변경으로 선택된 대타자가 지정 불가가 되면 선택 해제
@@ -487,9 +472,29 @@ export function VevenoSchedulePanel({
     return map;
   }, [occurrences]);
 
-  const handleSaveSchedule = async (e: FormEvent) => {
-    e.preventDefault();
+  const pickerRange = useMemo(() => {
+    const from = startOfMonth(pickerAnchor);
+    const to = endOfMonth(pickerAnchor);
+    const days: Date[] = [];
+    for (let d = new Date(from); d <= to; d = addDays(d, 1)) {
+      days.push(new Date(d));
+    }
+    return {
+      days,
+      leadingEmpty: (from.getDay() + 6) % 7,
+      label: `${from.getFullYear()}년 ${from.getMonth() + 1}월`,
+    };
+  }, [pickerAnchor]);
+
+  const handleSaveSchedule = async (
+    mode: VevenoScheduleReplaceMode,
+    effectiveFrom?: string,
+  ) => {
     if (!editUserId) {
+      return;
+    }
+    if ((mode === 'FROM_DATE' || mode === 'ONCE') && !effectiveFrom) {
+      onError('적용 날짜를 선택해 주세요.');
       return;
     }
     const payload: VevenoScheduleSlotInput[] = [];
@@ -505,7 +510,12 @@ export function VevenoSchedulePanel({
     }
     setSavingSchedule(true);
     try {
-      await vevenoApi.replaceSchedules(storeId, editUserId, payload);
+      await vevenoApi.replaceSchedules(storeId, editUserId, {
+        slots: payload,
+        mode,
+        effectiveFrom: mode === 'FROM_TODAY' ? undefined : effectiveFrom,
+      });
+      setApplyPickerMode(null);
       const { data } = await vevenoApi.listSchedules(storeId);
       setCoverSchedules(data);
       await load();
@@ -514,6 +524,13 @@ export function VevenoSchedulePanel({
     } finally {
       setSavingSchedule(false);
     }
+  };
+
+  const openApplyPicker = (mode: Extract<VevenoScheduleReplaceMode, 'FROM_DATE' | 'ONCE'>) => {
+    const today = new Date();
+    setPickerAnchor(today);
+    setPickerSelected(toDateKey(today));
+    setApplyPickerMode(mode);
   };
 
   const applyBulkTimesToSelectedDays = () => {
@@ -786,7 +803,13 @@ export function VevenoSchedulePanel({
           {staff.length === 0 ? (
             <p className="veveno-empty">직원이 없습니다. 가입 승인 후 지정할 수 있습니다.</p>
           ) : (
-            <form className="veveno-form-stack" onSubmit={(e) => void handleSaveSchedule(e)}>
+            <form
+              className="veveno-form-stack"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSaveSchedule('FROM_TODAY');
+              }}
+            >
               <div className="veveno-field">
                 <label className="veveno-field__label" htmlFor="sched-user">
                   직원
@@ -807,19 +830,15 @@ export function VevenoSchedulePanel({
               <div className="veveno-schedule-bulk">
                 <p className="veveno-field__label">선택 요일 일괄 시간</p>
                 <div className="veveno-schedule-slot-row veveno-schedule-bulk__row">
-                  <input
-                    type="time"
-                    className="veveno-field__input veveno-schedule-time"
+                  <VevenoTimeInput
                     value={bulkStartTime}
-                    onChange={(e) => setBulkStartTime(e.target.value)}
+                    onChange={setBulkStartTime}
                     aria-label="일괄 시작 시각"
                   />
                   <span>~</span>
-                  <input
-                    type="time"
-                    className="veveno-field__input veveno-schedule-time"
+                  <VevenoTimeInput
                     value={bulkEndTime}
-                    onChange={(e) => setBulkEndTime(e.target.value)}
+                    onChange={setBulkEndTime}
                     aria-label="일괄 종료 시각"
                   />
                   <VevenoButton
@@ -858,33 +877,31 @@ export function VevenoSchedulePanel({
                         />
                         {label}
                       </label>
-                      <input
-                        type="time"
-                        className="veveno-field__input veveno-schedule-time"
+                      <VevenoTimeInput
                         value={slot.startTime}
                         disabled={!slot.enabled}
-                        onChange={(e) =>
+                        aria-label={`${label} 시작`}
+                        onChange={(startTime) =>
                           setSlots((prev) => ({
                             ...prev,
                             [dow]: {
                               ...(prev[dow] ?? emptySlot()),
-                              startTime: e.target.value,
+                              startTime,
                             },
                           }))
                         }
                       />
                       <span>~</span>
-                      <input
-                        type="time"
-                        className="veveno-field__input veveno-schedule-time"
+                      <VevenoTimeInput
                         value={slot.endTime}
                         disabled={!slot.enabled}
-                        onChange={(e) =>
+                        aria-label={`${label} 종료`}
+                        onChange={(endTime) =>
                           setSlots((prev) => ({
                             ...prev,
                             [dow]: {
                               ...(prev[dow] ?? emptySlot()),
-                              endTime: e.target.value,
+                              endTime,
                             },
                           }))
                         }
@@ -896,9 +913,27 @@ export function VevenoSchedulePanel({
               <p className="veveno-card-lead">
                 종료 시각이 시작보다 이르면 자정 넘김(예: 22:00~06:00)으로 저장됩니다.
               </p>
-              <VevenoButton type="submit" loading={savingSchedule}>
-                근무 저장
-              </VevenoButton>
+              <div className="veveno-btn-row">
+                <VevenoButton type="submit" loading={savingSchedule}>
+                  오늘부터 변경
+                </VevenoButton>
+                <VevenoButton
+                  type="button"
+                  variant="secondary"
+                  loading={savingSchedule}
+                  onClick={() => openApplyPicker('FROM_DATE')}
+                >
+                  지정일부터 변경
+                </VevenoButton>
+                <VevenoButton
+                  type="button"
+                  variant="secondary"
+                  loading={savingSchedule}
+                  onClick={() => openApplyPicker('ONCE')}
+                >
+                  한번만 변경
+                </VevenoButton>
+              </div>
             </form>
           )}
         </VevenoCard>
@@ -1007,20 +1042,20 @@ export function VevenoSchedulePanel({
               }
             />
             <div className="veveno-schedule-slot-row">
-              <VevenoInput
+              <VevenoTimeInput
+                id="cover-start"
                 label="시작"
-                type="time"
                 value={coverForm.startTime}
-                onChange={(e) =>
-                  setCoverForm((prev) => ({ ...prev, startTime: e.target.value }))
+                onChange={(startTime) =>
+                  setCoverForm((prev) => ({ ...prev, startTime }))
                 }
               />
-              <VevenoInput
+              <VevenoTimeInput
+                id="cover-end"
                 label="종료"
-                type="time"
                 value={coverForm.endTime}
-                onChange={(e) =>
-                  setCoverForm((prev) => ({ ...prev, endTime: e.target.value }))
+                onChange={(endTime) =>
+                  setCoverForm((prev) => ({ ...prev, endTime }))
                 }
               />
             </div>
@@ -1227,6 +1262,98 @@ export function VevenoSchedulePanel({
         )}
       </VevenoCard>
       </div>
+      <VevenoModal
+        open={applyPickerMode !== null}
+        title={applyPickerMode === 'ONCE' ? '한번만 적용할 날' : '지정일부터 적용'}
+        onClose={() => {
+          if (!savingSchedule) {
+            setApplyPickerMode(null);
+          }
+        }}
+        closeOnBackdrop={!savingSchedule}
+      >
+        <p className="veveno-modal__lead">
+          {applyPickerMode === 'ONCE'
+            ? '고른 하루만 바뀌고, 다음 같은 요일은 지금 주간 근무를 따릅니다.'
+            : '고른 날부터 주간 근무가 새 시간으로 적용됩니다. 그 전 날짜는 이전 시간입니다.'}
+        </p>
+        <div className="veveno-schedule-nav">
+          <button
+            type="button"
+            className="veveno-schedule-nav__arrow"
+            aria-label="이전 달"
+            onClick={() =>
+              setPickerAnchor(
+                (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+              )
+            }
+          >
+            ‹
+          </button>
+          <span className="veveno-schedule-range">{pickerRange.label}</span>
+          <button
+            type="button"
+            className="veveno-schedule-nav__arrow"
+            aria-label="다음 달"
+            onClick={() =>
+              setPickerAnchor(
+                (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+              )
+            }
+          >
+            ›
+          </button>
+        </div>
+        <div className="veveno-date-picker">
+          {DAY_LABELS.map((label) => (
+            <div key={`pick-wd-${label}`} className="veveno-date-picker__weekday">
+              {label}
+            </div>
+          ))}
+          {Array.from({ length: pickerRange.leadingEmpty }, (_, i) => (
+            <div key={`pick-empty-${i}`} className="veveno-date-picker__day is-empty" />
+          ))}
+          {pickerRange.days.map((day) => {
+            const key = toDateKey(day);
+            const isToday = key === toDateKey(new Date());
+            const selected = key === pickerSelected;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`veveno-date-picker__day${isToday ? ' is-today' : ''}${
+                  selected ? ' is-selected' : ''
+                }`}
+                onClick={() => setPickerSelected(key)}
+              >
+                {day.getDate()}
+              </button>
+            );
+          })}
+        </div>
+        <div className="veveno-modal__actions">
+          <VevenoButton
+            type="button"
+            variant="secondary"
+            disabled={savingSchedule}
+            onClick={() => setApplyPickerMode(null)}
+          >
+            취소
+          </VevenoButton>
+          <VevenoButton
+            type="button"
+            loading={savingSchedule}
+            disabled={!pickerSelected}
+            onClick={() => {
+              if (applyPickerMode && pickerSelected) {
+                void handleSaveSchedule(applyPickerMode, pickerSelected);
+              }
+            }}
+          >
+            {applyPickerMode === 'ONCE' ? '이 날만 적용' : '이 날부터 적용'}
+          </VevenoButton>
+        </div>
+      </VevenoModal>
     </div>
   );
 }

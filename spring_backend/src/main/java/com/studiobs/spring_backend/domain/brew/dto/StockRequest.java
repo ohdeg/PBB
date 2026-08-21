@@ -19,6 +19,9 @@ public record StockRequest(
 
         /** 수정(PATCH) 시 필수. 생성(POST) 시 생략. */
         @Min(0)
-        Integer version
+        Integer version,
+
+        /** 수정(PATCH) 시 지정하면 같은 가게 다른 카테고리로 이동. 생성(POST) 시 무시. */
+        Integer categoryId
 ) {
 }

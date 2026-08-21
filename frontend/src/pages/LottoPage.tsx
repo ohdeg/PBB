@@ -1775,7 +1775,7 @@ export function LottoPage() {
   }
 
   return (
-    <div className="lotto-page relative min-h-screen w-full max-w-full overflow-x-clip bg-[#F5F5F7] pb-20 font-sans">
+    <div className="lotto-page relative min-h-screen w-full max-w-full overflow-x-clip bg-[var(--bg)] pb-20 font-sans">
       {showSplash ? (
         <SixPickSplashScreen onFinish={handleSplashFinish} />
       ) : null}
@@ -1843,7 +1843,7 @@ export function LottoPage() {
         </div>
       </div>
 
-      <header className="page-x sticky top-0 z-10 border-b border-gray-200/50 bg-[#F5F5F7]/80 py-4 backdrop-blur-md">
+      <header className="page-x sticky top-0 z-10 border-b border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] py-4 backdrop-blur-md">
         <div className="mx-auto w-full max-w-3xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
@@ -1936,25 +1936,21 @@ export function LottoPage() {
             />
           </Suspense>
         ) : (
-          <>
-          <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="lotto-draw-flow">
+          <details className="lotto-draw-flow__data mb-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <summary className="mb-4 flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 marker:hidden [&::-webkit-details-marker]:hidden">
               <div>
                 <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">
-                  {isGuestDrawViewer ? '당첨 번호' : '당첨 번호 데이터'}
+                  {isGuestDrawViewer ? '당첨 번호' : '당첨 번호 · Hot/Cold'}
                 </h2>
                 <p className="mt-1 text-[11px] font-bold text-slate-500">
-                  {isGuestDrawViewer
-                    ? '최신 회차와 Hot/Cold 분석 구간을 조회할 수 있습니다.'
-                    : isLottoAdmin
-                      ? '회차 검색·수정·추가를 사용할 수 있습니다.'
-                      : '최신 회차를 확인하고 회차 검색으로 번호를 조회할 수 있습니다.'}
+                  눌러서 최신 회차와 분석 구간을 봅니다.
                 </p>
               </div>
               {drawsLoading && (
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-600" />
               )}
-            </div>
+            </summary>
 
             {!drawsLoading && isGuestDrawViewer && (
               <>
@@ -2311,7 +2307,7 @@ export function LottoPage() {
                 )}
               </>
             )}
-          </section>
+          </details>
 
         {showSettings && (
           <div
@@ -2646,6 +2642,7 @@ export function LottoPage() {
           </button>
         </div>
 
+        <div className="lotto-draw-flow__play">
         <div className="relative">
           {isRolling && (
             <button
@@ -2932,7 +2929,8 @@ export function LottoPage() {
             )}
           </div>
         </div>
-          </>
+          </div>
+          </div>
         )}
       </main>
     </div>

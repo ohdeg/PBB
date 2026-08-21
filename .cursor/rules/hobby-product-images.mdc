@@ -1,0 +1,41 @@
+---
+description: 취미 앱 추가·변경 시 홈 제품 이미지를 실제 UI에 맞게 만들고 hobbies 데이터에 연결한다
+alwaysApply: true
+---
+
+# 취미 앱 홈 제품 이미지
+
+홈 color-block(`HomePage`)은 `HobbyApp.productImage`로 기기 목업을 보여 준다. **새 취미 앱을 추가하거나 앱의 대표 UI가 크게 바뀌면** 제품 컷도 같이 만든다.
+
+## 필수
+
+1. `frontend/public/hobbies/{id}-product.png` 생성 (투명 배경, 제품만).
+2. `frontend/src/data/hobbies.ts`의 해당 앱에 `productImage: '/hobbies/{id}-product.png'` 설정.
+3. 목업 화면은 **실제 앱 UI**를 반영한다 (랜딩/메인 화면의 색·레이아웃·모티프). 제네릭 “Lucky Lotto / LOOKBOOK / eufy” 등 타 브랜드 목업 금지.
+4. 배경은 제거(투명 PNG). 홈 블록 톤 위에 제품만 떠 보이게.
+
+## 앱별 모티프 (참고)
+
+| id | 반영할 UI |
+|---|---|
+| veveno | `#f5f5f7` 셸, 메뉴·재고·근무 탭, 메뉴 레일, Veveno 워드마크 |
+| 6pick | 한국 로또 공 색상, 6PICK 헤더/로고, 히스토리 공 줄 |
+| score-viewer | OSMD 오선보, 인디고 마디 하이라이트, 템포/재생 툴바 |
+| dieta | kcal·매크로 바, mint `#1f7a64` 체중 차트, 하단 탭 (체중계 하드웨어 금지) |
+| sranko | 슈란코 워드마크, 3열 의류 그리드, 슬롯 탭 |
+
+새 앱도 같은 방식으로 **실제 화면을 조사한 뒤** 프롬프트에 구체 모티프를 넣고 생성한다.
+
+## 작업 순서
+
+1. 랜딩/메인 TSX·CSS에서 색·카피·핵심 위젯 확인.
+2. GenerateImage로 1:1 제품 컷 생성 (투명 배경·기기만).
+3. 필요 시 rembg 등으로 알파 정리 후 `public/hobbies/`에 저장.
+4. `hobbies.ts`에 `productImage` (+ `blockTone`) 연결.
+5. 홈 `#apps`에서 확인.
+
+## 하지 말 것
+
+- `iconSrc`만 넣고 제품 컷을 생략하지 않는다 (홈 color-block용).
+- 기존 앱과 무관한 스톡/타 브랜드 UI를 쓰지 않는다.
+- 유저 단계가 안 바뀌면 Notion/FigJam은 생략 가능 (에셋만 추가 시).

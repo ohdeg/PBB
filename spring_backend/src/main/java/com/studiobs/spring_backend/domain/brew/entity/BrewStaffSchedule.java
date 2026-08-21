@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
@@ -49,6 +50,12 @@ public class BrewStaffSchedule {
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
 
+    @Column(name = "effective_from", nullable = false)
+    private LocalDate effectiveFrom;
+
+    @Column(nullable = false)
+    private boolean active;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -63,18 +70,23 @@ public class BrewStaffSchedule {
             UUID userId,
             int dayOfWeek,
             LocalTime startTime,
-            LocalTime endTime
+            LocalTime endTime,
+            LocalDate effectiveFrom,
+            Boolean active
     ) {
         this.storeId = storeId;
         this.userId = userId;
         this.dayOfWeek = dayOfWeek;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.effectiveFrom = effectiveFrom == null ? LocalDate.of(1970, 1, 1) : effectiveFrom;
+        this.active = active == null || active;
     }
 
-    public void updateTimes(LocalTime startTime, LocalTime endTime) {
+    public void update(LocalTime startTime, LocalTime endTime, boolean active) {
         this.startTime = startTime;
         this.endTime = endTime;
+        this.active = active;
     }
 
     public boolean isOvernight() {

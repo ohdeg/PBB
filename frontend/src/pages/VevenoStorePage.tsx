@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { vevenoApi } from '../api/vevenoApi';
 import { VevenoButton } from '../components/veveno/VevenoButton';
+import { VevenoHelpTip } from '../components/veveno/VevenoHelpTip';
 import { VevenoCard } from '../components/veveno/VevenoCard';
 import { VevenoInput } from '../components/veveno/VevenoInput';
 import { VevenoStoreDeleteDialog } from '../components/veveno/VevenoStoreDeleteDialog';
@@ -44,6 +45,20 @@ import { getErrorMessage } from '../utils/error';
 type Tab = 'menus' | 'stocks' | 'schedule' | 'tools' | 'settings';
 
 const TAB_IDS: readonly Tab[] = ['menus', 'stocks', 'schedule', 'tools', 'settings'];
+
+const TAB_HINT: Record<Tab, string> = {
+  menus: '레시피를 고르고 적어 두세요.',
+  stocks: '부족한 재고를 맞춰 두세요.',
+  schedule: '직원의 스케줄을 관리합니다.',
+  tools: '타이머·단위·농도를 바로 씁니다.',
+  settings: '가게와 직원을 관리합니다.',
+};
+
+function storeRoleLabel(store: VevenoStore): string {
+  if (store.owned) return '사장';
+  if (store.subscribed) return '직원';
+  return '손님';
+}
 
 function parseTabParam(raw: string | null): Tab {
   if (raw && (TAB_IDS as readonly string[]).includes(raw)) {
@@ -103,7 +118,12 @@ export function VevenoStorePage() {
   const [menuName, setMenuName] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
   const [recipeForm, setRecipeForm] = useState<VevenoRecipeContent>(EMPTY_RECIPE_CONTENT);
-  const [storeForm, setStoreForm] = useState({ name: '', isPublic: false });
+  const [storeForm, setStoreForm] = useState({
+    name: '',
+    isPublic: false,
+    stockEditOffDuty: false,
+    stockUsageHint: false,
+  });
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<{
     userId: string;
@@ -147,7 +167,12 @@ export function VevenoStorePage() {
     try {
       const { data } = await vevenoApi.getStore(storeId);
       setStore(data);
-      setStoreForm({ name: data.name, isPublic: data.isPublic });
+      setStoreForm({
+        name: data.name,
+        isPublic: data.isPublic,
+        stockEditOffDuty: data.stockEditOffDuty,
+        stockUsageHint: data.stockUsageHint,
+      });
       const menusRes = await vevenoApi.listMenus(storeId);
       setMenus(menusRes.data);
       if (data.owned || data.subscribed) {
@@ -601,11 +626,7 @@ export function VevenoStorePage() {
   const tabs: { id: Tab; label: string; visible?: boolean }[] = [
     { id: 'menus', label: '메뉴', visible: true },
     { id: 'stocks', label: '재고', visible: canEditStock },
-    {
-      id: 'schedule',
-      label: '근무',
-      visible: Boolean(store?.owned || store?.subscribed),
-    },
+    { id: 'schedule', label: '근무표', visible: Boolean(store?.owned || store?.subscribed) },
     {
       id: 'tools',
       label: '도구',
@@ -620,67 +641,99 @@ export function VevenoStorePage() {
       {showSplash ? <VevenoSplashScreen onFinish={handleSplashFinish} /> : null}
       {loading ? (
         <main className="veveno-shell">
-          <div className="veveno-shell__inner veveno-shell__loading">Loading…</div>
+          <div className="veveno-shell__inner veveno-shell__loading">불러오는 중…</div>
         </main>
       ) : (
       <main className="veveno-shell">
       <div className="veveno-shell__inner veveno-shell__inner--wide">
-        <div className="veveno-detail-head">
-          <div>
-            <Link to="/hobbies/veveno/hub" className="veveno-shell__back">
-              ← Veveno
-            </Link>
-            {store ? (
-              <>
-                <h1>{store.name}</h1>
-                <p className="veveno-shell__meta">
-                  {store.owned ? 'Owner' : store.subscribed ? 'Staff' : 'Guest'}
-                  {' · '}
-                  <VevenoVisibilityBadge isPublic={store.isPublic} />
-                  {store.onDuty ? (
-                    <>
-                      {' · '}
-                      <VevenoBadge variant="success">근무중</VevenoBadge>
-                    </>
-                  ) : null}
-                  {store.subscribed && store.leaveDate ? (
-                    <>
-                      {' · '}
-                      <span>퇴사 예정 {store.leaveDate}</span>
-                    </>
-                  ) : null}
-                </p>
-              </>
+        <div className="veveno-store-chrome">
+          <div className="veveno-detail-head">
+            <div>
+              <Link to="/hobbies/veveno/hub" className="veveno-shell__back">
+                ← Veveno
+              </Link>
+              {store ? (
+                <>
+                  <h1>{store.name}</h1>
+                  <p className="veveno-shell__meta">
+                    {storeRoleLabel(store)}
+                    {' · '}
+                    <VevenoVisibilityBadge isPublic={store.isPublic} />
+                    {store.onDuty ? (
+                      <>
+                        {' · '}
+                        <VevenoBadge variant="success">근무중</VevenoBadge>
+                      </>
+                    ) : null}
+                    {store.subscribed && store.leaveDate ? (
+                      <>
+                        {' · '}
+                        <span>퇴사 예정 {store.leaveDate}</span>
+                      </>
+                    ) : null}
+                  </p>
+                </>
+              ) : null}
+            </div>
+            {store && (store.owned || store.subscribed) ? (
+              <button
+                type="button"
+                className="veveno-notice-icon-btn"
+                aria-label="공지"
+                title="공지"
+                onClick={openNotices}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="22"
+                  height="22"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                </svg>
+                {notices.length > 0 ? (
+                  <span className="veveno-notice-icon-btn__badge">
+                    {notices.length > 99 ? '99+' : notices.length}
+                  </span>
+                ) : null}
+              </button>
             ) : null}
           </div>
-          {store && (store.owned || store.subscribed) ? (
-            <button
-              type="button"
-              className="veveno-notice-icon-btn"
-              aria-label="공지"
-              title="공지"
-              onClick={openNotices}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="22"
-                height="22"
-                aria-hidden="true"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              {notices.length > 0 ? (
-                <span className="veveno-notice-icon-btn__badge">
-                  {notices.length > 99 ? '99+' : notices.length}
-                </span>
-              ) : null}
-            </button>
+          {store ? (
+            visibleTabs.length > 1 ? (
+              <div className="veveno-seg-tabs-wrap">
+                <div
+                  className="veveno-seg-tabs veveno-seg-tabs--sticky"
+                  role="tablist"
+                  aria-label="가게 작업"
+                  style={{
+                    gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)`,
+                  }}
+                >
+                  {visibleTabs.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === item.id}
+                      className={tab === item.id ? 'is-active' : ''}
+                      onClick={() => setTab(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="veveno-tab-hint">{TAB_HINT[tab]}</p>
+              </div>
+            ) : (
+              <p className="veveno-tab-hint">{TAB_HINT[tab]}</p>
+            )
           ) : null}
         </div>
 
@@ -692,26 +745,6 @@ export function VevenoStorePage() {
 
         {store ? (
           <>
-            {visibleTabs.length > 1 ? (
-              <div className="veveno-seg-tabs-wrap">
-                <div
-                  className="veveno-seg-tabs veveno-seg-tabs--sticky"
-                  style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}
-                >
-                  {visibleTabs.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={tab === item.id ? 'is-active' : ''}
-                      onClick={() => setTab(item.id)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             {tab === 'menus' ? (
               <div className="veveno-stack-lg">
                 <div className="veveno-toolbar">
@@ -937,6 +970,7 @@ export function VevenoStorePage() {
               storeId={storeId}
               owned={store.owned}
               onDuty={store.onDuty}
+              stockEditOffDuty={store.stockEditOffDuty}
               stockCategories={stockCategories}
               setStockCategories={setStockCategories}
               onError={setError}
@@ -968,25 +1002,59 @@ export function VevenoStorePage() {
                         setStoreForm((prev) => ({ ...prev, name: e.target.value }))
                       }
                     />
-                    <label className="veveno-check">
-                      <input
-                        type="checkbox"
-                        checked={storeForm.isPublic}
-                        onChange={(e) =>
-                          setStoreForm((prev) => ({
-                            ...prev,
-                            isPublic: e.target.checked,
-                          }))
-                        }
-                      />
-                      공개 가게 (is_public)
-                    </label>
+                    <div className="veveno-check-row">
+                      <label className="veveno-check">
+                        <input
+                          type="checkbox"
+                          checked={storeForm.isPublic}
+                          onChange={(e) =>
+                            setStoreForm((prev) => ({
+                              ...prev,
+                              isPublic: e.target.checked,
+                            }))
+                          }
+                        />
+                        공개 가게
+                      </label>
+                      <VevenoHelpTip text="켜면 가게 검색에 이름이 보입니다. 꺼도 가게 코드로는 찾을 수 있습니다." />
+                    </div>
+                    <div className="veveno-check-row">
+                      <label className="veveno-check">
+                        <input
+                          type="checkbox"
+                          checked={storeForm.stockEditOffDuty}
+                          onChange={(e) =>
+                            setStoreForm((prev) => ({
+                              ...prev,
+                              stockEditOffDuty: e.target.checked,
+                            }))
+                          }
+                        />
+                        근무 시간 외 재고 조정 허용
+                      </label>
+                      <VevenoHelpTip text="기본 설정(꺼짐)에서는 재고 권한이 있는 직원이 근무 중에만 수량을 변경할 수 있습니다. 기능을 켜면 직원의 근무 시간 외 재고 수정이 허용됩니다. (단, 사장님은 항상 수정 가능합니다.)" />
+                    </div>
+                    <div className="veveno-check-row">
+                      <label className="veveno-check">
+                        <input
+                          type="checkbox"
+                          checked={storeForm.stockUsageHint}
+                          onChange={(e) =>
+                            setStoreForm((prev) => ({
+                              ...prev,
+                              stockUsageHint: e.target.checked,
+                            }))
+                          }
+                        />
+                        재고 안내
+                      </label>
+                      <VevenoHelpTip text="켜면 재고가 줄어든 기록을 모아, 목록에 약 N일분과 「곧 부족 · 재고 확인」을 보여 줍니다. 끄면 안내·기록 모두 멈춥니다." />
+                    </div>
                     <div className="veveno-invite-code">
-                      <p className="veveno-field__label">가게 코드</p>
-                      <p className="veveno-card-lead">
-                        직원에게 공유하면 이름 대신 코드로 정확히 찾을 수 있습니다.
-                        (비공개 가게도 코드로 검색 가능)
-                      </p>
+                      <div className="veveno-check-row">
+                        <p className="veveno-field__label">가게 코드</p>
+                        <VevenoHelpTip text="직원에게 공유하면 이름 대신 코드로 정확히 찾을 수 있습니다. (비공개 가게도 코드로 검색 가능)" />
+                      </div>
                       <div className="veveno-invite-code__row">
                         <code
                           className={
@@ -1085,8 +1153,7 @@ export function VevenoStorePage() {
 
                 <VevenoCard title="직원 · 재고 권한">
                   <p className="veveno-card-lead">
-                    재고 수정 권한을 켠 구독자만 재고 탭이 보이며, 수량·등록을 변경할 수 있습니다.
-                    퇴사일은 마지막 근무일이며, 그다음 날부터 구독·근무가 정리됩니다.
+                    근무자의 재고 수정 권한 및 퇴사자 관리
                   </p>
                   {subscribers.length === 0 ? (
                     <p className="veveno-empty">구독자가 없습니다.</p>
@@ -1217,7 +1284,7 @@ export function VevenoStorePage() {
       <VevenoModal open={noticesOpen} title="공지" onClose={closeNotices}>
         <div className="veveno-stack-lg">
           {store?.owned ? (
-            <form className="veveno-form-stack" onSubmit={(e) => void handleSaveNotice(e)}>
+            <form className="veveno-form-stack veveno-notice-form" onSubmit={(e) => void handleSaveNotice(e)}>
               <VevenoInput
                 label={editingNoticeId ? '제목 수정' : '새 공지 제목'}
                 value={noticeForm.title}

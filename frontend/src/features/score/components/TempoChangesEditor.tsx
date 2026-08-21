@@ -6,6 +6,7 @@ import {
   type TimeSignature,
 } from '../utils/measureTiming';
 import { createTempoChange, type TempoChange } from '../types/tempoChange';
+import ScoreNumberInput from './ScoreNumberInput';
 
 interface TempoChangesEditorProps {
   tempoChanges: TempoChange[];
@@ -81,60 +82,47 @@ export default function TempoChangesEditor({
               <li key={change.id} className="playback-tempo-change-row">
                 <label className="playback-tempo-change-field">
                   <span>{t('playback.tempoStartMeasure')}</span>
-                  <input
-                    type="number"
+                  <ScoreNumberInput
                     min={1}
                     max={maxMeasure}
                     value={change.startMeasure}
-                    onChange={(event) =>
-                      handleUpdate(change.id, { startMeasure: Number(event.target.value) })
-                    }
+                    onChange={(startMeasure) => handleUpdate(change.id, { startMeasure })}
                   />
                 </label>
                 <label className="playback-tempo-change-field">
                   <span>{t('playback.tempoEndMeasure')}</span>
-                  <input
-                    type="number"
+                  <ScoreNumberInput
                     min={1}
                     max={maxMeasure}
                     value={change.endMeasure}
-                    onChange={(event) =>
-                      handleUpdate(change.id, { endMeasure: Number(event.target.value) })
-                    }
+                    onChange={(endMeasure) => handleUpdate(change.id, { endMeasure })}
                   />
                 </label>
                 <label className="playback-tempo-change-field">
                   <span>BPM</span>
-                  <input
-                    type="number"
+                  <ScoreNumberInput
                     min={20}
                     max={300}
                     value={change.bpm}
-                    onChange={(event) => handleUpdate(change.id, { bpm: Number(event.target.value) })}
+                    onChange={(bpm) => handleUpdate(change.id, { bpm })}
                   />
                 </label>
                 <div className="playback-tempo-change-signature">
                   <span className="playback-tempo-change-signature-label">{t('playback.timeSignature')}</span>
                   <div className="playback-tempo-change-signature-inputs">
-                    <input
-                      type="number"
+                    <ScoreNumberInput
                       min={1}
                       max={16}
                       value={change.beatsPerMeasure}
-                      onChange={(event) =>
-                        handleUpdate(change.id, { beatsPerMeasure: Number(event.target.value) })
-                      }
+                      onChange={(beatsPerMeasure) => handleUpdate(change.id, { beatsPerMeasure })}
                       aria-label={t('playback.beatsPerMeasureAria')}
                     />
                     <span className="playback-slash">/</span>
-                    <input
-                      type="number"
+                    <ScoreNumberInput
                       min={1}
                       max={16}
                       value={change.beatType}
-                      onChange={(event) =>
-                        handleUpdate(change.id, { beatType: Number(event.target.value) })
-                      }
+                      onChange={(beatType) => handleUpdate(change.id, { beatType })}
                       aria-label={t('playback.beatUnitAria')}
                     />
                     <span className="playback-meta">({formatTimeSignature(timeSignature)})</span>

@@ -12,6 +12,10 @@ export interface HobbyLandingLayoutProps {
   lead: string;
   /** 히어로 하단 보조 안내 */
   note?: string;
+  /** 기능 목록 아래·클로징 위 광고형 배너 */
+  promoBanner?: string;
+  /** 배너 상단 작은 라벨 */
+  promoEyebrow?: string;
   marqueeItems: string[];
   blockTone: HobbyBlockTone;
   blockTitle: string;
@@ -21,6 +25,8 @@ export interface HobbyLandingLayoutProps {
   features: HobbyLandingFeature[];
   closingCopy: string;
   onStart: () => void;
+  /** 히어로·블록 프라이머리 CTA. 기본 시작하기 */
+  startLabel?: string;
   secondaryAction?: { label: string; to: string };
   logoSrc?: string;
 }
@@ -31,6 +37,8 @@ export function HobbyLandingLayout({
   title,
   lead,
   note,
+  promoBanner,
+  promoEyebrow = '지금',
   marqueeItems,
   blockTone,
   blockTitle,
@@ -40,6 +48,7 @@ export function HobbyLandingLayout({
   features,
   closingCopy,
   onStart,
+  startLabel = '시작하기',
   secondaryAction,
   logoSrc,
 }: HobbyLandingLayoutProps) {
@@ -70,7 +79,7 @@ export function HobbyLandingLayout({
             className="figma-pill figma-pill--primary"
             onClick={onStart}
           >
-            시작하기
+            {startLabel}
           </button>
           {secondaryAction ? (
             <Link to={secondaryAction.to} className="figma-pill figma-pill--secondary">
@@ -96,7 +105,7 @@ export function HobbyLandingLayout({
 
       <section id="features" className="hobby-landing__apps figma-apps" aria-label="앱 하이라이트">
         <article
-          className={`figma-block figma-block--${blockTone} figma-block--featured${inverse ? ' figma-block--inverse' : ''}`}
+          className={`figma-block figma-block--${blockTone} figma-block--featured`}
         >
           <div className="figma-block__copy">
             <p className="figma-eyebrow">{eyebrow}</p>
@@ -109,13 +118,13 @@ export function HobbyLandingLayout({
                 className={`figma-pill ${inverse ? 'figma-pill--secondary' : 'figma-pill--primary'}`}
                 onClick={onStart}
               >
-                시작하기
+                {startLabel}
               </button>
               <a
                 href="#feature-list"
                 className={`figma-link${inverse ? ' figma-link--inverse' : ''}`}
               >
-                기능 보기
+                할 수 있는 일
               </a>
             </div>
           </div>
@@ -135,13 +144,20 @@ export function HobbyLandingLayout({
         </article>
       </section>
 
+      {promoBanner ? (
+        <aside className="hobby-landing__promo" aria-label="사용 현황">
+          <p className="hobby-landing__promo-eyebrow">{promoEyebrow}</p>
+          <p className="hobby-landing__promo-copy">{promoBanner}</p>
+        </aside>
+      ) : null}
+
       <section
         id="feature-list"
         className="hobby-landing__features"
         aria-label="기능 소개"
       >
-        <p className="figma-eyebrow">Features</p>
-        <h2 className="hobby-landing__features-title">이런 걸 할 수 있어요</h2>
+        <p className="figma-eyebrow">할 수 있는 일</p>
+        <h2 className="hobby-landing__features-title">이 앱에서</h2>
         <div className="hobby-landing__feature-grid">
           {features.map((feature) => (
             <article key={feature.title} className="hobby-landing__feature-card">
@@ -159,7 +175,7 @@ export function HobbyLandingLayout({
           className="figma-pill figma-pill--primary"
           onClick={onStart}
         >
-          시작하기
+          {startLabel}
         </button>
       </section>
     </main>

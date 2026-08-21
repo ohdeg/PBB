@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS brew_stores (
     name VARCHAR(120) NOT NULL COMMENT '가게 이름',
     is_public TINYINT(1) NOT NULL DEFAULT 0 COMMENT '공개 여부',
     invite_code VARCHAR(8) NOT NULL COMMENT '가게 검색·공유 코드',
+    stock_edit_off_duty TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1이면 재고권한 직원이 근무 외에도 재고 수정',
+    stock_usage_hint TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1이면 사용량 일수 안내',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -145,6 +147,17 @@ CREATE TABLE IF NOT EXISTS brew_store_stocks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Brew Note 재고';
 
+CREATE TABLE IF NOT EXISTS brew_store_stock_usage_days (
+    stock_id INT NOT NULL,
+    used_on DATE NOT NULL,
+    qty INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (stock_id, used_on),
+    CONSTRAINT fk_brew_usage_stock
+        FOREIGN KEY (stock_id) REFERENCES brew_store_stocks(id) ON DELETE CASCADE,
+    CONSTRAINT chk_brew_usage_qty CHECK (qty >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Veveno 재고 일별 사용량 (감소분 누적, +1 상쇄)';
+
 CREATE TABLE IF NOT EXISTS brew_staff_schedules (
     id              CHAR(36)     NOT NULL PRIMARY KEY COMMENT '스케줄 ID (UUID)',
     store_id        CHAR(36)     NOT NULL COMMENT '가게 ID',
@@ -152,6 +165,8 @@ CREATE TABLE IF NOT EXISTS brew_staff_schedules (
     day_of_week     TINYINT      NOT NULL COMMENT '요일 1=월 .. 7=일 (ISO)',
     start_time      TIME         NOT NULL COMMENT '근무 시작',
     end_time        TIME         NOT NULL COMMENT '근무 종료 (start보다 작으면 자정 넘김)',
+    effective_from  DATE         NOT NULL DEFAULT '1970-01-01' COMMENT '이 날짜부터 적용되는 주간 버전',
+    active          TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '0이면 이 날짜부터 해당 요일 근무 없음',
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -163,11 +178,33 @@ CREATE TABLE IF NOT EXISTS brew_staff_schedules (
         CHECK (day_of_week BETWEEN 1 AND 7),
     CONSTRAINT chk_brew_sched_time_neq
         CHECK (end_time <> start_time),
-    UNIQUE KEY uk_brew_sched_user_day (store_id, user_id, day_of_week),
+    UNIQUE KEY uk_brew_sched_user_day_from (store_id, user_id, day_of_week, effective_from),
     INDEX idx_brew_sched_store (store_id),
     INDEX idx_brew_sched_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Brew Note 직원 정규 근무(요일 반복, 자정 넘김 허용)';
+  COMMENT='Brew Note 직원 정규 근무(요일 반복 버전, 자정 넘김 허용)';
+
+CREATE TABLE IF NOT EXISTS brew_staff_schedule_overrides (
+    id              CHAR(36)     NOT NULL PRIMARY KEY COMMENT '하루 예외 ID (UUID)',
+    store_id        CHAR(36)     NOT NULL COMMENT '가게 ID',
+    user_id         CHAR(36)     NOT NULL COMMENT '직원 user ID',
+    work_date       DATE         NOT NULL COMMENT '예외가 적용되는 하루',
+    start_time      TIME         NULL COMMENT '근무 시작 (active=1일 때 필수)',
+    end_time        TIME         NULL COMMENT '근무 종료 (start보다 작으면 자정 넘김)',
+    active          TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '0이면 그날만 휴무',
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_brew_sched_ov_store
+        FOREIGN KEY (store_id) REFERENCES brew_stores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_brew_sched_ov_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT chk_brew_sched_ov_times
+        CHECK (active = 0 OR (start_time IS NOT NULL AND end_time IS NOT NULL AND end_time <> start_time)),
+    UNIQUE KEY uk_brew_sched_ov_user_date (store_id, user_id, work_date),
+    INDEX idx_brew_sched_ov_store_date (store_id, work_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='정규 근무 하루 예외(한번만 변경)';
 
 CREATE TABLE IF NOT EXISTS brew_shift_covers (
     id                   CHAR(36)     NOT NULL PRIMARY KEY COMMENT '대타 ID (UUID)',

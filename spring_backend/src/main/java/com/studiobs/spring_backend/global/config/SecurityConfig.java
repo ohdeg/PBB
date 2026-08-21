@@ -79,8 +79,10 @@ public class SecurityConfig {
                                 "/api/v1/lotto/pattern-profiles",
                                 "/api/v1/brew/stores/public",
                                 "/api/v1/brew/stores/search",
+                                "/api/v1/brew/stats",
                                 "/api/v1/veveno/stores/public",
-                                "/api/v1/veveno/stores/search"
+                                "/api/v1/veveno/stores/search",
+                                "/api/v1/veveno/stats"
                         ).permitAll()
                         .requestMatchers(publicBrewStoreReadMatcher()).permitAll()
                         .requestMatchers(publicVevenoStoreReadMatcher()).permitAll()

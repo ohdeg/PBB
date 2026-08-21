@@ -45,7 +45,8 @@ export function SixPickLandingPage() {
           body: '최신 당첨 번호를 참고하고, DEV는 회차·엑셀도 관리할 수 있어요.',
         },
       ]}
-      closingCopy="준비되면 시작해 보세요. 바로 번호 생성 화면으로 이어집니다."
+      closingCopy="바로 번호를 뽑는 화면으로 이어집니다."
+      startLabel="번호 뽑기"
       onStart={() => {
         void navigate(SIXPICK_PLAY);
       }}

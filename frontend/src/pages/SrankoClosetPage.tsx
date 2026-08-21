@@ -1036,16 +1036,14 @@ export function SrankoClosetPage() {
             disabled={busy}
             onClick={openAdd}
           >
-            ITEM +
+            옷 추가
           </button>
         </div>
       </div>
       {!modal && error ? <p className="sranko-error">{error}</p> : null}
 
-      <div className="sranko-weather" aria-live="polite">
-        <div className="sranko-weather__head">
-          <strong>오늘 날씨</strong>
-        </div>
+      <details className="sranko-weather" aria-live="polite">
+        <summary className="sranko-weather__head">오늘 날씨</summary>
         <div className="sranko-weather__places" role="tablist" aria-label="날씨 장소">
           <button
             type="button"
@@ -1220,7 +1218,7 @@ export function SrankoClosetPage() {
         >
           Weather data by WeatherAPI.com
         </a>
-      </div>
+      </details>
 
       <div className="sranko-tabs" role="tablist" aria-label="카테고리">
         <button
@@ -1228,7 +1226,7 @@ export function SrankoClosetPage() {
           className={slotFilter === 'ALL' ? 'is-active' : undefined}
           onClick={() => setSlotFilter('ALL')}
         >
-          ALL
+          전체
         </button>
         {SRANKO_SLOTS.map((s) => (
           <button
@@ -1237,13 +1235,13 @@ export function SrankoClosetPage() {
             className={slotFilter === s ? 'is-active' : undefined}
             onClick={() => setSlotFilter(s)}
           >
-            {s}
+            {SLOT_LABEL[s]}
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="sranko-empty">등록된 ITEM이 없습니다.</div>
+        <div className="sranko-empty">등록된 옷이 없습니다. 위에서 추가해 보세요.</div>
       ) : (
         <div className="sranko-grid">
           {filtered.map((item) => {

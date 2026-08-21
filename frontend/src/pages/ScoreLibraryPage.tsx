@@ -156,9 +156,25 @@ function ScoreLibraryPageInner() {
       <Link to="/" className="back-link">
         {t('common.homeBack')}
       </Link>
-      <p className="page-kicker">음악</p>
-      <h1>{t('library.title')}</h1>
-      <p className="score-lead">{t('library.subtitle')}</p>
+      <div className="library-page__head">
+        <div>
+          <p className="page-kicker">음악</p>
+          <h1>{t('library.title')}</h1>
+        </div>
+        <form onSubmit={handleUploadSubmit} className="library-page__import">
+          <input
+            ref={fileInputRef}
+            id="score-file-input"
+            type="file"
+            accept={scoreFileAccept}
+            onChange={handleFileChange}
+            hidden
+          />
+          <Button type="submit" disabled={isParsingFile || isSaving}>
+            {isParsingFile ? t('library.parsingFile') : t('library.importLocal')}
+          </Button>
+        </form>
+      </div>
 
       {!isLoading && scores.length > 0 && (
         <div className="library-search library-search--toolbar">
@@ -188,29 +204,6 @@ function ScoreLibraryPageInner() {
           </div>
         </div>
       )}
-
-      <section className="upload-section surface-card">
-        <h2>{t('library.addSectionTitle')}</h2>
-        <p className="upload-section-helper">{t('library.addHelper')}</p>
-        <form onSubmit={handleUploadSubmit} className="upload-form upload-form--file-only">
-          <input
-            ref={fileInputRef}
-            id="score-file-input"
-            type="file"
-            accept={scoreFileAccept}
-            onChange={handleFileChange}
-            hidden
-          />
-          <div className="upload-form-actions">
-            <Button type="submit" disabled={isParsingFile || isSaving}>
-              {isParsingFile ? t('library.parsingFile') : t('library.importLocal')}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setIsMusicXmlGuideOpen(true)}>
-              {t('library.musicXmlGuide')}
-            </Button>
-          </div>
-        </form>
-      </section>
 
       {error && <p className="form-error score-viewer-error">{error}</p>}
 
@@ -295,6 +288,17 @@ function ScoreLibraryPageInner() {
           ))}
         </ul>
       </section>
+
+      <p className="upload-section-helper library-page__note">
+        {t('library.addHelper')}{' '}
+        <button
+          type="button"
+          className="library-page__guide"
+          onClick={() => setIsMusicXmlGuideOpen(true)}
+        >
+          {t('library.musicXmlGuide')}
+        </button>
+      </p>
 
       <MusicXmlGuideModal
         isOpen={isMusicXmlGuideOpen}

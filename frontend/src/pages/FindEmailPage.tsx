@@ -47,7 +47,7 @@ export function FindEmailPage() {
   return (
     <AuthLayout
       title="이메일 찾기"
-      subtitle="가입 시 사용한 닉네임으로 이메일을 조회합니다."
+      subtitle="닉네임으로 가입 이메일을 찾아요."
       footer={
         <>
           <Link to="/login">로그인</Link>

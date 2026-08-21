@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.brew.service;
 
 import com.studiobs.spring_backend.domain.brew.dto.ApproveJoinRequest;
+import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
 import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
@@ -9,6 +10,7 @@ import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeContentsRequest;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
+import com.studiobs.spring_backend.domain.brew.dto.ScheduleReplaceMode;
 import com.studiobs.spring_backend.domain.brew.dto.ScheduleSlotRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockPermissionRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StoreResponse;
@@ -51,6 +53,19 @@ public class BrewService {
     private final BrewStoreSubscriptionRepository subscriptionRepository;
     private final BrewRedisService brewRedisService;
     private final BrewScheduleService brewScheduleService;
+
+    @Transactional(readOnly = true)
+    public BrewStatsResponse getStats() {
+        BrewStatsResponse cached = brewRedisService.getCachedStats();
+        if (cached != null) {
+            return cached;
+        }
+        BrewStatsResponse fresh = new BrewStatsResponse(
+                storeRepository.countDistinctOwners(),
+                storeRepository.count());
+        brewRedisService.saveStats(fresh);
+        return fresh;
+    }
 
     @Transactional(readOnly = true)
     public List<StoreResponse> listMyStores(String email) {
@@ -192,7 +207,11 @@ public class BrewService {
     public StoreResponse updateStore(String email, UUID storeId, UpdateStoreRequest request) {
         User user = requireUser(email);
         BrewStore store = requireOwnedStore(storeId, user.getId());
-        store.update(request.name().trim(), request.isPublic());
+        store.update(
+                request.name().trim(),
+                request.isPublic(),
+                request.stockEditOffDuty(),
+                request.stockUsageHint());
         return StoreResponse.from(
                 storeRepository.save(store),
                 user.getId(),
@@ -347,7 +366,11 @@ public class BrewService {
                 email,
                 storeId,
                 requesterId,
-                new ReplaceSchedulesRequest(slots)
+                new ReplaceSchedulesRequest(
+                        slots,
+                        ScheduleReplaceMode.FROM_DATE,
+                        workStartDate != null ? workStartDate : BrewShiftTimes.nowSeoul().toLocalDate()
+                )
         );
         brewRedisService.deleteJoinRequest(storeId, requesterId);
     }

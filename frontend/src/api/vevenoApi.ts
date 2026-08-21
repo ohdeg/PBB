@@ -9,7 +9,9 @@ import type {
   VevenoNoticeInput,
   VevenoRecipe,
   VevenoSchedule,
+  VevenoScheduleReplaceMode,
   VevenoScheduleSlotInput,
+  VevenoStats,
   VevenoStock,
   VevenoStockCategory,
   VevenoStore,
@@ -20,6 +22,10 @@ import type {
 import type { ApiMessageResponse } from '../types/auth';
 
 export const vevenoApi = {
+  stats() {
+    return apiClient.get<VevenoStats>('/api/v1/veveno/stats');
+  },
+
   myStores() {
     return apiClient.get<VevenoStore[]>('/api/v1/veveno/stores/mine');
   },
@@ -46,7 +52,12 @@ export const vevenoApi = {
     return apiClient.get<VevenoStore>(`/api/v1/veveno/stores/${storeId}`);
   },
 
-  updateStore(storeId: string, payload: { name: string; isPublic: boolean }) {
+  updateStore(storeId: string, payload: {
+    name: string;
+    isPublic: boolean;
+    stockEditOffDuty: boolean;
+    stockUsageHint: boolean;
+  }) {
     return apiClient.patch<VevenoStore>(`/api/v1/veveno/stores/${storeId}`, payload);
   },
 
@@ -153,6 +164,7 @@ export const vevenoApi = {
       stockNum: number;
       stockMinNum: number | null;
       version: number;
+      categoryId?: number;
     },
   ) {
     return apiClient.patch<VevenoStock>(`/api/v1/veveno/stocks/${stockId}`, payload);
@@ -249,10 +261,18 @@ export const vevenoApi = {
     );
   },
 
-  replaceSchedules(storeId: string, userId: string, slots: VevenoScheduleSlotInput[]) {
+  replaceSchedules(
+    storeId: string,
+    userId: string,
+    payload: {
+      slots: VevenoScheduleSlotInput[];
+      mode: VevenoScheduleReplaceMode;
+      effectiveFrom?: string;
+    },
+  ) {
     return apiClient.put<VevenoSchedule[]>(
       `/api/v1/veveno/stores/${storeId}/schedules/${userId}`,
-      { slots },
+      payload,
     );
   },
 

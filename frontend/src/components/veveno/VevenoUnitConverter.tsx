@@ -45,11 +45,10 @@ function fToC(f: number): number {
 
 function formatNumber(n: number): string {
   if (!Number.isFinite(n)) return '—';
-  const abs = Math.abs(n);
-  if (abs >= 1000) return n.toFixed(1);
-  if (abs >= 100) return n.toFixed(2);
-  if (abs >= 1) return n.toFixed(3).replace(/\.?0+$/, '');
-  return n.toPrecision(3);
+  const normalized = Math.round(n * 1e9) / 1e9;
+  if (Object.is(normalized, -0) || normalized === 0) return '0';
+  // 최대 6자리까지, 끝의 0·불필요한 소수점은 제거
+  return normalized.toFixed(6).replace(/\.?0+$/, '');
 }
 
 export function VevenoUnitConverter() {

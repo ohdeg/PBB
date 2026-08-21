@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
@@ -17,6 +18,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreNoticeReposit
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockUsageDayRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.entity.UserClass;
@@ -50,6 +52,8 @@ class BrewServicePermissionTest {
     @Mock
     private BrewStoreStockRepository stockRepository;
     @Mock
+    private BrewStoreStockUsageDayRepository usageDayRepository;
+    @Mock
     private BrewStoreNoticeRepository noticeRepository;
     @Mock
     private BrewRedisService brewRedisService;
@@ -61,6 +65,29 @@ class BrewServicePermissionTest {
 
     @InjectMocks
     private BrewStockService brewStockService;
+
+    @Test
+    void getStats_returnsCachedValue_withoutCounting() {
+        BrewStatsResponse cached = new BrewStatsResponse(4, 9);
+        when(brewRedisService.getCachedStats()).thenReturn(cached);
+
+        assertThat(brewService.getStats()).isEqualTo(cached);
+
+        verify(storeRepository, never()).countDistinctOwners();
+        verify(storeRepository, never()).count();
+        verify(brewRedisService, never()).saveStats(any());
+    }
+
+    @Test
+    void getStats_countsThenCaches_onMiss() {
+        when(brewRedisService.getCachedStats()).thenReturn(null);
+        when(storeRepository.countDistinctOwners()).thenReturn(2L);
+        when(storeRepository.count()).thenReturn(5L);
+
+        BrewStatsResponse expected = new BrewStatsResponse(2, 5);
+        assertThat(brewService.getStats()).isEqualTo(expected);
+        verify(brewRedisService).saveStats(expected);
+    }
 
     @Test
     void deleteStore_forbidden_whenNotOwner() {
@@ -114,7 +141,7 @@ class BrewServicePermissionTest {
         assertThatThrownBy(() -> brewStockService.createStock(
                         "staff@example.com",
                         categoryId,
-                        new StockRequest("Milk", 10, 2, null)))
+                        new StockRequest("Milk", 10, 2, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;

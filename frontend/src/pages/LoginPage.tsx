@@ -67,10 +67,16 @@ export function LoginPage() {
     }
   };
 
+  const from = (location.state as { from?: unknown } | null)?.from;
+  const resumeHint =
+    typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
+      ? '로그인하면 방금 보던 화면으로 이어집니다.'
+      : null;
+
   return (
     <AuthLayout
       title="로그인"
-      subtitle="계정에 로그인하여 서비스를 이용하세요."
+      subtitle={resumeHint ?? '이메일과 비밀번호로 들어와요.'}
       footer={
         <>
           <Link to="/signup">회원가입</Link>

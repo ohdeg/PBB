@@ -1,5 +1,6 @@
 package com.studiobs.spring_backend.domain.brew.service;
 
+import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -15,10 +16,12 @@ import org.springframework.stereotype.Service;
 public class BrewRedisService {
 
     private static final Duration JOIN_TTL = Duration.ofHours(24);
+    private static final Duration STATS_TTL = Duration.ofHours(1);
     /** 신규 키 */
     private static final String JOIN_PREFIX = "veveno:join:";
     /** 하위 호환 (전환 기간 읽기) */
     private static final String LEGACY_JOIN_PREFIX = "brew:join:";
+    static final String STATS_KEY = "veveno:stats";
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -46,6 +49,35 @@ public class BrewRedisService {
         collectRequesterIds(ids, JOIN_PREFIX, storeId);
         collectRequesterIds(ids, LEGACY_JOIN_PREFIX, storeId);
         return new ArrayList<>(ids);
+    }
+
+    public BrewStatsResponse getCachedStats() {
+        try {
+            String raw = stringRedisTemplate.opsForValue().get(STATS_KEY);
+            if (raw == null || raw.isBlank()) {
+                return null;
+            }
+            int sep = raw.indexOf(':');
+            if (sep <= 0 || sep == raw.length() - 1) {
+                return null;
+            }
+            return new BrewStatsResponse(
+                    Long.parseLong(raw.substring(0, sep)),
+                    Long.parseLong(raw.substring(sep + 1)));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    public void saveStats(BrewStatsResponse stats) {
+        try {
+            stringRedisTemplate.opsForValue().set(
+                    STATS_KEY,
+                    stats.ownerCount() + ":" + stats.storeCount(),
+                    STATS_TTL);
+        } catch (RuntimeException ignored) {
+            /* 랜딩은 다음 요청에서 DB로 다시 채움 */
+        }
     }
 
     private void collectRequesterIds(Set<UUID> ids, String prefix, UUID storeId) {

@@ -120,10 +120,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    nickClick[헤더 닉네임] --> hasToken{Access Token?}
-    hasToken -->|"없음"| login([로그인])
-    hasToken -->|"있음"| profile[프로필 조회]
-    profile --> logout[로그아웃]
+    nickClick[헤더 닉네임] --> width{화면 960px+}
+    width -->|"미만"| accountMenu[설정 / 로그아웃]
+    accountMenu -->|"설정"| profile[프로필 조회]
+    accountMenu -->|"로그아웃"| logout[로그아웃]
+    width -->|"이상"| profile
+    width -->|"이상 · 로그아웃 버튼"| logout
+    profile --> logout
     logout --> clear[clearAuth]
     clear --> home([홈])
     profile --> changePw[비밀번호 변경]
@@ -142,7 +145,7 @@ flowchart LR
     featuredSet --> featuredSave[PUT /api/v1/dev/featured-app · appIds]
 ```
 
-헤더에서도 로그아웃 가능. Veveno(허브·가게)에서는 **Veveno 랜딩**(`/hobbies/veveno`), Dieta는 `/hobbies/dieta`, 슈란코는 `/hobbies/sranko`, 그 외는 **홈 `/`**으로 이동. 직전 경로는 `state.from`에 남겨 재로그인 시 복귀. 로그아웃 중에는 페이지 가드의 `/login` 리다이렉트를 잠시 억제한다.  
+헤더 로그아웃: **960px 이상**은 닉네임(프로필) + 로그아웃 버튼. **미만**은 로그아웃 버튼을 숨기고 닉네임(없으면 「계정」)을 누르면 설정(`/profile`)·로그아웃을 고른다. Veveno(허브·가게)에서는 **Veveno 랜딩**(`/hobbies/veveno`), Dieta는 `/hobbies/dieta`, 슈란코는 `/hobbies/sranko`, 그 외는 **홈 `/`**으로 이동. 직전 경로는 `state.from`에 남겨 재로그인 시 복귀. 로그아웃 중에는 페이지 가드의 `/login` 리다이렉트를 잠시 억제한다.  
 탈퇴: `DELETE /api/v1/auth/account` + `{ password }`. Veveno **소유·구독** 가게가 있으면 삭제 안내 확인 후 비밀번호 단계 — 탈퇴 시 CASCADE로 함께 정리. 완료 후 **홈 `/`**.  
 **dev 전용**: 프로필 dev 패널에서 메인 추천 앱을 **추가 → 드래그(또는 ↑↓)로 순서 지정 → ×로 삭제**, 최대 5개(가득 찬 상태에서 추가하면 마지막 항목이 밀려남). `PUT /api/v1/dev/featured-app`(`{ appIds }`)로 저장 → 전역(`app_config.featured_app_id`, CSV)에 반영. 모든 사용자 메인 상단 캐러셀에 노출되며 여러 개면 자동 로테이션.
 
@@ -167,7 +170,7 @@ flowchart LR
 ```
 
 홈은 Figma 마케팅형 에디토리얼 레이아웃이다.
-- **상단 탭**: 흰 글로벌 내비에 공개 취미 앱 링크 + 계정 pill(로그인/가입·닉네임/로그아웃). 960px 미만은 햄버거 드로어.
+- **상단 탭**: 흰 글로벌 내비에 공개 취미 앱 링크 + 계정(로그인/가입. 960px 이상은 닉네임/로그아웃, 미만은 닉네임 메뉴에서 설정/로그아웃). 960px 미만은 햄버거 드로어.
 - **히어로**: 고정 브랜드 카피 + CTA「취미 둘러보기」(`#apps` 앵커)·「가입하기». 앱 자동 로테이션 없음.
 - **marquee**: 검정 스트립에 공개 앱 이름.
 - **color-block**: 앱별 파스텔 블록.「시작하기」→ `startPath`(Veveno hub / Dieta home / 슈란코 closet / 6PICK play / Score library).「소개 보기」→ `path`(랜딩; Veveno·Dieta·6PICK·Score 자동 스킵 없음). featured `appIds`가 있으면 그 순서로 앞쪽 배치, 없으면 최근 업데이트순. 상단 2개는 풀폭, 나머지는 2열.
@@ -215,7 +218,8 @@ flowchart LR
 `brew_stores` (`invite_code` 8자 UNIQUE) → `brew_menus` → `brew_recipes`  
 `brew_store_stock_categories` → `brew_store_stocks`  
 `brew_store_subscriptions` (`work_start_date` = 첫 근무일, `leave_date` = 마지막 근무일) + Redis `brew:join:{storeId}:{userId}` (TTL 24h)  
-`brew_staff_schedules` (요일 반복 정규 근무, 자정 넘김: `end < start`)
+`brew_staff_schedules` (요일 반복 정규 근무 버전 `effective_from`/`active`, 자정 넘김: `end < start`)  
+`brew_staff_schedule_overrides` (하루 예외 · 한번만 변경)  
 `brew_shift_covers` (날짜 단위 대체·추가, `shift_kind`: COVER|EXTRA)
 `brew_store_notices` (가게 공지, owner 작성)
 
@@ -235,6 +239,11 @@ flowchart LR
     schedule --> calendar[주간·월간 통합 달력]
     schedule --> journalXlsx[월간 일지 엑셀]
     schedule --> assign[직원 정규 근무 지정]
+    assign --> fromToday[오늘부터 변경]
+    assign --> fromDate[지정일부터 변경]
+    fromDate --> pickDate[달력 모달에서 날 선택]
+    assign --> once[한번만 변경]
+    once --> pickOnce[달력 모달에서 날 선택]
     schedule --> cover[대체·추가 지정·승인]
     store --> tools[도구 탭]
     store --> notice[헤더 공지 아이콘]
@@ -261,13 +270,17 @@ flowchart LR
     stocksTab --> duty{owner 또는 근무 중?}
     duty -->|"예"| mutate[수량·등록 수정]
     duty -->|"아니오"| viewOnly[조회만]
-    ownerSettings[설정 · 구독자] --> grant[재고 수정 권한 ON/OFF]
+    ownerSettings[설정] --> grant[재고 수정 권한]
+    ownerSettings --> hint[사용량 일수 안내]
+    hint -->|"켬"| days[약 N일분 / 곧 부족]
 ```
 
 - `brew_store_subscriptions.can_edit_stock = 1` 또는 owner만 재고 탭 표시
-- **수정**은 owner이거나 (권한 ON **그리고** 현재 근무 중 — 본인 정규 또는 승인 대타). 자정 넘김 근무 포함
+- **수정**은 owner이거나 (권한 ON **그리고** 현재 근무 중 — 본인 정규 또는 승인 대타). 자정 넘김 근무 포함. 설정에서 시간 외 재고 조정을 켜면 권한 직원은 근무 외에도 수정 가능
 - Owner는 설정 → 구독자 · 재고 권한에서 부여
 - 카테고리: **편집** 모드에서만 추가·이름 수정·삭제 (레시피 목록과 동일 패턴)
+- 재고 행: `−`/`+`는 1개씩. **숫자 탭** → 입고 수량만큼 더함. 목록 헤더 **편집** → 행 `⋯`에서 이름·카테고리·수량·경고선 수정·삭제
+- **사용량 일수 안내**(설정에서 기본 끔): 켜면 감소분(`−` 1개 또는 편집으로 N개 줄임)을 `brew_store_stock_usage_days`에 기록. 같은 날 `+` 1개는 그날 사용 −1. 입고·2개 이상 증가는 기록 없음. 재고 탭에 **약 N일분**, 경고선이 3일 안이면 **곧 부족 · 재고 확인**. 공백 날은 평균에서 제외. 가게 삭제 시 CASCADE
 
 ### 8-3b. 근무 · 대체·추가
 
@@ -290,6 +303,7 @@ flowchart LR
 
 - 업주: 매장 직원 **전원** 스케줄을 하나의 주간/월간 달력에서 조회
 - 직원: 본인 정규 + 관련 대체/추가만 조회
+- **정규 근무 변경**: **오늘부터** / **지정일부터**(주간 템플릿 버전) / **한번만**(그날 예외). 지정일 전은 이전 시간 유지
 - **월간 일지 엑셀**: 현재 앵커 월의 예정 근무(정규·대타·추가)를 `.xlsx`로 다운로드. 시트 `일지`(근무자 행 × 1일~말일 + 총 근무시간) + `직원별 요약`(기간 총·월요일 시작 주간별). `COVERED_OUT` 제외. 권한은 달력과 동일
 - **COVER**: 직원 신청에서는 대체자를 선택하지 않음. 신청 후 업주가 지정 → 수락
 - **EXTRA**: 요청 직원 없음. 업주는 추가 근무자만 지정(수락 대기). 직원은 본인 추가 신청 → 업주 승인

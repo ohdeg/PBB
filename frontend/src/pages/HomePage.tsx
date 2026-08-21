@@ -38,37 +38,26 @@ export function HomePage() {
   }, []);
 
   const gridApps = useMemo(() => orderHomeApps(featuredIds), [featuredIds]);
-  const marqueeApps = HOBBY_APPS.filter((app) => app.available);
 
   return (
     <main className="figma-home">
-      <section className="figma-hero" aria-label="PBB 소개">
+      <section className="figma-hero figma-hero--compact" aria-label="PBB 소개">
         <p className="figma-eyebrow">Play beom&apos;s BAG</p>
-        <h1 className="figma-hero__title">취미 앱을 모은 가방</h1>
+        <h1 className="figma-hero__title">열어 볼 앱</h1>
         <p className="figma-hero__lead">
-          가게 노트부터 악보·체중·옷장까지. 골라 열고, 바로 이어서.
+          가게 노트, 악보, 체중, 옷장. 고르면 바로 이어집니다.
         </p>
-        <div className="figma-hero__actions">
-          <a href="#apps" className="figma-pill figma-pill--primary">
-            취미 둘러보기
-          </a>
-          {!accessToken ? (
+        {!accessToken ? (
+          <div className="figma-hero__actions">
+            <Link to="/login" className="figma-pill figma-pill--primary">
+              로그인
+            </Link>
             <Link to="/signup" className="figma-pill figma-pill--secondary">
               가입하기
             </Link>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </section>
-
-      <div className="figma-marquee" aria-hidden="true">
-        <div className="figma-marquee__track">
-          {[...marqueeApps, ...marqueeApps].map((app, i) => (
-            <span key={`${app.id}-${i}`} className="figma-marquee__item">
-              {app.name}
-            </span>
-          ))}
-        </div>
-      </div>
 
       <section id="apps" className="figma-apps" aria-label="취미 앱">
         <div className="figma-apps__featured">
@@ -126,7 +115,7 @@ function ColorBlock({
 
   return (
     <article
-      className={`figma-block figma-block--${tone}${featured ? ' figma-block--featured' : ''}${inverse ? ' figma-block--inverse' : ''}`}
+      className={`figma-block figma-block--${tone}${featured ? ' figma-block--featured' : ''}`}
     >
       <div className="figma-block__copy">
         <p className="figma-eyebrow">{app.category}</p>
@@ -140,14 +129,14 @@ function ColorBlock({
                 to={app.startPath ?? app.path}
                 className={`figma-pill ${inverse ? 'figma-pill--secondary' : 'figma-pill--primary'}`}
               >
-                시작하기
+                열기
               </Link>
               {app.startPath && app.startPath !== app.path ? (
                 <Link
                   to={app.path}
                   className={`figma-link${inverse ? ' figma-link--inverse' : ''}`}
                 >
-                  소개 보기
+                  소개
                 </Link>
               ) : null}
             </>

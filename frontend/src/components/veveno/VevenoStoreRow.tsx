@@ -6,6 +6,7 @@ interface VevenoStoreRowProps {
   subtitle?: string;
   badge?: ReactNode;
   selected?: boolean;
+  onDuty?: boolean;
   onClick?: () => void;
   trailing?: ReactNode;
 }
@@ -15,12 +16,14 @@ export function VevenoStoreRow({
   subtitle,
   badge,
   selected = false,
+  onDuty = false,
   onClick,
   trailing,
 }: VevenoStoreRowProps) {
   const className = [
     'veveno-store-row',
     selected ? 'is-selected' : '',
+    onDuty ? 'is-on-duty' : '',
     onClick ? 'is-clickable' : '',
   ]
     .filter(Boolean)

@@ -4,6 +4,7 @@ import type { VevenoJoinRequest, VevenoScheduleSlotInput } from '../../types/vev
 import { VevenoButton } from './VevenoButton';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
+import { VevenoTimeInput } from './VevenoTimeInput';
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
@@ -153,19 +154,15 @@ export function VevenoJoinApproveModal({
             <div className="veveno-schedule-bulk">
               <p className="veveno-field__label">선택 요일 일괄 시간</p>
               <div className="veveno-schedule-slot-row veveno-schedule-bulk__row">
-                <input
-                  type="time"
-                  className="veveno-field__input veveno-schedule-time"
+                <VevenoTimeInput
                   value={bulkStartTime}
-                  onChange={(e) => setBulkStartTime(e.target.value)}
+                  onChange={setBulkStartTime}
                   aria-label="일괄 시작 시각"
                 />
                 <span>~</span>
-                <input
-                  type="time"
-                  className="veveno-field__input veveno-schedule-time"
+                <VevenoTimeInput
                   value={bulkEndTime}
-                  onChange={(e) => setBulkEndTime(e.target.value)}
+                  onChange={setBulkEndTime}
                   aria-label="일괄 종료 시각"
                 />
                 <VevenoButton
@@ -208,33 +205,31 @@ export function VevenoJoinApproveModal({
                     />
                     {label}
                   </label>
-                  <input
-                    type="time"
-                    className="veveno-field__input veveno-schedule-time"
+                  <VevenoTimeInput
                     value={slot.startTime}
                     disabled={!slot.enabled}
-                    onChange={(e) =>
+                    aria-label={`${label} 시작`}
+                    onChange={(startTime) =>
                       setSlots((prev) => ({
                         ...prev,
                         [dow]: {
                           ...(prev[dow] ?? emptySlot()),
-                          startTime: e.target.value,
+                          startTime,
                         },
                       }))
                     }
                   />
                   <span>~</span>
-                  <input
-                    type="time"
-                    className="veveno-field__input veveno-schedule-time"
+                  <VevenoTimeInput
                     value={slot.endTime}
                     disabled={!slot.enabled}
-                    onChange={(e) =>
+                    aria-label={`${label} 종료`}
+                    onChange={(endTime) =>
                       setSlots((prev) => ({
                         ...prev,
                         [dow]: {
                           ...(prev[dow] ?? emptySlot()),
-                          endTime: e.target.value,
+                          endTime,
                         },
                       }))
                     }

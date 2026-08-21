@@ -44,7 +44,8 @@ export function SrankoLandingPage() {
           body: '커뮤니티에 올리고 MY STYLE로 내 게시만 모아 볼 수 있어요.',
         },
       ]}
-      closingCopy="준비되면 시작해 보세요. 옷장에서 미리보기처럼 입어볼 수 있어요."
+      closingCopy="옷장에서 옷을 보고 입어볼 수 있어요."
+      startLabel="옷장 열기"
       onStart={handleStart}
       secondaryAction={{ label: '커뮤니티 둘러보기', to: SRANKO_COMMUNITY }}
     />

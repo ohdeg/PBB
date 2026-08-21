@@ -13,6 +13,7 @@ import com.studiobs.spring_backend.domain.brew.dto.CreateCoverRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewShiftCover;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
 import com.studiobs.spring_backend.domain.brew.repository.BrewShiftCoverRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleOverrideRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
@@ -44,6 +45,8 @@ class BrewScheduleCoverRulesTest {
     private BrewStoreSubscriptionRepository subscriptionRepository;
     @Mock
     private BrewStaffScheduleRepository scheduleRepository;
+    @Mock
+    private BrewStaffScheduleOverrideRepository overrideRepository;
     @Mock
     private BrewShiftCoverRepository coverRepository;
 

@@ -12,4 +12,10 @@ public interface BrewStoreStockRepository extends JpaRepository<BrewStoreStock, 
     List<BrewStoreStock> findByCategoryIdInOrderByStockNameAsc(Collection<Integer> categoryIds);
 
     boolean existsByCategoryIdAndStockName(Integer categoryId, String stockName);
+
+    boolean existsByCategoryIdAndStockNameAndIdNot(
+            Integer categoryId,
+            String stockName,
+            Integer id
+    );
 }

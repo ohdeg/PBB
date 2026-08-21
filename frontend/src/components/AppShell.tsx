@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
+import { ThemeToggle } from './ThemeToggle';
 import { getNavHobbies } from '../data/hobbies';
 import { useAuthStore } from '../stores/authStore';
 import { toast } from '../stores/toastStore';
@@ -45,6 +46,7 @@ export function AppShell() {
   );
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const loginReturnPath = readReturnPath(location.state);
   const navHobbies = getNavHobbies();
@@ -60,6 +62,7 @@ export function AppShell() {
 
   useEffect(() => {
     setMenuOpen(false);
+    setAccountOpen(false);
   }, [location.pathname]);
 
   const handleLogout = async () => {
@@ -105,12 +108,13 @@ export function AppShell() {
           </nav>
 
           <div className="global-nav__actions">
+            <ThemeToggle />
             {accessToken ? (
               <>
                 {nickname ? (
                   <button
                     type="button"
-                    className="global-nav__link global-nav__link--button"
+                    className="global-nav__link global-nav__link--button global-nav__account-wide"
                     onClick={() => {
                       void navigate('/profile');
                     }}
@@ -118,9 +122,45 @@ export function AppShell() {
                     {nickname}
                   </button>
                 ) : null}
+                <details
+                  className="global-nav__account"
+                  open={accountOpen}
+                  onToggle={(event) => {
+                    setAccountOpen(event.currentTarget.open);
+                  }}
+                >
+                  <summary className="global-nav__link global-nav__link--button">
+                    {nickname ?? '계정'}
+                  </summary>
+                  <div className="global-nav__account-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="global-nav__account-item"
+                      onClick={() => {
+                        setAccountOpen(false);
+                        void navigate('/profile');
+                      }}
+                    >
+                      설정
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="global-nav__account-item"
+                      disabled={loggingOut}
+                      onClick={() => {
+                        setAccountOpen(false);
+                        void handleLogout();
+                      }}
+                    >
+                      {loggingOut ? '…' : '로그아웃'}
+                    </button>
+                  </div>
+                </details>
                 <button
                   type="button"
-                  className="figma-pill figma-pill--secondary figma-pill--nav"
+                  className="figma-pill figma-pill--secondary figma-pill--nav global-nav__logout"
                   onClick={() => {
                     void handleLogout();
                   }}

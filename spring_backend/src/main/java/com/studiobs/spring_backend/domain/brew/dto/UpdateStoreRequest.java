@@ -8,6 +8,10 @@ public record UpdateStoreRequest(
         @Size(max = 120)
         String name,
 
-        boolean isPublic
+        boolean isPublic,
+
+        boolean stockEditOffDuty,
+
+        boolean stockUsageHint
 ) {
 }

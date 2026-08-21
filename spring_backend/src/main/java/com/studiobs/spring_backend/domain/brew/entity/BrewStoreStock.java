@@ -57,7 +57,8 @@ public class BrewStoreStock {
         this.stockMinNum = stockMinNum;
     }
 
-    public void update(String stockName, int stockNum, Integer stockMinNum) {
+    public void update(Integer categoryId, String stockName, int stockNum, Integer stockMinNum) {
+        this.categoryId = categoryId;
         this.stockName = stockName;
         this.stockNum = stockNum;
         this.stockMinNum = stockMinNum;

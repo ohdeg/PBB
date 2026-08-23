@@ -17,6 +17,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewRecipeRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreNoticeRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockLogRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockUsageDayRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
@@ -51,6 +52,8 @@ class BrewServicePermissionTest {
     private BrewStoreStockCategoryRepository stockCategoryRepository;
     @Mock
     private BrewStoreStockRepository stockRepository;
+    @Mock
+    private BrewStoreStockLogRepository stockLogRepository;
     @Mock
     private BrewStoreStockUsageDayRepository usageDayRepository;
     @Mock
@@ -141,7 +144,7 @@ class BrewServicePermissionTest {
         assertThatThrownBy(() -> brewStockService.createStock(
                         "staff@example.com",
                         categoryId,
-                        new StockRequest("Milk", 10, 2, null, null)))
+                        new StockRequest("Milk", 10, 2, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;

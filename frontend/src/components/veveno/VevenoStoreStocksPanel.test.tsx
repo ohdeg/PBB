@@ -5,7 +5,7 @@ import type { AxiosResponse } from 'axios'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { vevenoApi } from '../../api/vevenoApi'
-import type { VevenoStock, VevenoStockCategory } from '../../types/veveno'
+import type { VevenoStock, VevenoStockCategory, VevenoStockLog } from '../../types/veveno'
 import { VevenoStoreStocksPanel, placeStock } from './VevenoStoreStocksPanel'
 
 vi.mock('../../api/vevenoApi', () => ({
@@ -17,6 +17,7 @@ vi.mock('../../api/vevenoApi', () => ({
     updateStock: vi.fn(),
     deleteStock: vi.fn(),
     listStocks: vi.fn(),
+    listStockLogs: vi.fn(),
   },
 }))
 
@@ -33,6 +34,8 @@ const categories: VevenoStockCategory[] = [
         stockName: '에티오피아',
         stockNum: 2,
         stockMinNum: 1,
+        unit: '개',
+        orderUrl: null,
         version: 0,
         lowStock: false,
         soonLow: false,
@@ -53,6 +56,8 @@ const categories: VevenoStockCategory[] = [
         stockName: '저지방 우유',
         stockNum: 1,
         stockMinNum: 2,
+        unit: '개',
+        orderUrl: null,
         version: 0,
         lowStock: true,
         soonLow: false,
@@ -96,6 +101,9 @@ function Harness({
 describe('VevenoStoreStocksPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(vevenoApi.listStockLogs).mockResolvedValue({
+      data: [],
+    } as AxiosResponse<VevenoStockLog[]>)
   })
 
   afterEach(() => {
@@ -200,7 +208,7 @@ describe('VevenoStoreStocksPanel', () => {
         categoryId: 1,
       })
     })
-    expect(within(container).getByText('3')).toBeInTheDocument()
+    expect(within(container).getByText('3개')).toBeInTheDocument()
   })
 
   it('refetches stocks on version conflict (409)', async () => {
@@ -235,7 +243,7 @@ describe('VevenoStoreStocksPanel', () => {
 
     await waitFor(() => {
       expect(vevenoApi.listStocks).toHaveBeenCalledWith('store-1')
-      expect(within(container).getByText('9')).toBeInTheDocument()
+      expect(within(container).getByText('9개')).toBeInTheDocument()
       expect(onError).toHaveBeenCalled()
     })
     expect(String(onError.mock.calls[0][0])).toMatch(/다른 사용자가 재고를 수정/)
@@ -278,7 +286,7 @@ describe('VevenoStoreStocksPanel', () => {
     await waitFor(() => {
       expect(plusButtons[0]).not.toBeDisabled()
       expect(minusButtons[0]).not.toBeDisabled()
-      expect(within(container).getByText('3')).toBeInTheDocument()
+      expect(within(container).getByText('3개')).toBeInTheDocument()
     })
   })
 
@@ -342,9 +350,66 @@ describe('VevenoStoreStocksPanel', () => {
         stockMinNum: 4,
         version: 0,
         categoryId: 2,
+        unit: '개',
+        orderUrl: null,
       })
     })
     expect(screen.getByText('예가체프')).toBeInTheDocument()
+  })
+
+  it('saves a custom unit typed like a custom category', async () => {
+    const updated: VevenoStock = {
+      ...categories[0].stocks[0],
+      unit: '봉지',
+      version: 1,
+    }
+    vi.mocked(vevenoApi.updateStock).mockResolvedValue({
+      data: updated,
+    } as AxiosResponse<VevenoStock>)
+
+    render(<Harness owned onDuty={false} />)
+    fireEvent.click(screen.getByRole('button', { name: '편집' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '더보기' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '편집' }))
+    fireEvent.change(screen.getByLabelText('단위'), { target: { value: '__custom__' } })
+    fireEvent.change(screen.getByLabelText('단위 이름'), { target: { value: '봉지' } })
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => {
+      expect(vevenoApi.updateStock).toHaveBeenCalledWith(10, {
+        stockName: '에티오피아',
+        stockNum: 2,
+        stockMinNum: 1,
+        version: 0,
+        categoryId: 1,
+        unit: '봉지',
+        orderUrl: null,
+      })
+    })
+  })
+
+  it('shows quantity logs in the edit modal', async () => {
+    vi.mocked(vevenoApi.listStockLogs).mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          fromNum: 10,
+          toNum: 9,
+          nickname: '민수',
+          createdAt: '2026-08-22T05:03:00Z',
+        },
+      ],
+    } as AxiosResponse<VevenoStockLog[]>)
+
+    render(<Harness owned onDuty={false} />)
+    fireEvent.click(screen.getByRole('button', { name: '편집' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '더보기' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '편집' }))
+
+    await waitFor(() => {
+      expect(vevenoApi.listStockLogs).toHaveBeenCalledWith('store-1', 10)
+      expect(screen.getByText(/민수 · 10→9/)).toBeInTheDocument()
+    })
   })
 
   it('deletes a stock from the overflow menu', async () => {

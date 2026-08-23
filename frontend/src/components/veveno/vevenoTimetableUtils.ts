@@ -188,7 +188,6 @@ export function layoutVevenoDayTimetableBlocks(
   }
   const sortedBounds = [...boundaries].sort((a, b) => a - b);
 
-  // 구간마다 (item → column) 배정
   type Slice = { start: number; end: number; columns: Map<string, number>; columnCount: number };
   const slices: Slice[] = [];
 
@@ -215,7 +214,6 @@ export function layoutVevenoDayTimetableBlocks(
     });
   }
 
-  // 같은 근무의 인접 세그먼트 중 폭·열이 같으면 병합
   const segments: VevenoTimetableSegment[] = [];
 
   for (const item of items) {

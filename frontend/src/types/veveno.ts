@@ -44,18 +44,31 @@ export interface VevenoRecipe {
   updatedAt: string;
 }
 
+export const VEVENO_STOCK_UNITS = ['개', 'g', 'kg', 'ml', 'L', '팩', '박스'] as const;
+export type VevenoStockUnit = (typeof VEVENO_STOCK_UNITS)[number];
+
 export interface VevenoStock {
   id: number;
   categoryId: number;
   stockName: string;
   stockNum: number;
   stockMinNum: number | null;
+  unit: string;
+  orderUrl: string | null;
   /** JPA @Version — PATCH 시 필수 */
   version: number;
   lowStock: boolean;
   soonLow: boolean;
   daysOfStock: number | null;
   updatedAt: string;
+}
+
+export interface VevenoStockLog {
+  id: number;
+  fromNum: number;
+  toNum: number;
+  nickname: string;
+  createdAt: string;
 }
 
 export interface VevenoStockCategory {
@@ -204,6 +217,60 @@ export interface VevenoTimerPreset {
 export interface VevenoTimerPresetInput {
   name: string;
   steps: VevenoTimerPresetStep[];
+}
+
+export type VevenoChecklistTrigger = 'CLOCK' | 'SHIFT_START' | 'SHIFT_END' | 'MANUAL';
+export type VevenoChecklistAudience = 'ON_DUTY' | 'OWNER_ONLY';
+
+export interface VevenoChecklistItem {
+  id: number;
+  body: string;
+}
+
+export interface VevenoChecklistTemplate {
+  id: string;
+  storeId: string;
+  personal: boolean;
+  title: string;
+  triggerType: VevenoChecklistTrigger;
+  triggerTime: string | null;
+  triggerDows: number[];
+  audience: VevenoChecklistAudience;
+  interrupt: boolean;
+  enabled: boolean;
+  canEdit: boolean;
+  items: VevenoChecklistItem[];
+}
+
+export interface VevenoChecklistTodayItem {
+  id: number;
+  body: string;
+  checked: boolean;
+  checkedByNickname: string;
+}
+
+export interface VevenoChecklistToday {
+  templateId: string;
+  title: string;
+  personal: boolean;
+  interrupt: boolean;
+  due: boolean;
+  triggerType: VevenoChecklistTrigger;
+  checkedCount: number;
+  totalCount: number;
+  items: VevenoChecklistTodayItem[];
+}
+
+export interface VevenoChecklistInput {
+  title: string;
+  triggerType: VevenoChecklistTrigger;
+  triggerTime: string | null;
+  triggerDows: number[];
+  audience: VevenoChecklistAudience;
+  interrupt: boolean;
+  enabled: boolean;
+  personal: boolean;
+  items: string[];
 }
 
 export function parseRecipeContents(raw: string): VevenoRecipeContent {

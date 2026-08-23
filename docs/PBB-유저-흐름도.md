@@ -7,7 +7,8 @@ FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9
 > 좌측 레이어/섹션 목록에서 `0.~8.` · Score Viewer · **13. Dieta** · **14. 슈란코** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
 > 취미 앱(6PICK·Score Viewer 랜딩/본체)과 **Veveno·Dieta·슈란코·6PICK·Score Viewer 소개 랜딩**은 **비로그인 진입 가능**.
-> Veveno **허브·가게**·슈란코 **옷장·룩**·**프로필**·Dieta **홈 이후**는 Access Token 필요 (없으면 `/login` 리다이렉트).
+> Veveno **허브·실가게**·슈란코 **옷장·룩**·**프로필**·Dieta **홈 이후**는 Access Token 필요 (없으면 `/login` 리다이렉트).
+> Veveno **로컬 체험** `/hobbies/veveno/stores/demo`만 비로그인 가능(이 기기 `localStorage`, 서버 호출 없음).
 
 ---
 
@@ -188,21 +189,28 @@ flowchart LR
 FigJam §8~8-3 + Notion DB 스키마 기준.  
 결제(PG/카드) §8-4·8-5는 스키마 미정의로 **미구현**.
 
-### 8-0. 진입 (공개 랜딩 → 로그인 후 허브)
+### 8-0. 진입 (공개 랜딩 → 로그인 후 허브 / 로컬 체험)
 
 홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO).  
-랜딩은 로그인·가게 여부와 관계없이 **항상 표시**(홈「소개 보기」용). **시작하기** → 로그인 또는 허브(`/hub`).  
-허브(내 가게·근무 가게·검색)와 가게 상세 헤더: 열람자 본인이 해당 가게 **현재 근무 구간**이면 「근무중」 뱃지(업주·직원 공통, 정규·승인 대타/추가·자정 넘김). `onDuty`는 업주도 스케줄 기준(상시 true 아님). 재고 수정은 업주 상시, 직원은 `canEditStock`+근무 중.
+랜딩은 로그인·가게 여부와 관계없이 **항상 표시**(홈「소개 보기」용). **가게 열기** → 로그인 또는 허브(`/hub`). **사장님으로 써보기** → 로컬 체험 `/hobbies/veveno/stores/demo`(로그인 없음, 이 기기만 저장).  
+체험 가게 배너에서 **사장 | 직원** 토글(같은 데이터, 권한만 바뀜). 직원 보기에서는 설정 탭·메뉴 편집이 숨겨진다. **체험 끝내기**는 시드를 초기화하고 랜딩으로 돌아간다.  
+허브(내 가게·근무 가게·검색)와 **실가게** 상세는 로그인 필수. 헤더: 열람자 본인이 해당 가게 **현재 근무 구간**이면 「근무중」 뱃지(업주·직원 공통, 정규·승인 대타/추가·자정 넘김). `onDuty`는 업주도 스케줄 기준(상시 true 아님). 재고 수정은 업주 상시, 직원은 `canEditStock`+근무 중.  
+허브 가게 카드: 오늘 **due**인 오픈·마감만 `오픈 3/8 · 마감 아직`(0=아직, 전부=완료). 근무가 아니면 줄 없음.
 
 ```mermaid
 flowchart LR
     home([홈]) --> landing[/hobbies/veveno 랜딩]
-    landing -->|"시작하기 · 로그인"| hub[허브]
-    landing -->|"시작하기 · 비로그인"| login([/login])
+    landing -->|"가게 열기 · 로그인"| hub[허브]
+    landing -->|"가게 열기 · 비로그인"| login([/login])
+    landing -->|"사장님으로 써보기"| demo[로컬 체험 /stores/demo]
+    demo -->|"사장 / 직원 토글"| demo
+    demo -->|"체험 끝내기"| landing
     login --> hub
     hub --> register[업장 등록]
     hub --> myStores[내 가게]
+    myStores --> todayLine[오픈 n/m · 마감 아직]
     hub --> subs[구독 중]
+    subs --> todayLine
     hub --> public[공개 가게 · 가입 신청]
     hub --> codeSearch[가게 코드 검색]
 ```
@@ -222,14 +230,16 @@ flowchart LR
 `brew_staff_schedule_overrides` (하루 예외 · 한번만 변경)  
 `brew_shift_covers` (날짜 단위 대체·추가, `shift_kind`: COVER|EXTRA)
 `brew_store_notices` (가게 공지, owner 작성)
+`brew_checklist_templates` → `brew_checklist_items` / `brew_checklist_runs` → `brew_checklist_checks` (할 일. N+1 없이 template IN → items IN → runs IN → checks IN)
 
 ### 8-2. Owner — 메뉴 · 설정
 
 ```mermaid
 flowchart LR
     store([가게 상세]) --> menus[메뉴 관리]
-    menus --> menuList[메뉴 목록]
-    menuList --> recipeEdit[레시피 작성·저장/수정·삭제]
+    menus --> addMenu[메뉴 등록 모달]
+    addMenu --> menuList[메뉴 목록]
+    menuList --> recipeEdit[레시피 열람·수정·삭제]
     store --> settings[관리 설정]
     settings --> saveStore[업장 저장/수정]
     settings --> inviteCode[가게 코드 · 재발급]
@@ -245,10 +255,35 @@ flowchart LR
     assign --> once[한번만 변경]
     once --> pickOnce[달력 모달에서 날 선택]
     schedule --> cover[대체·추가 지정·승인]
+    store --> checklists[할 일 탭]
+    checklists --> todayList[오늘 체크]
+    checklists --> templates[목록 만들기·수정]
+    templates --> openToday[오늘 열기]
     store --> tools[도구 탭]
     store --> notice[헤더 공지 아이콘]
     tools --> units[단위 변환]
     tools --> timers[타이머]
+```
+
+- 메뉴 등록: 재고와 같이 모달 한 장. 카테고리(선택 또는 직접 입력) + 제목 + 노트. 카테고리가 없으면 만든 뒤 레시피를 붙인다. 빈 화면 「메뉴 추가」·목록 「새로 추가」·레시피 0 「첫 레시피 적기」가 같은 모달을 연다.
+
+### 8-2c. 할 일 (owner·구독자)
+
+가게 목록(owner)과 개인 목록(본인). 열림: `CLOCK`(서울 시각·요일) / `SHIFT_START` / `SHIFT_END` / `MANUAL`. 조건에 맞는 목록만 **오늘**에 보여 준다. 목록에서 **열기**는 모달에서 체크한다. 하루 1회(`template_id`+`run_on`). 「들어오면 바로 열기」는 미완료 시 모달. **오픈(`SHIFT_START`)만 기본 켜짐**(기존 목록은 그대로). 근무 없는 날 오픈/마감은 안 열림.  
+사장님: 가게에 오픈/마감 템플릿이 없으면 샘플 카드. 클릭하면 항목을 고친 뒤 저장. 직원은 샘플 없음.
+
+```mermaid
+flowchart LR
+    hub[허브 오늘 줄] --> enter[가게 입장]
+    enter --> interrupt{오픈 바로 열기·미완료?}
+    interrupt -->|예| modal[모달]
+    enter --> due{오늘 열림?}
+    due -->|예| today[오늘 체크]
+    modal --> today
+    library[목록에서 열기] --> modalCheck[체크 모달]
+    today --> check[항목 체크·해제]
+    empty[오픈·마감 없음] --> seed[카드 클릭 · 수정 · 저장]
+    seed --> today
 ```
 
 ### 8-2b. 도구 (owner·구독자)
@@ -279,7 +314,9 @@ flowchart LR
 - **수정**은 owner이거나 (권한 ON **그리고** 현재 근무 중 — 본인 정규 또는 승인 대타). 자정 넘김 근무 포함. 설정에서 시간 외 재고 조정을 켜면 권한 직원은 근무 외에도 수정 가능
 - Owner는 설정 → 구독자 · 재고 권한에서 부여
 - 카테고리: **편집** 모드에서만 추가·이름 수정·삭제 (레시피 목록과 동일 패턴)
-- 재고 행: `−`/`+`는 1개씩. **숫자 탭** → 입고 수량만큼 더함. 목록 헤더 **편집** → 행 `⋯`에서 이름·카테고리·수량·경고선 수정·삭제
+- 재고 행: `−`/`+`는 1씩. 숫자는 `12개`처럼 단위와 함께 표시. **숫자 탭** → 입고 수량만큼 더함. 목록 헤더 **편집** → 행 `⋯`에서 이름·카테고리·수량·단위·발주 링크·경고선 수정·삭제
+- 단위: 기본 선택 `개` / `g` / `kg` / `ml` / `L` / `팩` / `박스`. **직접 입력**은 카테고리와 같이 텍스트 칸(최대 16자). 발주 URL이 있으면 행에 **발주** (새 탭, http/https만)
+- 수량이 바뀔 때만 `brew_store_stock_logs`에 기록. 편집 모달 **이력**에서 최근 50건 (`닉네임 · 10→9 · 시각`). 이름·카테고리만 바꾸면 기록 없음
 - **사용량 일수 안내**(설정에서 기본 끔): 켜면 감소분(`−` 1개 또는 편집으로 N개 줄임)을 `brew_store_stock_usage_days`에 기록. 같은 날 `+` 1개는 그날 사용 −1. 입고·2개 이상 증가는 기록 없음. 재고 탭에 **약 N일분**, 경고선이 3일 안이면 **곧 부족 · 재고 확인**. 공백 날은 평균에서 제외. 가게 삭제 시 CASCADE
 
 ### 8-3b. 근무 · 대체·추가
@@ -331,20 +368,20 @@ flowchart LR
     schedule --> due{조회 시 due?}
     due -->|"오늘 > leave"| purge
     owner[업주 · 설정 구독자] --> pick
-    staff[직원 · 가게 나가기] --> pick
-    schedule --> clear[퇴사 예약 취소]
+    schedule --> clear[업주 · 퇴사 예약 취소]
 ```
 
-- 업주: 설정 → 구독자에서 **퇴사** / **퇴사 예약 취소**
-- 직원: **근무 탭**의 **가게 나가기** 카드에서 퇴사일 지정·예약 취소
+- 업주만: 설정 → 구독자에서 **퇴사** / **퇴사 예약 취소**. 직원은 지정·취소 불가(헤더에 예정일만 표시)
+- 직원 셀프 API(`DELETE /subscriptions/{storeId}`, `DELETE .../leave`)는 403
 - 퇴사일 **이후**에 대체·추가(PENDING/APPROVED)가 있으면 confirm 후 해당 건 **삭제**. 퇴사일 당일·이전은 유지
-- API: `GET .../subscribers/{userId}/covers-after-leave?leaveDate=`, `POST .../subscribers/{userId}/resign`, `DELETE /subscriptions/{storeId}` (+ body `leaveDate`), leave 취소 DELETE들
+- API: `GET .../subscribers/{userId}/covers-after-leave?leaveDate=`, `POST .../subscribers/{userId}/resign`, `DELETE .../subscribers/{userId}/leave`
 - `brew_store_subscriptions.work_start_date`: 첫 근무일. 달력·근무 중 판정은 이 날짜부터 (`leave_date`까지)
 
 라우트:
 - `/hobbies/veveno` — 공개 소개 랜딩 (SEO, 자동 스킵 없음)
 - `/hobbies/veveno/hub` — 허브 (로그인 필수)
-- `/hobbies/veveno/stores/:storeId` — 가게(메뉴·재고·근무·도구·설정·공지). 탭은 `?tab=` 로 유지(새로고침 시 유지)
+- `/hobbies/veveno/stores/demo` — 로컬 체험 (로그인 불필요, `localStorage`, 사장/직원 토글)
+- `/hobbies/veveno/stores/:storeId` — 실가게(메뉴·재고·할 일·근무·도구·설정·공지). 탭은 `?tab=` 로 유지(새로고침 시 유지). `demo`가 아니면 로그인 필수
 - 메뉴 탭 **카테고리(메뉴) 목록**: 일반 클릭은 선택(레시피 조회), **편집** 모드에서 클릭 시 이름 수정·삭제 모달
 - 하위 호환: `/hobbies/brew-note` → 랜딩, `/hobbies/brew-note/stores/:id` → veveno stores
 
@@ -700,7 +737,8 @@ flowchart LR
 | `/hobbies/ipbt` 등 | (폐기 → `/`) | — |
 | `/hobbies/veveno` | Veveno 소개 랜딩 | 불필요 (SEO) |
 | `/hobbies/veveno/hub` | Veveno 허브 | **필수** |
-| `/hobbies/veveno/stores/:storeId` | 가게(메뉴·재고·근무·도구·설정·공지) | **필수** |
+| `/hobbies/veveno/stores/demo` | Veveno 로컬 체험 (사장/직원 토글) | 불필요 |
+| `/hobbies/veveno/stores/:storeId` | 실가게(메뉴·재고·할 일·근무·도구·설정·공지) | **필수** (`demo` 제외) |
 | `/hobbies/6pick` | 6PICK 소개 랜딩 | 선택 |
 | `/hobbies/6pick/play` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
 | `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | — |

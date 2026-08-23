@@ -20,7 +20,6 @@ export function SixPickLandingPage() {
           ? undefined
           : '번호 생성·세금 계산은 비로그인으로도 가능해요. 히스토리 저장만 로그인이 필요해요.'
       }
-      logoSrc="/6pick/logo.svg"
       marqueeItems={['몬테카를로', 'Hot/Cold', '히스토리', '세금 계산', '6PICK']}
       blockTone="lilac"
       blockTitle="번호 전략을 가볍게"

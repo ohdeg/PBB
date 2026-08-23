@@ -443,16 +443,12 @@ public class BrewService {
         return applyLeave(storeId, subscriberId, request.leaveDate(), owner.getId(), true);
     }
 
-    /** 직원이 스스로 퇴사(가게 나가기) */
+    /** 직원이 스스로 퇴사(가게 나가기) — 업주만 지정. */
     @Transactional
     public void unsubscribe(String email, UUID storeId, LeaveDateRequest request) {
-        User user = requireUser(email);
-        processDueLeavesForStore(storeId);
-        BrewStore store = requireStore(storeId);
-        if (store.getOwnerUserId().equals(user.getId())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "업주는 구독을 해지할 수 없습니다. 가게를 삭제하세요.");
-        }
-        applyLeave(storeId, user.getId(), request.leaveDate(), user.getId(), false);
+        requireUser(email);
+        requireStore(storeId);
+        throw new BusinessException(HttpStatus.FORBIDDEN, "퇴사는 사장님만 지정할 수 있습니다.");
     }
 
     /** 예약된 퇴사 취소 */
@@ -463,14 +459,7 @@ public class BrewService {
             UUID subscriberId
     ) {
         User actor = requireUser(email);
-        BrewStore store = requireStore(storeId);
-        boolean isOwner = store.getOwnerUserId().equals(actor.getId());
-        if (!isOwner && !actor.getId().equals(subscriberId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "본인 또는 업주만 퇴사 예약을 취소할 수 있습니다.");
-        }
-        if (isOwner) {
-            requireOwnedStore(storeId, actor.getId());
-        }
+        requireOwnedStore(storeId, actor.getId());
         BrewStoreSubscription sub = subscriptionRepository
                 .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
@@ -481,11 +470,12 @@ public class BrewService {
         return toSubscriberResponse(subscriber, sub);
     }
 
-    /** 직원이 본인 퇴사 예약 취소 */
+    /** 직원이 본인 퇴사 예약 취소 — 업주만 지정. */
     @Transactional
     public void clearMyScheduledLeave(String email, UUID storeId) {
-        User user = requireUser(email);
-        clearScheduledLeave(email, storeId, user.getId());
+        requireUser(email);
+        requireStore(storeId);
+        throw new BusinessException(HttpStatus.FORBIDDEN, "퇴사는 사장님만 지정할 수 있습니다.");
     }
 
     private SubscriberResponse applyLeave(

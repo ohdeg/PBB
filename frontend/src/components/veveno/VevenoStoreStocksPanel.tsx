@@ -2,12 +2,14 @@ import { useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import axios from 'axios';
 import { vevenoApi } from '../../api/vevenoApi';
-import type { VevenoStock, VevenoStockCategory } from '../../types/veveno';
+import type { VevenoStock, VevenoStockCategory, VevenoStockLog } from '../../types/veveno';
+import { VEVENO_STOCK_UNITS } from '../../types/veveno';
 import { getErrorMessage } from '../../utils/error';
 import { VevenoActionMenu } from './VevenoActionMenu';
 import { VevenoBadge } from './VevenoBadge';
 import { VevenoButton } from './VevenoButton';
 import { VevenoCard } from './VevenoCard';
+import { VevenoEmptyState } from './VevenoEmptyState';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
 
@@ -15,6 +17,45 @@ type StockListView = 'all' | 'low';
 
 function stockNeedsRestock(stock: VevenoStock): boolean {
   return stock.lowStock || stock.soonLow;
+}
+
+function stockQtyLabel(stockNum: number, unit: string): string {
+  return `${stockNum}${unit || '개'}`;
+}
+
+function isHttpUrl(url: string | null): url is string {
+  if (!url) {
+    return false;
+  }
+  const lower = url.trim().toLowerCase();
+  return lower.startsWith('http://') || lower.startsWith('https://');
+}
+
+const UNIT_CUSTOM = '__custom__';
+
+function isPresetUnit(unit: string): boolean {
+  return VEVENO_STOCK_UNITS.some((preset) => preset === unit);
+}
+
+function resolveFormUnit(unitKey: string, customUnit: string): string | null {
+  if (unitKey === UNIT_CUSTOM) {
+    const custom = customUnit.trim();
+    return custom || null;
+  }
+  return unitKey || '개';
+}
+
+function formatStockLogAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleString('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function formatDaysOfStock(days: number): string {
@@ -81,6 +122,9 @@ export function VevenoStoreStocksPanel({
     stockName: '',
     stockNum: 0,
     stockMinNum: 0,
+    unitKey: '개',
+    customUnit: '',
+    orderUrl: '',
   });
   const [creatingStock, setCreatingStock] = useState(false);
   const [updatingStockId, setUpdatingStockId] = useState<number | null>(null);
@@ -93,7 +137,12 @@ export function VevenoStoreStocksPanel({
     stockName: '',
     stockNum: 0,
     stockMinNum: 0,
+    unitKey: '개',
+    customUnit: '',
+    orderUrl: '',
   });
+  const [stockLogs, setStockLogs] = useState<VevenoStockLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingStock, setDeletingStock] = useState(false);
 
@@ -218,6 +267,11 @@ export function VevenoStoreStocksPanel({
       onError('카테고리 이름을 입력해 주세요.');
       return;
     }
+    const unit = resolveFormUnit(stockForm.unitKey, stockForm.customUnit);
+    if (!unit) {
+      onError('단위를 입력해 주세요.');
+      return;
+    }
 
     setCreatingStock(true);
     onError('');
@@ -249,6 +303,8 @@ export function VevenoStoreStocksPanel({
         stockName: stockForm.stockName.trim(),
         stockNum: stockForm.stockNum,
         stockMinNum: stockForm.stockMinNum,
+        unit,
+        orderUrl: stockForm.orderUrl.trim() || null,
       });
 
       setStockCategories((prev) => {
@@ -268,6 +324,9 @@ export function VevenoStoreStocksPanel({
         stockName: '',
         stockNum: 0,
         stockMinNum: 0,
+        unitKey: stockForm.unitKey,
+        customUnit: '',
+        orderUrl: '',
       });
       setStockCreateOpen(false);
     } catch (err: unknown) {
@@ -284,6 +343,7 @@ export function VevenoStoreStocksPanel({
     stockNum: number,
     stockMinNum: number | null,
     version: number,
+    extra?: { unit?: string; orderUrl?: string | null },
   ): Promise<boolean> => {
     if (updatingStockIdRef.current === stockId) {
       return false;
@@ -297,6 +357,8 @@ export function VevenoStoreStocksPanel({
         stockMinNum,
         version,
         categoryId,
+        ...(extra?.unit != null ? { unit: extra.unit } : {}),
+        ...(extra && 'orderUrl' in extra ? { orderUrl: extra.orderUrl } : {}),
       });
       setStockCategories((prev) => placeStock(prev, data));
       return true;
@@ -364,13 +426,34 @@ export function VevenoStoreStocksPanel({
       stockName: stock.stockName,
       stockNum: stock.stockNum,
       stockMinNum: stock.stockMinNum ?? 0,
+      unitKey: isPresetUnit(stock.unit) ? stock.unit : UNIT_CUSTOM,
+      customUnit: isPresetUnit(stock.unit) ? '' : stock.unit || '',
+      orderUrl: stock.orderUrl ?? '',
     });
+    setStockLogs([]);
     setEditTarget({ categoryId, stock });
+    setLoadingLogs(true);
+    void vevenoApi
+      .listStockLogs(storeId, stock.id)
+      .then(({ data }) => {
+        setStockLogs(data);
+      })
+      .catch((err: unknown) => {
+        onError(getErrorMessage(err, '이력을 불러오지 못했습니다.'));
+      })
+      .finally(() => {
+        setLoadingLogs(false);
+      });
   };
 
   const handleSaveStock = async (event: FormEvent) => {
     event.preventDefault();
     if (!editTarget || !editForm.stockName.trim() || savingEdit) {
+      return;
+    }
+    const unit = resolveFormUnit(editForm.unitKey, editForm.customUnit);
+    if (!unit) {
+      onError('단위를 입력해 주세요.');
       return;
     }
     const qty = Math.max(0, Math.floor(Number(editForm.stockNum)));
@@ -393,6 +476,10 @@ export function VevenoStoreStocksPanel({
         qty,
         editForm.stockMinNum,
         live.version,
+        {
+          unit,
+          orderUrl: editForm.orderUrl.trim() || null,
+        },
       );
       if (ok) {
         setEditTarget(null);
@@ -432,6 +519,39 @@ export function VevenoStoreStocksPanel({
   return (
     <>
       {active ? (
+      stockCategories.length === 0 ? (
+        <>
+          {!canMutateStock ? (
+            <p className="veveno-duty-banner">
+              근무 시간이 아니라 재고를 수정할 수 없습니다. 조회만 가능합니다.
+            </p>
+          ) : null}
+          <VevenoEmptyState
+            title="아직 재고가 없습니다"
+            body={
+              canMutateStock
+                ? '원두·우유처럼 쓰는 것부터 적어두면 부족할 때 바로 보입니다.'
+                : '아직 등록된 재고가 없습니다.'
+            }
+            action={
+              canMutateStock ? (
+                <VevenoButton
+                  onClick={() => {
+                    onError('');
+                    setStockForm((prev) => ({
+                      ...prev,
+                      categoryKey: '__custom__',
+                    }));
+                    setStockCreateOpen(true);
+                  }}
+                >
+                  재고 추가
+                </VevenoButton>
+              ) : undefined
+            }
+          />
+        </>
+      ) : (
       <div className="veveno-stack-lg">
         {!canMutateStock ? (
           <p className="veveno-duty-banner">
@@ -628,7 +748,19 @@ export function VevenoStoreStocksPanel({
                           className={`veveno-stock-row${stock.lowStock ? ' is-low' : stock.soonLow ? ' is-soon' : ''}`}
                         >
                           <div className="veveno-stock-row__info">
-                            <p className="veveno-store-row__name">{stock.stockName}</p>
+                            <div className="veveno-stock-row__title">
+                              <p className="veveno-store-row__name">{stock.stockName}</p>
+                              {isHttpUrl(stock.orderUrl) ? (
+                                <a
+                                  className="veveno-stock-order"
+                                  href={stock.orderUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  발주
+                                </a>
+                              ) : null}
+                            </div>
                             <p className="veveno-store-row__sub">
                               경고선 {stock.stockMinNum ?? 0}
                               {stock.daysOfStock != null
@@ -665,10 +797,10 @@ export function VevenoStoreStocksPanel({
                                   type="button"
                                   className="veveno-stock-num veveno-stock-num--action"
                                   disabled={updatingStockId === stock.id}
-                                  aria-label={`${stock.stockName} 입고, 현재 ${stock.stockNum}개`}
+                                  aria-label={`${stock.stockName} 입고, 현재 ${stockQtyLabel(stock.stockNum, stock.unit)}`}
                                   onClick={() => openInbound(cat.id, stock)}
                                 >
-                                  {stock.stockNum}
+                                  {stockQtyLabel(stock.stockNum, stock.unit)}
                                 </button>
                                 <VevenoButton
                                   size="sm"
@@ -689,7 +821,9 @@ export function VevenoStoreStocksPanel({
                                 </VevenoButton>
                               </>
                             ) : (
-                              <span className="veveno-stock-num">{stock.stockNum}</span>
+                              <span className="veveno-stock-num">
+                                {stockQtyLabel(stock.stockNum, stock.unit)}
+                              </span>
                             )}
                             {canMutateStock && stockListEditMode ? (
                               <VevenoActionMenu
@@ -720,6 +854,7 @@ export function VevenoStoreStocksPanel({
           )}
         </VevenoCard>
       </div>
+      )
       ) : null}
 
       <VevenoModal
@@ -796,6 +931,53 @@ export function VevenoStoreStocksPanel({
             }
             disabled={creatingStock}
           />
+          <div className="veveno-field">
+            <label className="veveno-field__label" htmlFor="stock-unit">
+              단위
+            </label>
+            <select
+              id="stock-unit"
+              className="veveno-field__input"
+              value={stockForm.unitKey}
+              onChange={(e) =>
+                setStockForm((prev) => ({
+                  ...prev,
+                  unitKey: e.target.value,
+                  customUnit: e.target.value === UNIT_CUSTOM ? prev.customUnit : '',
+                }))
+              }
+              disabled={creatingStock}
+            >
+              {VEVENO_STOCK_UNITS.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+              <option value={UNIT_CUSTOM}>직접 입력</option>
+            </select>
+          </div>
+          {stockForm.unitKey === UNIT_CUSTOM ? (
+            <VevenoInput
+              label="단위 이름"
+              value={stockForm.customUnit}
+              onChange={(e) =>
+                setStockForm((prev) => ({ ...prev, customUnit: e.target.value }))
+              }
+              placeholder="예: 봉지"
+              maxLength={16}
+              disabled={creatingStock}
+            />
+          ) : null}
+          <VevenoInput
+            label="발주 링크"
+            type="url"
+            value={stockForm.orderUrl}
+            onChange={(e) =>
+              setStockForm((prev) => ({ ...prev, orderUrl: e.target.value }))
+            }
+            placeholder="https://"
+            disabled={creatingStock}
+          />
           <VevenoInput
             label="경고 수량"
             type="number"
@@ -840,7 +1022,8 @@ export function VevenoStoreStocksPanel({
         {inboundTarget ? (
           <form className="veveno-form-stack" onSubmit={(e) => void handleInbound(e)}>
             <p className="veveno-card-lead">
-              {inboundTarget.stock.stockName} · 현재 {inboundTarget.stock.stockNum}개에 더합니다.
+              {inboundTarget.stock.stockName} · 현재{' '}
+              {stockQtyLabel(inboundTarget.stock.stockNum, inboundTarget.stock.unit)}에 더합니다.
             </p>
             <VevenoInput
               label="입고 수량"
@@ -929,6 +1112,53 @@ export function VevenoStoreStocksPanel({
               }
               disabled={savingEdit}
             />
+            <div className="veveno-field">
+              <label className="veveno-field__label" htmlFor="edit-stock-unit">
+                단위
+              </label>
+              <select
+                id="edit-stock-unit"
+                className="veveno-field__input"
+                value={editForm.unitKey}
+                disabled={savingEdit}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    unitKey: e.target.value,
+                    customUnit: e.target.value === UNIT_CUSTOM ? prev.customUnit : '',
+                  }))
+                }
+              >
+                {VEVENO_STOCK_UNITS.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+                <option value={UNIT_CUSTOM}>직접 입력</option>
+              </select>
+            </div>
+            {editForm.unitKey === UNIT_CUSTOM ? (
+              <VevenoInput
+                label="단위 이름"
+                value={editForm.customUnit}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, customUnit: e.target.value }))
+                }
+                placeholder="예: 봉지"
+                maxLength={16}
+                disabled={savingEdit}
+              />
+            ) : null}
+            <VevenoInput
+              label="발주 링크"
+              type="url"
+              value={editForm.orderUrl}
+              onChange={(e) =>
+                setEditForm((prev) => ({ ...prev, orderUrl: e.target.value }))
+              }
+              placeholder="https://"
+              disabled={savingEdit}
+            />
             <VevenoInput
               label="경고 수량"
               type="number"
@@ -942,6 +1172,23 @@ export function VevenoStoreStocksPanel({
               }
               disabled={savingEdit}
             />
+            <div className="veveno-stock-logs">
+              <p className="veveno-field__label">이력</p>
+              {loadingLogs ? (
+                <p className="veveno-empty">불러오는 중…</p>
+              ) : stockLogs.length === 0 ? (
+                <p className="veveno-empty">수량 변경 이력이 없습니다.</p>
+              ) : (
+                <ul className="veveno-stock-logs__list">
+                  {stockLogs.map((log) => (
+                    <li key={log.id}>
+                      {log.nickname || '알 수 없음'} · {log.fromNum}→{log.toNum}
+                      {log.createdAt ? ` · ${formatStockLogAt(log.createdAt)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="veveno-modal__actions">
               <VevenoButton
                 variant="secondary"

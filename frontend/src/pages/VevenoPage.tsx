@@ -5,6 +5,7 @@ import { vevenoApi } from '../api/vevenoApi';
 import { VevenoBadge } from '../components/veveno/VevenoBadge';
 import { VevenoButton } from '../components/veveno/VevenoButton';
 import { VevenoCard } from '../components/veveno/VevenoCard';
+import { VevenoEmptyState } from '../components/veveno/VevenoEmptyState';
 import {
   VevenoSplashScreen,
   useVevenoSplash,
@@ -12,6 +13,7 @@ import {
 import { VevenoInput } from '../components/veveno/VevenoInput';
 import { VevenoStoreRow } from '../components/veveno/VevenoStoreRow';
 import { VevenoVisibilityBadge } from '../components/veveno/VevenoVisibilityBadge';
+import { hubTodayLine } from '../components/veveno/vevenoHubTodayLine';
 import { useAuthStore } from '../stores/authStore';
 import type { VevenoStore } from '../types/veveno';
 import { getErrorMessage } from '../utils/error';
@@ -36,6 +38,7 @@ export function VevenoPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [panel, setPanel] = useState<HubPanel>('none');
+  const [todayLines, setTodayLines] = useState<Record<string, string>>({});
   const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -77,6 +80,45 @@ export function VevenoPage() {
       cancelled = true;
     };
   }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    const ids = [
+      ...new Set([...myStores, ...subscriptions].map((store) => store.id)),
+    ];
+    if (ids.length === 0) {
+      setTodayLines({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const { data } = await vevenoApi.listTodayChecklists(id);
+            return [id, hubTodayLine(data)] as const;
+          } catch {
+            return [id, undefined] as const;
+          }
+        }),
+      );
+      if (cancelled) {
+        return;
+      }
+      const next: Record<string, string> = {};
+      for (const [id, line] of entries) {
+        if (line) {
+          next[id] = line;
+        }
+      }
+      setTodayLines(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, myStores, subscriptions]);
 
   useEffect(() => {
     if (panel === 'none') {
@@ -189,12 +231,14 @@ export function VevenoPage() {
 
         <header className="veveno-shell__hero veveno-shell__hero--hub">
           <p className="veveno-shell__hero-brand">Veveno</p>
-          <div className="veveno-hero-cta">
-            <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
-            <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
-              가게 찾기
-            </VevenoButton>
-          </div>
+          {bothEmpty ? null : (
+            <div className="veveno-hero-cta">
+              <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+              <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
+                가게 찾기
+              </VevenoButton>
+            </div>
+          )}
         </header>
 
         {error ? (
@@ -209,11 +253,19 @@ export function VevenoPage() {
         ) : null}
 
         {bothEmpty ? (
-          <p className="veveno-notice veveno-notice--info" role="status">
-            아직 등록·구독 중인 가게가 없습니다. 위에서 만들거나 찾아보세요.
-          </p>
-        ) : null}
-
+          <VevenoEmptyState
+            title="아직 가게가 없습니다"
+            body="내 가게를 만들거나, 코드·이름으로 근무할 가게를 찾으세요."
+            action={
+              <>
+                <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+                <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
+                  가게 찾기
+                </VevenoButton>
+              </>
+            }
+          />
+        ) : (
         <div className="veveno-hub-grid">
           <section className="veveno-section">
             <VevenoCard title="내 가게">
@@ -223,6 +275,7 @@ export function VevenoPage() {
                     <VevenoStoreRow
                       key={store.id}
                       name={store.name}
+                      subtitle={todayLines[store.id]}
                       onDuty={store.onDuty}
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
@@ -239,7 +292,13 @@ export function VevenoPage() {
                   ))}
                 </div>
               ) : (
-                <p className="veveno-empty">등록된 가게가 없습니다. 위에서 만들어 보세요.</p>
+                <VevenoEmptyState
+                  title="내 가게가 없습니다"
+                  body="이름을 정하면 바로 노트를 시작할 수 있습니다."
+                  action={
+                    <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+                  }
+                />
               )}
             </VevenoCard>
           </section>
@@ -252,6 +311,7 @@ export function VevenoPage() {
                     <VevenoStoreRow
                       key={store.id}
                       name={store.name}
+                      subtitle={todayLines[store.id]}
                       onDuty={store.onDuty}
                       onClick={() => {
                         void navigate(`/hobbies/veveno/stores/${store.id}`);
@@ -268,11 +328,20 @@ export function VevenoPage() {
                   ))}
                 </div>
               ) : (
-                <p className="veveno-empty">근무 중인 가게가 없습니다. 가게 찾기로 가입해 보세요.</p>
+                <VevenoEmptyState
+                  title="근무 중인 가게가 없습니다"
+                  body="가게 이름이나 코드로 찾아 가입하세요."
+                  action={
+                    <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
+                      가게 찾기
+                    </VevenoButton>
+                  }
+                />
               )}
             </VevenoCard>
           </section>
         </div>
+        )}
 
         {panel !== 'none' ? (
           <section className="veveno-section veveno-hub-panel" ref={panelRef}>

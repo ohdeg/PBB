@@ -2,15 +2,18 @@ package com.studiobs.spring_backend.domain.brew.service;
 
 import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockCategoryResponse;
+import com.studiobs.spring_backend.domain.brew.dto.StockLogResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockResponse;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStock;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockLog;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockUsageDay;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockLogRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockUsageDayRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
@@ -24,6 +27,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -41,8 +45,11 @@ public class BrewStockService {
     private final BrewStoreSubscriptionRepository subscriptionRepository;
     private final BrewStoreStockCategoryRepository stockCategoryRepository;
     private final BrewStoreStockRepository stockRepository;
+    private final BrewStoreStockLogRepository stockLogRepository;
     private final BrewStoreStockUsageDayRepository usageDayRepository;
     private final BrewScheduleService brewScheduleService;
+
+    private static final int UNIT_MAX_LEN = 16;
 
     @Transactional(readOnly = true)
     public List<StockCategoryResponse> listStockCategories(UUID storeId, String email) {
@@ -148,7 +155,10 @@ public class BrewStockService {
                 .stockName(name)
                 .stockNum(request.stockNum())
                 .stockMinNum(request.stockMinNum())
+                .unit(resolveUnit(request.unit()))
+                .orderUrl(resolveOrderUrl(request.orderUrl() == null ? "" : request.orderUrl()))
                 .build());
+        recordQtyLog(stock.getId(), user.getId(), 0, stock.getStockNum());
         return StockResponse.from(stock);
     }
 
@@ -184,14 +194,42 @@ public class BrewStockService {
             throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 재고 이름입니다.");
         }
         int previousNum = stock.getStockNum();
-        stock.update(targetCategoryId, name, request.stockNum(), request.stockMinNum());
+        String unit = request.unit() == null ? stock.getUnit() : resolveUnit(request.unit());
+        String orderUrl = request.orderUrl() == null
+                ? stock.getOrderUrl()
+                : resolveOrderUrl(request.orderUrl());
+        stock.update(targetCategoryId, name, request.stockNum(), request.stockMinNum(), unit, orderUrl);
         BrewStoreStock saved = stockRepository.save(stock);
         stockRepository.flush();
+        recordQtyLog(saved.getId(), user.getId(), previousNum, saved.getStockNum());
         BrewStore store = requireStore(category.getStoreId());
         if (store.isStockUsageHint()) {
             applyUsageDelta(saved.getId(), previousNum, saved.getStockNum());
         }
         return toStockResponse(store.isStockUsageHint(), saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockLogResponse> listStockLogs(UUID storeId, Integer stockId, String email) {
+        User user = requireUser(email);
+        requireStockEditor(storeId, user.getId());
+        BrewStoreStock stock = requireStock(stockId);
+        BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
+        if (!category.getStoreId().equals(storeId)) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "재고를 찾을 수 없습니다.");
+        }
+        List<BrewStoreStockLog> logs = stockLogRepository.findTop50ByStockIdOrderByIdDesc(stockId);
+        Map<UUID, String> nicknames = userService.nicknameMap(
+                logs.stream().map(BrewStoreStockLog::getUserId).toList());
+        return logs.stream()
+                .map(log -> new StockLogResponse(
+                        log.getId(),
+                        log.getFromNum(),
+                        log.getToNum(),
+                        nicknames.getOrDefault(log.getUserId(), ""),
+                        log.getCreatedAt()
+                ))
+                .toList();
     }
 
     @Transactional
@@ -334,6 +372,39 @@ public class BrewStockService {
                 usageDayRepository.delete(row);
             }
         });
+    }
+
+    private void recordQtyLog(Integer stockId, UUID userId, int fromNum, int toNum) {
+        if (fromNum == toNum) {
+            return;
+        }
+        stockLogRepository.save(new BrewStoreStockLog(stockId, userId, fromNum, toNum));
+    }
+
+    private static String resolveUnit(String raw) {
+        String unit = raw == null ? "" : raw.trim();
+        if (unit.isEmpty()) {
+            return "개";
+        }
+        if (unit.length() > UNIT_MAX_LEN) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "단위는 16자까지 입력할 수 있습니다.");
+        }
+        return unit;
+    }
+
+    private static String resolveOrderUrl(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String url = raw.trim();
+        if (url.isEmpty()) {
+            return null;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "http 또는 https 주소만 넣을 수 있습니다.");
+        }
+        return url;
     }
 
     private static LocalDate todaySeoul() {

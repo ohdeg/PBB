@@ -80,6 +80,11 @@ export function VevenoLandingPage() {
       ]}
       startLabel="가게 열기"
       onStart={handleStart}
+      secondaryAction={{
+        label: '사장님으로 써보기',
+        to: '/hobbies/veveno/stores/demo',
+      }}
+      note="로그인 없이 이 기기에서 사장·직원 화면을 바꿔 가며 써볼 수 있어요."
     />
   );
 }

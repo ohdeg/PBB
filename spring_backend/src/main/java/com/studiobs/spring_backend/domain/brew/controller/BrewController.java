@@ -3,6 +3,10 @@ package com.studiobs.spring_backend.domain.brew.controller;
 import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
 import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CalendarResponse;
+import com.studiobs.spring_backend.domain.brew.dto.ChecklistCheckRequest;
+import com.studiobs.spring_backend.domain.brew.dto.ChecklistRequest;
+import com.studiobs.spring_backend.domain.brew.dto.ChecklistTemplateResponse;
+import com.studiobs.spring_backend.domain.brew.dto.ChecklistTodayResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CoverAfterLeaveCountResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CoverResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ApproveJoinRequest;
@@ -21,6 +25,7 @@ import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
 import com.studiobs.spring_backend.domain.brew.dto.ScheduleResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StaffMemberResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockCategoryResponse;
+import com.studiobs.spring_backend.domain.brew.dto.StockLogResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockPermissionRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockResponse;
@@ -31,6 +36,7 @@ import com.studiobs.spring_backend.domain.brew.dto.TimerPresetResponse;
 import com.studiobs.spring_backend.domain.brew.dto.UpdateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.service.BrewScheduleService;
 import com.studiobs.spring_backend.domain.brew.service.BrewService;
+import com.studiobs.spring_backend.domain.brew.service.BrewChecklistService;
 import com.studiobs.spring_backend.domain.brew.service.BrewNoticeService;
 import com.studiobs.spring_backend.domain.brew.service.BrewStockService;
 import com.studiobs.spring_backend.domain.brew.service.BrewTimerPresetService;
@@ -62,6 +68,7 @@ public class BrewController {
 
     private final BrewService brewService;
     private final BrewNoticeService brewNoticeService;
+    private final BrewChecklistService brewChecklistService;
     private final BrewStockService brewStockService;
     private final BrewScheduleService brewScheduleService;
     private final BrewTimerPresetService brewTimerPresetService;
@@ -311,6 +318,19 @@ public class BrewController {
     public MessageResponse deleteStock(HttpServletRequest request, @PathVariable Integer stockId) {
         brewStockService.deleteStock(accessTokenResolver.requireEmail(request), stockId);
         return new MessageResponse("재고가 삭제되었습니다.");
+    }
+
+    @GetMapping("/stores/{storeId}/stocks/{stockId}/logs")
+    public List<StockLogResponse> listStockLogs(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @PathVariable Integer stockId
+    ) {
+        return brewStockService.listStockLogs(
+                storeId,
+                stockId,
+                accessTokenResolver.requireEmail(request)
+        );
     }
 
     @GetMapping("/stores/{storeId}/subscribers")
@@ -614,6 +634,83 @@ public class BrewController {
                 accessTokenResolver.requireEmail(request),
                 storeId,
                 presetId
+        );
+    }
+
+    @GetMapping("/stores/{storeId}/checklists")
+    public List<ChecklistTemplateResponse> listChecklists(
+            HttpServletRequest request,
+            @PathVariable UUID storeId
+    ) {
+        return brewChecklistService.list(accessTokenResolver.requireEmail(request), storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/checklists")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ChecklistTemplateResponse createChecklist(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @Valid @RequestBody ChecklistRequest body
+    ) {
+        return brewChecklistService.create(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                body
+        );
+    }
+
+    @PatchMapping("/checklists/{templateId}")
+    public ChecklistTemplateResponse updateChecklist(
+            HttpServletRequest request,
+            @PathVariable UUID templateId,
+            @Valid @RequestBody ChecklistRequest body
+    ) {
+        return brewChecklistService.update(
+                accessTokenResolver.requireEmail(request),
+                templateId,
+                body
+        );
+    }
+
+    @DeleteMapping("/checklists/{templateId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteChecklist(HttpServletRequest request, @PathVariable UUID templateId) {
+        brewChecklistService.delete(accessTokenResolver.requireEmail(request), templateId);
+    }
+
+    @GetMapping("/stores/{storeId}/checklists/today")
+    public List<ChecklistTodayResponse> listTodayChecklists(
+            HttpServletRequest request,
+            @PathVariable UUID storeId
+    ) {
+        return brewChecklistService.listToday(accessTokenResolver.requireEmail(request), storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/checklists/{templateId}/open")
+    public List<ChecklistTodayResponse> openTodayChecklist(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @PathVariable UUID templateId
+    ) {
+        return brewChecklistService.openToday(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                templateId
+        );
+    }
+
+    @PutMapping("/stores/{storeId}/checklists/{templateId}/checks")
+    public List<ChecklistTodayResponse> setChecklistCheck(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @PathVariable UUID templateId,
+            @Valid @RequestBody ChecklistCheckRequest body
+    ) {
+        return brewChecklistService.setCheck(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                templateId,
+                body
         );
     }
 }

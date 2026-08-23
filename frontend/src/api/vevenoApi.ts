@@ -14,14 +14,20 @@ import type {
   VevenoStats,
   VevenoStock,
   VevenoStockCategory,
+  VevenoStockLog,
   VevenoStore,
   VevenoSubscriber,
   VevenoTimerPreset,
   VevenoTimerPresetInput,
+  VevenoChecklistInput,
+  VevenoChecklistTemplate,
+  VevenoChecklistToday,
 } from '../types/veveno';
 import type { ApiMessageResponse } from '../types/auth';
+import { isVevenoDemoRequest } from '../features/veveno/vevenoDemo';
+import { vevenoDemoApi } from '../features/veveno/vevenoDemoApi';
 
-export const vevenoApi = {
+const vevenoLiveApi = {
   stats() {
     return apiClient.get<VevenoStats>('/api/v1/veveno/stats');
   },
@@ -149,7 +155,13 @@ export const vevenoApi = {
 
   createStock(
     categoryId: number,
-    payload: { stockName: string; stockNum: number; stockMinNum: number | null },
+    payload: {
+      stockName: string;
+      stockNum: number;
+      stockMinNum: number | null;
+      unit: string;
+      orderUrl: string | null;
+    },
   ) {
     return apiClient.post<VevenoStock>(
       `/api/v1/veveno/stock-categories/${categoryId}/stocks`,
@@ -165,6 +177,8 @@ export const vevenoApi = {
       stockMinNum: number | null;
       version: number;
       categoryId?: number;
+      unit?: string;
+      orderUrl?: string | null;
     },
   ) {
     return apiClient.patch<VevenoStock>(`/api/v1/veveno/stocks/${stockId}`, payload);
@@ -172,6 +186,12 @@ export const vevenoApi = {
 
   deleteStock(stockId: number) {
     return apiClient.delete<ApiMessageResponse>(`/api/v1/veveno/stocks/${stockId}`);
+  },
+
+  listStockLogs(storeId: string, stockId: number) {
+    return apiClient.get<VevenoStockLog[]>(
+      `/api/v1/veveno/stores/${storeId}/stocks/${stockId}/logs`,
+    );
   },
 
   requestJoin(storeId: string) {
@@ -218,13 +238,6 @@ export const vevenoApi = {
     );
   },
 
-  unsubscribe(storeId: string, leaveDate: string) {
-    return apiClient.delete<ApiMessageResponse>(
-      `/api/v1/veveno/subscriptions/${storeId}`,
-      { data: { leaveDate } },
-    );
-  },
-
   resignSubscriber(storeId: string, userId: string, leaveDate: string) {
     return apiClient.post<VevenoSubscriber | ApiMessageResponse>(
       `/api/v1/veveno/stores/${storeId}/subscribers/${userId}/resign`,
@@ -235,12 +248,6 @@ export const vevenoApi = {
   clearSubscriberLeave(storeId: string, userId: string) {
     return apiClient.delete<VevenoSubscriber>(
       `/api/v1/veveno/stores/${storeId}/subscribers/${userId}/leave`,
-    );
-  },
-
-  clearMyLeave(storeId: string) {
-    return apiClient.delete<ApiMessageResponse>(
-      `/api/v1/veveno/subscriptions/${storeId}/leave`,
     );
   },
 
@@ -356,4 +363,64 @@ export const vevenoApi = {
       `/api/v1/veveno/stores/${storeId}/timer-presets/${presetId}`,
     );
   },
+
+  listChecklists(storeId: string) {
+    return apiClient.get<VevenoChecklistTemplate[]>(
+      `/api/v1/veveno/stores/${storeId}/checklists`,
+    );
+  },
+
+  createChecklist(storeId: string, payload: VevenoChecklistInput) {
+    return apiClient.post<VevenoChecklistTemplate>(
+      `/api/v1/veveno/stores/${storeId}/checklists`,
+      payload,
+    );
+  },
+
+  updateChecklist(templateId: string, payload: VevenoChecklistInput) {
+    return apiClient.patch<VevenoChecklistTemplate>(
+      `/api/v1/veveno/checklists/${templateId}`,
+      payload,
+    );
+  },
+
+  deleteChecklist(templateId: string) {
+    return apiClient.delete(`/api/v1/veveno/checklists/${templateId}`);
+  },
+
+  listTodayChecklists(storeId: string) {
+    return apiClient.get<VevenoChecklistToday[]>(
+      `/api/v1/veveno/stores/${storeId}/checklists/today`,
+    );
+  },
+
+  openTodayChecklist(storeId: string, templateId: string) {
+    return apiClient.post<VevenoChecklistToday[]>(
+      `/api/v1/veveno/stores/${storeId}/checklists/${templateId}/open`,
+    );
+  },
+
+  setChecklistCheck(
+    storeId: string,
+    templateId: string,
+    payload: { itemId: number; checked: boolean },
+  ) {
+    return apiClient.put<VevenoChecklistToday[]>(
+      `/api/v1/veveno/stores/${storeId}/checklists/${templateId}/checks`,
+      payload,
+    );
+  },
 };
+
+export const vevenoApi = new Proxy(vevenoLiveApi, {
+  get(target, prop, receiver) {
+    if (
+      typeof prop === 'string' &&
+      isVevenoDemoRequest() &&
+      Object.prototype.hasOwnProperty.call(vevenoDemoApi, prop)
+    ) {
+      return Reflect.get(vevenoDemoApi, prop, vevenoDemoApi);
+    }
+    return Reflect.get(target, prop, receiver);
+  },
+}) as typeof vevenoLiveApi;

@@ -1748,6 +1748,14 @@ html:not([data-theme='dark']) .global-nav__logo {
   padding: 0.25rem 1.15rem 1.15rem;
 }
 
+.veveno-card.is-clickable {
+  cursor: pointer;
+}
+
+.veveno-card.is-clickable:hover {
+  border-color: var(--veveno-accent);
+}
+
 .veveno-card__head {
   display: flex;
   align-items: baseline;
@@ -1795,6 +1803,51 @@ html:not([data-theme='dark']) .global-nav__logo {
   margin: 0;
   font-size: 0.875rem;
   color: var(--veveno-mute);
+}
+
+.veveno-empty-state {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 0.55rem;
+  padding: 2.75rem 1rem 2rem;
+  width: 100%;
+}
+
+.veveno-empty-state__title {
+  margin: 0;
+  font-family: var(--veveno-font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--veveno-ink);
+}
+
+.veveno-empty-state__body {
+  margin: 0;
+  max-width: 28rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--veveno-ink-soft);
+}
+
+.veveno-empty-state__action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  width: 100%;
+  max-width: 28rem;
+}
+
+.veveno-card .veveno-empty-state {
+  padding: 1.1rem 0.25rem 0.85rem;
+}
+
+.veveno-empty-state__action .veveno-search-row {
+  width: 100%;
+  justify-content: center;
 }
 
 .veveno-stack {
@@ -2748,6 +2801,7 @@ html:not([data-theme='dark']) .global-nav__logo {
   color: var(--veveno-mute);
 }
 
+.veveno-field > select,
 .veveno-field__input {
   width: 100%;
   border-radius: 0.35rem;
@@ -2798,6 +2852,40 @@ html:not([data-theme='dark']) .global-nav__logo {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.veveno-checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.veveno-checklist .veveno-check {
+  align-items: flex-start;
+}
+
+.veveno-tab-badge {
+  margin-left: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--veveno-mute);
+}
+
+.veveno-checklist-banner {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: var(--veveno-ink-soft);
+  cursor: pointer;
+  text-align: left;
+}
+
+.veveno-checklist-banner:hover {
+  color: var(--veveno-ink);
 }
 
 .veveno-help-tip {
@@ -3106,8 +3194,35 @@ html:not([data-theme='dark']) .global-nav__logo {
   min-width: 0;
 }
 
+.veveno-stock-order {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--veveno-accent, #6b4a2e);
+  text-decoration: none;
+}
+
+.veveno-stock-order:hover {
+  text-decoration: underline;
+}
+
+.veveno-stock-logs {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.veveno-stock-logs__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--veveno-muted, #6b645c);
+}
+
 .veveno-stock-num {
-  min-width: 1.75rem;
+  min-width: 2.4rem;
   text-align: center;
   font-size: 1.15rem;
   font-weight: 600;
@@ -3131,6 +3246,65 @@ button.veveno-stock-num--action:hover:not(:disabled) {
 button.veveno-stock-num--action:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.veveno-demo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0 0 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--veveno-line);
+}
+
+.veveno-demo-bar__copy {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--veveno-mute);
+}
+
+.veveno-demo-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+}
+
+.veveno-demo-role {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-width: 8.5rem;
+  border: 1px solid var(--veveno-line);
+}
+
+.veveno-demo-role button {
+  border: none;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--veveno-mute);
+  background: transparent;
+  cursor: pointer;
+}
+
+.veveno-demo-role button.is-active {
+  color: var(--veveno-ink);
+  background: var(--veveno-paper-deep);
+}
+
+.veveno-demo-bar__login,
+.veveno-demo-bar__end {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--veveno-ink);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 .veveno-duty-banner {

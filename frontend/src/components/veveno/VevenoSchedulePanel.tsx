@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { vevenoApi } from '../../api/vevenoApi';
+import {
+  isVevenoDemoStoreId,
+  VEVENO_DEMO_OWNER_ID,
+  VEVENO_DEMO_STAFF_ID,
+} from '../../features/veveno/vevenoDemo';
 import { useAuthStore } from '../../stores/authStore';
 import type {
   VevenoCalendarOccurrence,
@@ -13,6 +18,7 @@ import type {
 import { getErrorMessage } from '../../utils/error';
 import { VevenoButton } from './VevenoButton';
 import { VevenoCard } from './VevenoCard';
+import { VevenoEmptyState } from './VevenoEmptyState';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
 import { VevenoTimeInput } from './VevenoTimeInput';
@@ -34,6 +40,7 @@ interface VevenoSchedulePanelProps {
   owned: boolean;
   subscribed: boolean;
   onError: (message: string) => void;
+  onGoSettings?: () => void;
 }
 
 function toDateKey(d: Date): string {
@@ -174,14 +181,20 @@ export function VevenoSchedulePanel({
   owned,
   subscribed,
   onError,
+  onGoSettings,
 }: VevenoSchedulePanelProps) {
-  const userId = useAuthStore((s) => s.userId);
+  const authUserId = useAuthStore((s) => s.userId);
+  const userId = isVevenoDemoStoreId(storeId)
+    ? owned
+      ? VEVENO_DEMO_OWNER_ID
+      : VEVENO_DEMO_STAFF_ID
+    : authUserId;
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchor, setAnchor] = useState(() => new Date());
   const [occurrences, setOccurrences] = useState<VevenoCalendarOccurrence[]>([]);
   const [pendingCovers, setPendingCovers] = useState<VevenoCover[]>([]);
   const [staff, setStaff] = useState<VevenoStaffMember[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [exportingJournal, setExportingJournal] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [submittingCover, setSubmittingCover] = useState(false);
@@ -639,6 +652,24 @@ export function VevenoSchedulePanel({
     (s) =>
       !isStaffBusy(s.userId, coverForm.workDate, coverForm.startTime, coverForm.endTime),
   );
+
+  if (owned && loading) {
+    return <p className="veveno-empty">불러오는 중…</p>;
+  }
+
+  if (owned && staff.length === 0) {
+    return (
+      <VevenoEmptyState
+        title="아직 직원이 없습니다"
+        body="가입을 승인하면 근무를 지정할 수 있어요."
+        action={
+          onGoSettings ? (
+            <VevenoButton onClick={onGoSettings}>직원 승인하러 가기</VevenoButton>
+          ) : undefined
+        }
+      />
+    );
+  }
 
   return (
     <div className="veveno-stack-lg">

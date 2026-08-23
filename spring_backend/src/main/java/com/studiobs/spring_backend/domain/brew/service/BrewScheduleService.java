@@ -675,6 +675,20 @@ public class BrewScheduleService {
         return Boolean.TRUE.equals(onDutyByStoreIds(userId, List.of(storeId), subs).get(storeId));
     }
 
+    @Transactional(readOnly = true)
+    public BrewEffectiveShifts.Shift regularShiftOn(UUID storeId, UUID userId, LocalDate date) {
+        var sub = subscriptionRepository.findBySubscriberUserIdAndStoreId(userId, storeId);
+        if (sub.isPresent() && !sub.get().isActiveOn(date)) {
+            return null;
+        }
+        return BrewEffectiveShifts.resolve(
+                scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, userId),
+                overrideRepository.findByStoreIdAndUserIdAndWorkDate(storeId, userId, date)
+                        .orElse(null),
+                date
+        );
+    }
+
     private boolean evaluateOnDuty(
             LocalDateTime now,
             LocalDate today,

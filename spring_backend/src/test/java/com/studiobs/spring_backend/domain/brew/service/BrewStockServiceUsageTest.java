@@ -14,6 +14,8 @@ import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockUsageDay;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockLog;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockLogRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockUsageDayRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
@@ -22,6 +24,7 @@ import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -46,6 +49,8 @@ class BrewStockServiceUsageTest {
     @Mock
     private BrewStoreStockRepository stockRepository;
     @Mock
+    private BrewStoreStockLogRepository stockLogRepository;
+    @Mock
     private BrewStoreStockUsageDayRepository usageDayRepository;
     @Mock
     private BrewScheduleService brewScheduleService;
@@ -62,7 +67,7 @@ class BrewStockServiceUsageTest {
         brewStockService.updateStock(
                 "owner@example.com",
                 10,
-                new StockRequest("Milk", 3, 1, 0, 7));
+                new StockRequest("Milk", 3, 1, 0, 7, null, null));
 
         ArgumentCaptor<BrewStoreStockUsageDay> captor =
                 ArgumentCaptor.forClass(BrewStoreStockUsageDay.class);
@@ -79,10 +84,77 @@ class BrewStockServiceUsageTest {
         brewStockService.updateStock(
                 "owner@example.com",
                 10,
-                new StockRequest("Milk", 3, 1, 0, 7));
+                new StockRequest("Milk", 3, 1, 0, 7, null, null));
 
         verify(usageDayRepository, never()).save(any());
         verify(usageDayRepository, never()).findByStockIdAndUsedOn(any(), any());
+    }
+
+    @Test
+    void updateStock_writesLog_whenQtyChanges() {
+        UUID ownerId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        stubOwnerUpdate(ownerId, storeId, false, 10);
+
+        brewStockService.updateStock(
+                "owner@example.com",
+                10,
+                new StockRequest("Milk", 3, 1, 0, 7, null, null));
+
+        ArgumentCaptor<BrewStoreStockLog> captor = ArgumentCaptor.forClass(BrewStoreStockLog.class);
+        verify(stockLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getFromNum()).isEqualTo(10);
+        assertThat(captor.getValue().getToNum()).isEqualTo(3);
+        assertThat(captor.getValue().getUserId()).isEqualTo(ownerId);
+    }
+
+    @Test
+    void updateStock_skipsLog_whenQtyUnchanged() {
+        UUID ownerId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        stubOwnerUpdate(ownerId, storeId, false, 10);
+
+        brewStockService.updateStock(
+                "owner@example.com",
+                10,
+                new StockRequest("Milk", 10, 1, 0, 7, "봉지", "https://shop.example/milk"));
+
+        verify(stockLogRepository, never()).save(any());
+    }
+
+    @Test
+    void listStockLogs_loadsNicknamesInOneQuery() {
+        UUID ownerId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        UUID userA = UUID.randomUUID();
+        UUID userB = UUID.randomUUID();
+        User owner = user("owner@example.com", ownerId);
+        BrewStore store = store(storeId, ownerId, false);
+        BrewStoreStockCategory category = BrewStoreStockCategory.builder()
+                .storeId(storeId)
+                .categoryName("Dairy")
+                .build();
+        ReflectionTestUtils.setField(category, "id", 7);
+        BrewStoreStock stock = stock(10, 7, "Milk", 8, 1);
+        BrewStoreStockLog logA = new BrewStoreStockLog(10, userA, 9, 8);
+        BrewStoreStockLog logB = new BrewStoreStockLog(10, userB, 8, 7);
+        ReflectionTestUtils.setField(logA, "id", 1);
+        ReflectionTestUtils.setField(logB, "id", 2);
+
+        when(userService.findByEmail("owner@example.com")).thenReturn(Optional.of(owner));
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(stockRepository.findById(10)).thenReturn(Optional.of(stock));
+        when(stockCategoryRepository.findById(7)).thenReturn(Optional.of(category));
+        when(stockLogRepository.findTop50ByStockIdOrderByIdDesc(10)).thenReturn(List.of(logA, logB));
+        when(userService.nicknameMap(any())).thenReturn(Map.of(userA, "민수", userB, "수진"));
+
+        var result = brewStockService.listStockLogs(storeId, 10, "owner@example.com");
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).nickname()).isEqualTo("민수");
+        assertThat(result.get(1).nickname()).isEqualTo("수진");
+        verify(userService).nicknameMap(any());
+        verify(stockLogRepository).findTop50ByStockIdOrderByIdDesc(10);
     }
 
     @Test

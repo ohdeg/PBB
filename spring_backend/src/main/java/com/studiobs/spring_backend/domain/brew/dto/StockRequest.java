@@ -22,6 +22,14 @@ public record StockRequest(
         Integer version,
 
         /** 수정(PATCH) 시 지정하면 같은 가게 다른 카테고리로 이동. 생성(POST) 시 무시. */
-        Integer categoryId
+        Integer categoryId,
+
+        /** 생성 시 생략하면 개. PATCH에서 생략하면 기존 값 유지. */
+        @Size(max = 16)
+        String unit,
+
+        /** 생성 시 생략하면 없음. PATCH에서 생략하면 기존 값, 빈 문자열이면 삭제. */
+        @Size(max = 512)
+        String orderUrl
 ) {
 }

@@ -2,9 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { vevenoApi } from '../api/vevenoApi';
+import {
+  isVevenoDemoStoreId,
+  type VevenoDemoRole,
+} from '../features/veveno/vevenoDemo';
+import { getDemoRole, setDemoRole } from '../features/veveno/vevenoDemoApi';
 import { VevenoButton } from '../components/veveno/VevenoButton';
 import { VevenoHelpTip } from '../components/veveno/VevenoHelpTip';
 import { VevenoCard } from '../components/veveno/VevenoCard';
+import { VevenoEmptyState } from '../components/veveno/VevenoEmptyState';
 import { VevenoInput } from '../components/veveno/VevenoInput';
 import { VevenoStoreDeleteDialog } from '../components/veveno/VevenoStoreDeleteDialog';
 import { VevenoJoinApproveModal } from '../components/veveno/VevenoJoinApproveModal';
@@ -12,6 +18,7 @@ import type { VevenoJoinApprovePayload } from '../components/veveno/VevenoJoinAp
 import { VevenoModal } from '../components/veveno/VevenoModal';
 import { VevenoRecipeNotesEditor } from '../components/veveno/VevenoRecipeNotesEditor';
 import { VevenoRecipeNotesView } from '../components/veveno/VevenoRecipeNotesView';
+import { VevenoChecklistPanel } from '../components/veveno/VevenoChecklistPanel';
 import { VevenoSchedulePanel } from '../components/veveno/VevenoSchedulePanel';
 import { VevenoStoreStocksPanel } from '../components/veveno/VevenoStoreStocksPanel';
 import { VevenoToolsPanel } from '../components/veveno/VevenoToolsPanel';
@@ -34,6 +41,7 @@ import type {
   VevenoStockCategory,
   VevenoStore,
   VevenoSubscriber,
+  VevenoChecklistToday,
 } from '../types/veveno';
 import {
   EMPTY_RECIPE_CONTENT,
@@ -42,22 +50,45 @@ import {
 } from '../types/veveno';
 import { getErrorMessage } from '../utils/error';
 
-type Tab = 'menus' | 'stocks' | 'schedule' | 'tools' | 'settings';
+type Tab = 'menus' | 'stocks' | 'checklists' | 'schedule' | 'tools' | 'settings';
 
-const TAB_IDS: readonly Tab[] = ['menus', 'stocks', 'schedule', 'tools', 'settings'];
+const TAB_IDS: readonly Tab[] = [
+  'menus',
+  'stocks',
+  'checklists',
+  'schedule',
+  'tools',
+  'settings',
+];
 
 const TAB_HINT: Record<Tab, string> = {
   menus: '레시피를 고르고 적어 두세요.',
   stocks: '부족한 재고를 맞춰 두세요.',
+  checklists: '오늘 할 일을 체크하세요.',
   schedule: '직원의 스케줄을 관리합니다.',
   tools: '타이머·단위·농도를 바로 씁니다.',
   settings: '가게와 직원을 관리합니다.',
+};
+
+const EMPTY_MENU_CREATE = {
+  categoryKey: '',
+  customCategoryName: '',
+  title: '',
+  notes: '',
 };
 
 function storeRoleLabel(store: VevenoStore): string {
   if (store.owned) return '사장';
   if (store.subscribed) return '직원';
   return '손님';
+}
+
+function seoulDate(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+}
+
+function interruptKey(storeId: string, templateId: string): string {
+  return `veveno:cl-int:${storeId}:${seoulDate()}:${templateId}`;
 }
 
 function parseTabParam(raw: string | null): Tab {
@@ -72,7 +103,10 @@ export function VevenoStorePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const accessToken = useAuthStore((state) => state.accessToken);
-  const myUserId = useAuthStore((state) => state.userId);
+  const isDemo = isVevenoDemoStoreId(storeId);
+  const [demoRole, setDemoRoleState] = useState<VevenoDemoRole>(() =>
+    isVevenoDemoStoreId(storeId) ? getDemoRole() : 'owner',
+  );
   const { showSplash, handleSplashFinish } = useVevenoSplash();
 
   const tab = parseTabParam(searchParams.get('tab'));
@@ -99,6 +133,8 @@ export function VevenoStorePage() {
   const [recipes, setRecipes] = useState<VevenoRecipe[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [stockCategories, setStockCategories] = useState<VevenoStockCategory[]>([]);
+  const [todayChecklists, setTodayChecklists] = useState<VevenoChecklistToday[]>([]);
+  const [interruptId, setInterruptId] = useState<string | null>(null);
   const [joinRequests, setJoinRequests] = useState<VevenoJoinRequest[]>([]);
   const [subscribers, setSubscribers] = useState<VevenoSubscriber[]>([]);
   const [error, setError] = useState('');
@@ -117,6 +153,9 @@ export function VevenoStorePage() {
 
   const [menuName, setMenuName] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
+  const [menuCreateOpen, setMenuCreateOpen] = useState(false);
+  const [creatingMenuRecipe, setCreatingMenuRecipe] = useState(false);
+  const [menuCreateForm, setMenuCreateForm] = useState(EMPTY_MENU_CREATE);
   const [recipeForm, setRecipeForm] = useState<VevenoRecipeContent>(EMPTY_RECIPE_CONTENT);
   const [storeForm, setStoreForm] = useState({
     name: '',
@@ -128,7 +167,6 @@ export function VevenoStorePage() {
   const [leaveTarget, setLeaveTarget] = useState<{
     userId: string;
     nickname: string;
-    self: boolean;
   } | null>(null);
   const [leaveDate, setLeaveDate] = useState(() => {
     const d = new Date();
@@ -159,7 +197,7 @@ export function VevenoStorePage() {
   } = useVevenoNotices({ store, storeId, setError });
 
   const loadStore = useCallback(async () => {
-    if (!storeId || !accessToken) {
+    if (!storeId || (!accessToken && !isVevenoDemoStoreId(storeId))) {
       return;
     }
     setLoading(true);
@@ -182,8 +220,15 @@ export function VevenoStorePage() {
         } catch {
           setNotices([]);
         }
+        try {
+          const todayRes = await vevenoApi.listTodayChecklists(storeId);
+          setTodayChecklists(todayRes.data);
+        } catch {
+          setTodayChecklists([]);
+        }
       } else {
         setNotices([]);
+        setTodayChecklists([]);
       }
       if (data.canEditStock) {
         const stocksRes = await vevenoApi.listStocks(storeId);
@@ -229,6 +274,10 @@ export function VevenoStorePage() {
       setTab('menus');
       return;
     }
+    if (tab === 'checklists' && !store.owned && !store.subscribed) {
+      setTab('menus');
+      return;
+    }
     if (tab === 'schedule' && !store.owned && !store.subscribed) {
       setTab('menus');
       return;
@@ -243,7 +292,22 @@ export function VevenoStorePage() {
   }, [tab, store, setTab]);
 
   useEffect(() => {
-    if (tab !== 'stocks' || !storeId || !accessToken || !store?.canEditStock) {
+    if (!storeId) {
+      setInterruptId(null);
+      return;
+    }
+    const next = todayChecklists.find(
+      (list) =>
+        list.due &&
+        list.interrupt &&
+        list.checkedCount < list.totalCount &&
+        sessionStorage.getItem(interruptKey(storeId, list.templateId)) !== '1',
+    );
+    setInterruptId(next?.templateId ?? null);
+  }, [todayChecklists, storeId]);
+
+  useEffect(() => {
+    if (tab !== 'stocks' || !storeId || (!accessToken && !isDemo) || !store?.canEditStock) {
       return;
     }
     void (async () => {
@@ -254,7 +318,7 @@ export function VevenoStorePage() {
         /* keep previous store snapshot */
       }
     })();
-  }, [tab, storeId, accessToken, store?.canEditStock]);
+  }, [tab, storeId, accessToken, isDemo, store?.canEditStock]);
 
   useEffect(() => {
     if (menus.length === 0) {
@@ -319,7 +383,13 @@ export function VevenoStorePage() {
     });
   }, [recipes, normalizedMenuSearch]);
 
-  if (!accessToken) {
+  const handleDemoRole = (next: VevenoDemoRole) => {
+    setDemoRole(next);
+    setDemoRoleState(next);
+    void loadStore();
+  };
+
+  if (!accessToken && !isDemo) {
     if (useAuthStore.getState().suppressLoginRedirect) {
       return null;
     }
@@ -342,6 +412,87 @@ export function VevenoStorePage() {
       setSelectedMenuId(data.id);
     } catch (err: unknown) {
       setError(getErrorMessage(err, '메뉴 추가에 실패했습니다.'));
+    }
+  };
+
+  const openMenuCreate = (categoryId?: string) => {
+    if (!store?.owned) {
+      return;
+    }
+    setError('');
+    const hasMenus = menus.length > 0;
+    setMenuCreateForm({
+      ...EMPTY_MENU_CREATE,
+      categoryKey: !hasMenus
+        ? '__custom__'
+        : (categoryId ?? selectedMenuId ?? ''),
+    });
+    setMenuCreateOpen(true);
+  };
+
+  const closeMenuCreate = () => {
+    if (creatingMenuRecipe) {
+      return;
+    }
+    setMenuCreateOpen(false);
+    setMenuCreateForm(EMPTY_MENU_CREATE);
+  };
+
+  const handleCreateMenuRecipe = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!store?.owned) {
+      return;
+    }
+    const title = menuCreateForm.title.trim();
+    if (!title) {
+      setError('메뉴 제목을 입력해 주세요.');
+      return;
+    }
+    const isCustom = menuCreateForm.categoryKey === '__custom__';
+    if (!menuCreateForm.categoryKey) {
+      setError('카테고리를 선택해 주세요.');
+      return;
+    }
+    if (isCustom && !menuCreateForm.customCategoryName.trim()) {
+      setError('카테고리 이름을 입력해 주세요.');
+      return;
+    }
+
+    setCreatingMenuRecipe(true);
+    setError('');
+    try {
+      let menuId: string;
+      if (isCustom) {
+        const name = menuCreateForm.customCategoryName.trim();
+        const existing = menus.find(
+          (menu) => menu.name.toLowerCase() === name.toLowerCase(),
+        );
+        if (existing) {
+          menuId = existing.id;
+        } else {
+          const { data } = await vevenoApi.createMenu(storeId, name);
+          setMenus((prev) => [...prev, data]);
+          menuId = data.id;
+        }
+      } else {
+        menuId = menuCreateForm.categoryKey;
+      }
+
+      const contents = stringifyRecipeContents({
+        title,
+        notes: menuCreateForm.notes,
+      });
+      const { data } = await vevenoApi.createRecipe(menuId, contents);
+      if (selectedMenuId === menuId) {
+        setRecipes((prev) => [...prev, data]);
+      }
+      setSelectedMenuId(menuId);
+      setMenuCreateOpen(false);
+      setMenuCreateForm(EMPTY_MENU_CREATE);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '메뉴 등록에 실패했습니다.'));
+    } finally {
+      setCreatingMenuRecipe(false);
     }
   };
 
@@ -496,7 +647,6 @@ export function VevenoStorePage() {
   const openLeaveDialog = (target: {
     userId: string;
     nickname: string;
-    self: boolean;
   }) => {
     const d = new Date();
     const y = d.getFullYear();
@@ -512,17 +662,12 @@ export function VevenoStorePage() {
     if (!leaveTarget || !leaveDate) {
       return;
     }
-    const targetUserId = leaveTarget.self ? myUserId : leaveTarget.userId;
-    if (!targetUserId) {
-      setError('사용자 정보를 확인할 수 없습니다.');
-      return;
-    }
     setLeaving(true);
     setError('');
     try {
       const { data: coverCount } = await vevenoApi.countCoversAfterLeave(
         storeId,
-        targetUserId,
+        leaveTarget.userId,
         leaveDate,
       );
       if (coverCount.count > 0) {
@@ -533,35 +678,22 @@ export function VevenoStorePage() {
           return;
         }
       }
-      if (leaveTarget.self) {
-        await vevenoApi.unsubscribe(storeId, leaveDate);
-        const today = (() => {
-          const d = new Date();
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        })();
-        if (leaveDate < today) {
-          navigate('/hobbies/veveno/hub');
-          return;
-        }
-        await loadStore();
-      } else {
-        const { data } = await vevenoApi.resignSubscriber(
-          storeId,
-          leaveTarget.userId,
-          leaveDate,
+      const { data } = await vevenoApi.resignSubscriber(
+        storeId,
+        leaveTarget.userId,
+        leaveDate,
+      );
+      if (data && 'userId' in data) {
+        setSubscribers((prev) =>
+          prev.map((s) => (s.userId === data.userId ? data : s)),
         );
-        if (data && 'userId' in data) {
-          setSubscribers((prev) =>
-            prev.map((s) => (s.userId === data.userId ? data : s)),
-          );
-        } else {
-          setSubscribers((prev) =>
-            prev.filter((s) => s.userId !== leaveTarget.userId),
-          );
-        }
-        const { data: subs } = await vevenoApi.listSubscribers(storeId);
-        setSubscribers(subs);
+      } else {
+        setSubscribers((prev) =>
+          prev.filter((s) => s.userId !== leaveTarget.userId),
+        );
       }
+      const { data: subs } = await vevenoApi.listSubscribers(storeId);
+      setSubscribers(subs);
       setLeaveOpen(false);
       setLeaveTarget(null);
     } catch (err: unknown) {
@@ -571,18 +703,13 @@ export function VevenoStorePage() {
     }
   };
 
-  const handleClearLeave = async (userId: string, self: boolean) => {
+  const handleClearLeave = async (userId: string) => {
     setError('');
     try {
-      if (self) {
-        await vevenoApi.clearMyLeave(storeId);
-        await loadStore();
-      } else {
-        const { data } = await vevenoApi.clearSubscriberLeave(storeId, userId);
-        setSubscribers((prev) =>
-          prev.map((s) => (s.userId === data.userId ? data : s)),
-        );
-      }
+      const { data } = await vevenoApi.clearSubscriberLeave(storeId, userId);
+      setSubscribers((prev) =>
+        prev.map((s) => (s.userId === data.userId ? data : s)),
+      );
     } catch (err: unknown) {
       setError(getErrorMessage(err, '퇴사 예약 취소에 실패했습니다.'));
     }
@@ -609,13 +736,29 @@ export function VevenoStorePage() {
     }
   };
 
+  const handleTodayCheck = async (
+    templateId: string,
+    itemId: number,
+    checked: boolean,
+  ) => {
+    try {
+      const { data } = await vevenoApi.setChecklistCheck(storeId, templateId, {
+        itemId,
+        checked,
+      });
+      setTodayChecklists(data);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '체크에 실패했습니다.'));
+    }
+  };
+
   const handleDeleteStore = async () => {
     setDeleting(true);
     setError('');
     try {
       await vevenoApi.deleteStore(storeId);
       setDeleteDialogOpen(false);
-      void navigate('/hobbies/veveno/hub');
+      void navigate(isDemo ? '/hobbies/veveno' : '/hobbies/veveno/hub');
     } catch (err: unknown) {
       setError(getErrorMessage(err, '가게 삭제에 실패했습니다.'));
     } finally {
@@ -623,9 +766,23 @@ export function VevenoStorePage() {
     }
   };
 
-  const tabs: { id: Tab; label: string; visible?: boolean }[] = [
+  const dueToday = todayChecklists.filter((list) => list.due);
+  const checklistOpenCount = dueToday.filter(
+    (list) => list.checkedCount < list.totalCount,
+  ).length;
+  const checklistBanner = dueToday.find((list) => list.checkedCount < list.totalCount);
+  const interruptList =
+    dueToday.find((list) => list.templateId === interruptId) ?? null;
+
+  const tabs: { id: Tab; label: string; visible?: boolean; badge?: string }[] = [
     { id: 'menus', label: '메뉴', visible: true },
     { id: 'stocks', label: '재고', visible: canEditStock },
+    {
+      id: 'checklists',
+      label: '할 일',
+      visible: Boolean(store?.owned || store?.subscribed),
+      badge: checklistOpenCount > 0 ? String(checklistOpenCount) : undefined,
+    },
     { id: 'schedule', label: '근무표', visible: Boolean(store?.owned || store?.subscribed) },
     {
       id: 'tools',
@@ -649,7 +806,10 @@ export function VevenoStorePage() {
         <div className="veveno-store-chrome">
           <div className="veveno-detail-head">
             <div>
-              <Link to="/hobbies/veveno/hub" className="veveno-shell__back">
+              <Link
+                to={isDemo ? '/hobbies/veveno' : '/hobbies/veveno/hub'}
+                className="veveno-shell__back"
+              >
                 ← Veveno
               </Link>
               {store ? (
@@ -705,6 +865,55 @@ export function VevenoStorePage() {
               </button>
             ) : null}
           </div>
+          {isDemo ? (
+            <div className="veveno-demo-bar" role="status">
+              <p className="veveno-demo-bar__copy">
+                체험 중 · 이 기기에만 저장돼요
+              </p>
+              <div className="veveno-demo-bar__actions">
+                <div
+                  className="veveno-demo-role"
+                  role="group"
+                  aria-label="체험 역할"
+                >
+                  <button
+                    type="button"
+                    className={demoRole === 'owner' ? 'is-active' : ''}
+                    onClick={() => handleDemoRole('owner')}
+                  >
+                    사장
+                  </button>
+                  <button
+                    type="button"
+                    className={demoRole === 'staff' ? 'is-active' : ''}
+                    onClick={() => handleDemoRole('staff')}
+                  >
+                    직원
+                  </button>
+                </div>
+                {accessToken ? null : (
+                  <Link
+                    to="/login"
+                    className="veveno-demo-bar__login"
+                    state={{ from: '/hobbies/veveno/hub' }}
+                  >
+                    로그인하고 내 가게 열기
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  className="veveno-demo-bar__end"
+                  onClick={() => {
+                    if (window.confirm('체험 데이터를 지우고 나갈까요?')) {
+                      void handleDeleteStore();
+                    }
+                  }}
+                >
+                  체험 끝내기
+                </button>
+              </div>
+            </div>
+          ) : null}
           {store ? (
             visibleTabs.length > 1 ? (
               <div className="veveno-seg-tabs-wrap">
@@ -726,6 +935,9 @@ export function VevenoStorePage() {
                       onClick={() => setTab(item.id)}
                     >
                       {item.label}
+                      {item.badge ? (
+                        <span className="veveno-tab-badge">{item.badge}</span>
+                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -743,9 +955,35 @@ export function VevenoStorePage() {
           </p>
         ) : null}
 
+        {store && checklistBanner ? (
+          <button
+            type="button"
+            className="veveno-checklist-banner"
+            onClick={() => setTab('checklists')}
+          >
+            {checklistBanner.title} {checklistBanner.checkedCount}/{checklistBanner.totalCount}
+            {checklistOpenCount > 1 ? ` · 외 ${checklistOpenCount - 1}` : ''}
+          </button>
+        ) : null}
+
         {store ? (
           <>
             {tab === 'menus' ? (
+              menus.length === 0 ? (
+                <VevenoEmptyState
+                  title="아직 메뉴가 없습니다"
+                  body={
+                    store.owned
+                      ? '만드는 법을 적어 두면 바쁠 때도 같은 맛을 낼 수 있습니다.'
+                      : '사장님이 메뉴를 올리면 여기에 보여요.'
+                  }
+                  action={
+                    store.owned ? (
+                      <VevenoButton onClick={() => openMenuCreate()}>메뉴 추가</VevenoButton>
+                    ) : undefined
+                  }
+                />
+              ) : (
               <div className="veveno-stack-lg">
                 <div className="veveno-toolbar">
                   <VevenoInput
@@ -785,15 +1023,13 @@ export function VevenoStorePage() {
                         <VevenoInput
                           value={menuName}
                           onChange={(e) => setMenuName(e.target.value)}
-                          placeholder="메뉴 이름"
+                          placeholder="카테고리 이름"
                         />
                         <VevenoButton type="submit">추가</VevenoButton>
                       </form>
                     ) : null}
                     <div className="veveno-menu-rail__list">
-                      {menus.length === 0 ? (
-                        <p className="veveno-empty">메뉴가 없습니다.</p>
-                      ) : filteredMenus.length === 0 ? (
+                      {filteredMenus.length === 0 ? (
                         <p className="veveno-empty">검색 결과가 없습니다.</p>
                       ) : (
                         filteredMenus.map((menu) => (
@@ -825,16 +1061,7 @@ export function VevenoStorePage() {
                           <div className="veveno-card__actions">
                             <VevenoButton
                               size="sm"
-                              disabled={!selectedMenuId}
-                              onClick={() => {
-                                if (!selectedMenuId) {
-                                  return;
-                                }
-                                setRecipeEditMode(true);
-                                setSelectedRecipeId(null);
-                                setRecipeForm(EMPTY_RECIPE_CONTENT);
-                                setError('');
-                              }}
+                              onClick={() => openMenuCreate(selectedMenuId ?? undefined)}
                             >
                               새로 추가
                             </VevenoButton>
@@ -861,7 +1088,23 @@ export function VevenoStorePage() {
                       {!selectedMenuId ? (
                         <p className="veveno-empty">왼쪽에서 메뉴를 선택해 주세요.</p>
                       ) : recipes.length === 0 ? (
-                        <p className="veveno-empty">등록된 레시피가 없습니다.</p>
+                        store.owned && !recipeEditMode ? (
+                          <VevenoEmptyState
+                            title="아직 레시피가 없습니다"
+                            body="추출·원두처럼 만드는 법을 한 장 적어 두세요."
+                            action={
+                              <VevenoButton
+                                onClick={() =>
+                                  openMenuCreate(selectedMenuId ?? undefined)
+                                }
+                              >
+                                첫 레시피 적기
+                              </VevenoButton>
+                            }
+                          />
+                        ) : (
+                          <p className="veveno-empty">등록된 레시피가 없습니다.</p>
+                        )
                       ) : filteredRecipes.length === 0 ? (
                         <p className="veveno-empty">검색 결과가 없습니다.</p>
                       ) : (
@@ -906,8 +1149,8 @@ export function VevenoStorePage() {
                       )}
                     </VevenoCard>
 
-                    {store.owned && recipeEditMode && selectedMenuId ? (
-                      <VevenoCard title={selectedRecipe ? '레시피 편집' : '레시피 추가'}>
+                    {store.owned && recipeEditMode && selectedMenuId && selectedRecipe ? (
+                      <VevenoCard title="레시피 편집">
                         <form className="veveno-form-stack" onSubmit={handleSaveRecipe}>
                           <VevenoInput
                             label="제목"
@@ -943,19 +1186,15 @@ export function VevenoStorePage() {
                             </p>
                           </div>
                           <div className="veveno-btn-row">
-                            <VevenoButton type="submit">
-                              {selectedRecipe ? '저장/수정' : '레시피 추가'}
+                            <VevenoButton type="submit">저장/수정</VevenoButton>
+                            <VevenoButton
+                              variant="danger"
+                              onClick={() => {
+                                void handleDeleteRecipe();
+                              }}
+                            >
+                              삭제
                             </VevenoButton>
-                            {selectedRecipe ? (
-                              <VevenoButton
-                                variant="danger"
-                                onClick={() => {
-                                  void handleDeleteRecipe();
-                                }}
-                              >
-                                삭제
-                              </VevenoButton>
-                            ) : null}
                           </div>
                         </form>
                       </VevenoCard>
@@ -963,6 +1202,7 @@ export function VevenoStorePage() {
                   </div>
                 </div>
               </div>
+              )
             ) : null}
 
             <VevenoStoreStocksPanel
@@ -976,6 +1216,16 @@ export function VevenoStorePage() {
               onError={setError}
             />
 
+            {tab === 'checklists' && (store.owned || store.subscribed) ? (
+              <VevenoChecklistPanel
+                storeId={storeId}
+                owned={store.owned}
+                today={todayChecklists}
+                onTodayChange={setTodayChecklists}
+                onError={setError}
+              />
+            ) : null}
+
             {tab === 'schedule' && (store.owned || store.subscribed) ? (
               <VevenoSchedulePanel
                 storeId={storeId}
@@ -983,6 +1233,7 @@ export function VevenoStorePage() {
                 owned={store.owned}
                 subscribed={store.subscribed}
                 onError={setError}
+                onGoSettings={() => setTab('settings')}
               />
             ) : null}
 
@@ -1207,7 +1458,7 @@ export function VevenoStorePage() {
                                 size="sm"
                                 variant="secondary"
                                 onClick={() =>
-                                  void handleClearLeave(sub.userId, false)
+                                  void handleClearLeave(sub.userId)
                                 }
                               >
                                 퇴사 취소
@@ -1220,7 +1471,6 @@ export function VevenoStorePage() {
                                   openLeaveDialog({
                                     userId: sub.userId,
                                     nickname: sub.nickname,
-                                    self: false,
                                   })
                                 }
                               >
@@ -1239,44 +1489,12 @@ export function VevenoStorePage() {
                     variant="danger"
                     onClick={() => setDeleteDialogOpen(true)}
                   >
-                    가게 삭제
+                    {isDemo ? '체험 끝내기' : '가게 삭제'}
                   </VevenoButton>
                 </div>
               </div>
             ) : null}
 
-            {tab === 'schedule' && store.subscribed && !store.owned ? (
-              <VevenoCard title="가게 나가기">
-                <p className="veveno-card-lead">
-                  퇴사일(마지막 근무일)을 지정하면 그날까지 근무할 수 있고, 다음날부터
-                  구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 나갑니다.
-                </p>
-                {store.leaveDate ? (
-                  <div className="veveno-btn-row">
-                    <p className="veveno-card-lead">퇴사 예정: {store.leaveDate}</p>
-                    <VevenoButton
-                      variant="secondary"
-                      onClick={() => void handleClearLeave('', true)}
-                    >
-                      퇴사 예약 취소
-                    </VevenoButton>
-                  </div>
-                ) : (
-                  <VevenoButton
-                    variant="secondary"
-                    onClick={() =>
-                      openLeaveDialog({
-                        userId: '',
-                        nickname: '나',
-                        self: true,
-                      })
-                    }
-                  >
-                    퇴사일 지정 · 나가기
-                  </VevenoButton>
-                )}
-              </VevenoCard>
-            ) : null}
           </>
         ) : null}
       </div>
@@ -1379,6 +1597,102 @@ export function VevenoStorePage() {
       </VevenoModal>
 
       <VevenoModal
+        open={menuCreateOpen}
+        title="메뉴 등록"
+        onClose={closeMenuCreate}
+        closeOnBackdrop={!creatingMenuRecipe}
+      >
+        <form className="veveno-form-stack" onSubmit={handleCreateMenuRecipe}>
+          {error ? (
+            <p className="veveno-notice veveno-notice--error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="veveno-field">
+            <label className="veveno-field__label" htmlFor="menu-create-category">
+              카테고리
+            </label>
+            <select
+              id="menu-create-category"
+              className="veveno-field__input"
+              value={menuCreateForm.categoryKey}
+              onChange={(e) =>
+                setMenuCreateForm((prev) => ({
+                  ...prev,
+                  categoryKey: e.target.value,
+                  customCategoryName:
+                    e.target.value === '__custom__' ? prev.customCategoryName : '',
+                }))
+              }
+              disabled={creatingMenuRecipe}
+            >
+              <option value="">카테고리 선택</option>
+              {menus.map((menu) => (
+                <option key={menu.id} value={menu.id}>
+                  {menu.name}
+                </option>
+              ))}
+              <option value="__custom__">직접 입력</option>
+            </select>
+          </div>
+          {menuCreateForm.categoryKey === '__custom__' ? (
+            <VevenoInput
+              label="카테고리 이름"
+              value={menuCreateForm.customCategoryName}
+              onChange={(e) =>
+                setMenuCreateForm((prev) => ({
+                  ...prev,
+                  customCategoryName: e.target.value,
+                }))
+              }
+              placeholder="새 카테고리 이름"
+              disabled={creatingMenuRecipe}
+            />
+          ) : null}
+          <VevenoInput
+            label="제목"
+            value={menuCreateForm.title}
+            onChange={(e) =>
+              setMenuCreateForm((prev) => ({ ...prev, title: e.target.value }))
+            }
+            placeholder="메뉴 제목"
+            disabled={creatingMenuRecipe}
+          />
+          <div className="veveno-field">
+            <span className="veveno-field__label" id="menu-create-notes-label">
+              노트
+            </span>
+                            <VevenoRecipeNotesEditor
+              id="menu-create-notes"
+              value={menuCreateForm.notes}
+              onChange={(notes) =>
+                setMenuCreateForm((prev) => ({ ...prev, notes }))
+              }
+              placeholder="추출·원두·테이스팅 메모"
+              rows={6}
+              disabled={creatingMenuRecipe}
+            />
+            <p className="veveno-field__hint">
+              구분점·번호 목록은 툴바에서, 들여쓰기는 Tab / Shift+Tab 또는 툴바로
+              조절합니다.
+            </p>
+          </div>
+          <div className="veveno-modal__actions">
+            <VevenoButton
+              variant="secondary"
+              disabled={creatingMenuRecipe}
+              onClick={closeMenuCreate}
+            >
+              취소
+            </VevenoButton>
+            <VevenoButton type="submit" loading={creatingMenuRecipe}>
+              추가
+            </VevenoButton>
+          </div>
+        </form>
+      </VevenoModal>
+
+      <VevenoModal
         open={menuEditOpen}
         title="메뉴 수정"
         onClose={closeMenuEditModal}
@@ -1390,7 +1704,7 @@ export function VevenoStorePage() {
             id="edit-menu-name"
             value={editingMenuName}
             onChange={(e) => setEditingMenuName(e.target.value)}
-            placeholder="메뉴 이름"
+            placeholder="카테고리 이름"
             disabled={savingMenu}
           />
           <div className="veveno-modal__actions">
@@ -1440,6 +1754,40 @@ export function VevenoStorePage() {
         </div>
       </VevenoModal>
 
+      <VevenoModal
+        open={Boolean(interruptList)}
+        title={interruptList ? interruptList.title : '할 일'}
+        onClose={() => {
+          if (interruptList) {
+            sessionStorage.setItem(interruptKey(storeId, interruptList.templateId), '1');
+          }
+          setInterruptId(null);
+        }}
+      >
+        {interruptList ? (
+          <ul className="veveno-checklist">
+            {interruptList.items.map((item) => (
+              <li key={item.id}>
+                <label className="veveno-check">
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={(event) =>
+                      void handleTodayCheck(
+                        interruptList.templateId,
+                        item.id,
+                        event.target.checked,
+                      )
+                    }
+                  />
+                  {item.body}
+                </label>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </VevenoModal>
+
       <VevenoJoinApproveModal
         open={Boolean(approveTarget)}
         request={approveTarget}
@@ -1456,7 +1804,7 @@ export function VevenoStorePage() {
 
       <VevenoModal
         open={leaveOpen}
-        title={leaveTarget?.self ? '가게 나가기' : `${leaveTarget?.nickname ?? ''} 퇴사`}
+        title={`${leaveTarget?.nickname ?? ''} 퇴사`}
         onClose={() => {
           if (!leaving) {
             setLeaveOpen(false);
@@ -1490,7 +1838,7 @@ export function VevenoStorePage() {
               취소
             </VevenoButton>
             <VevenoButton type="submit" variant="danger" loading={leaving}>
-              {leaveTarget?.self ? '나가기' : '퇴사 처리'}
+              퇴사 처리
             </VevenoButton>
           </div>
         </form>

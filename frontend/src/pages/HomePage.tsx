@@ -15,9 +15,12 @@ export function HomePage() {
     <main className="figma-home">
       <section className="figma-hero figma-hero--compact" aria-label="PBB 소개">
         <p className="figma-eyebrow">Play beom&apos;s BAG</p>
-        <h1 className="figma-hero__title">열어 볼 앱</h1>
+        <h1 className="figma-hero__title">무엇을 시작할까요?</h1>
         <p className="figma-hero__lead">
-          가게 노트, 악보, 체중, 옷장. 고르면 바로 이어집니다.
+          가게 관리부터 악보, 체중, 옷장까지.
+        </p>
+        <p>
+          원하는 앱을 고르면 내 일상과 바로 연결됩니다.
         </p>
         {!accessToken ? (
           <div className="figma-hero__actions">

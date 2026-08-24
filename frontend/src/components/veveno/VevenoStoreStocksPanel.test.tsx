@@ -186,6 +186,70 @@ describe('VevenoStoreStocksPanel', () => {
     expect(screen.getByText('곧 부족 · 재고 확인')).toBeInTheDocument()
   })
 
+  it('shows the order link only to owners', () => {
+    function OrderHarness({ owned }: { owned: boolean }) {
+      const [stockCategories, setStockCategories] = useState<VevenoStockCategory[]>([
+        {
+          ...categories[0],
+          stocks: [{ ...categories[0].stocks[0], orderUrl: 'https://example.com/beans' }],
+        },
+      ])
+      return (
+        <VevenoStoreStocksPanel
+          active
+          storeId="store-1"
+          owned={owned}
+          onDuty
+          stockEditOffDuty={false}
+          stockCategories={stockCategories}
+          setStockCategories={setStockCategories}
+          onError={vi.fn()}
+        />
+      )
+    }
+
+    const { unmount } = render(<OrderHarness owned />)
+    expect(screen.getByRole('link', { name: '발주' })).toHaveAttribute(
+      'href',
+      'https://example.com/beans',
+    )
+    unmount()
+
+    render(<OrderHarness owned={false} />)
+    expect(screen.queryByRole('link', { name: '발주' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+ 재고 추가' }))
+    expect(screen.queryByLabelText('발주 링크')).not.toBeInTheDocument()
+  })
+
+  it('omits orderUrl when staff save an edit', async () => {
+    const updated: VevenoStock = {
+      ...categories[0].stocks[0],
+      stockNum: 3,
+      version: 1,
+    }
+    vi.mocked(vevenoApi.updateStock).mockResolvedValue({
+      data: updated,
+    } as AxiosResponse<VevenoStock>)
+
+    render(<Harness owned={false} onDuty />)
+    fireEvent.click(screen.getByRole('button', { name: '편집' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '더보기' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '편집' }))
+    expect(screen.queryByLabelText('발주 링크')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => {
+      expect(vevenoApi.updateStock).toHaveBeenCalledWith(10, {
+        stockName: '에티오피아',
+        stockNum: 2,
+        stockMinNum: 1,
+        version: 0,
+        categoryId: 1,
+        unit: '개',
+      })
+    })
+  })
+
   it('updates stock quantity for an owner', async () => {
     const updated: VevenoStock = {
       ...categories[0].stocks[0],

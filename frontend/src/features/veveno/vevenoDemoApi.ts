@@ -31,7 +31,7 @@ import {
   type VevenoDemoRole,
 } from './vevenoDemo'
 
-const STORAGE_KEY = 'veveno:demo:v3'
+const STORAGE_KEY = 'veveno:demo:v4'
 const CREATED = '2026-01-15T00:00:00.000Z'
 const OWNER_NICK = '사장'
 const STAFF_NICK = '민수'
@@ -159,7 +159,7 @@ function seedState(): DemoState {
       { id: 3, storeId: sid, categoryName: '소모품', createdAt: CREATED },
     ],
     stocks: [
-      stockRow(1, 1, '에티오피아', 2, 1, '개', 'https://example.com/beans'),
+      stockRow(1, 1, '에티오피아', 2, 1, '개', 'https://example.com/beans', true, 3),
       stockRow(2, 2, '우유', 4, 2, '개', null),
       stockRow(3, 3, '컵', 80, 20, '개', null),
     ],
@@ -266,6 +266,8 @@ function stockRow(
   stockMinNum: number,
   unit: string,
   orderUrl: string | null,
+  soonLow = false,
+  daysOfStock: number | null = null,
 ): VevenoStock {
   return {
     id,
@@ -277,8 +279,8 @@ function stockRow(
     orderUrl,
     version: 0,
     lowStock: stockNum <= stockMinNum,
-    soonLow: false,
-    daysOfStock: null,
+    soonLow,
+    daysOfStock,
     updatedAt: CREATED,
   }
 }
@@ -454,19 +456,28 @@ function actor(): { userId: string; nickname: string } {
 }
 
 function markStock(stock: VevenoStock): VevenoStock {
+  const lowStock = stock.stockMinNum != null && stock.stockNum <= stock.stockMinNum
   return {
     ...stock,
-    lowStock: stock.stockMinNum != null && stock.stockNum <= stock.stockMinNum,
-    soonLow: false,
-    daysOfStock: null,
+    lowStock,
+    soonLow: lowStock ? false : Boolean(stock.soonLow),
+    daysOfStock: stock.daysOfStock,
   }
+}
+
+function viewStock(stock: VevenoStock): VevenoStock {
+  const marked = markStock(stock)
+  if (state().role === 'owner') {
+    return marked
+  }
+  return { ...marked, orderUrl: null }
 }
 
 function categories(): VevenoStockCategory[] {
   const s = state()
   return s.categories.map((cat) => ({
     ...cat,
-    stocks: s.stocks.filter((row) => row.categoryId === cat.id).map(markStock),
+    stocks: s.stocks.filter((row) => row.categoryId === cat.id).map(viewStock),
   }))
 }
 
@@ -776,6 +787,7 @@ export const vevenoDemoApi = {
     },
   ) {
     const at = nowIso()
+    const owner = state().role === 'owner'
     const row = markStock({
       id: nextNum('stock'),
       categoryId,
@@ -783,7 +795,7 @@ export const vevenoDemoApi = {
       stockNum: payload.stockNum,
       stockMinNum: payload.stockMinNum,
       unit: payload.unit,
-      orderUrl: payload.orderUrl,
+      orderUrl: owner ? payload.orderUrl : null,
       version: 0,
       lowStock: false,
       soonLow: false,
@@ -803,7 +815,7 @@ export const vevenoDemoApi = {
       })
     }
     persist()
-    return ok(row)
+    return ok(viewStock(row))
   },
 
   updateStock(
@@ -835,7 +847,7 @@ export const vevenoDemoApi = {
     if (payload.unit != null) {
       row.unit = payload.unit
     }
-    if (payload.orderUrl !== undefined) {
+    if (payload.orderUrl !== undefined && state().role === 'owner') {
       row.orderUrl = payload.orderUrl
     }
     row.version += 1
@@ -851,7 +863,7 @@ export const vevenoDemoApi = {
       })
     }
     persist()
-    return ok(markStock({ ...row }))
+    return ok(viewStock({ ...row }))
   },
 
   deleteStock(stockId: number) {

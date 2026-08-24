@@ -11,6 +11,7 @@ import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStock;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockUsageDay;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
@@ -184,6 +185,104 @@ class BrewStockServiceUsageTest {
 
         verify(usageDayRepository).findByStockIdInAndUsedOnGreaterThanEqual(eq(List.of(10, 11)), any());
         verify(usageDayRepository, never()).findByStockIdAndUsedOnGreaterThanEqual(any(), any());
+    }
+
+    @Test
+    void listStockCategories_includesOrderUrl_forOwner() {
+        UUID ownerId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        stubListStocks(ownerId, storeId, ownerId, "owner@example.com");
+
+        var result = brewStockService.listStockCategories(storeId, "owner@example.com");
+
+        assertThat(result.get(0).stocks().get(0).orderUrl()).isEqualTo("https://shop.example/milk");
+    }
+
+    @Test
+    void listStockCategories_hidesOrderUrl_forStaff() {
+        UUID ownerId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        stubListStocks(ownerId, storeId, staffId, "staff@example.com");
+        when(subscriptionRepository.findBySubscriberUserIdAndStoreId(staffId, storeId))
+                .thenReturn(Optional.of(BrewStoreSubscription.builder()
+                        .subscriberUserId(staffId)
+                        .storeId(storeId)
+                        .canEditStock(true)
+                        .build()));
+
+        var result = brewStockService.listStockCategories(storeId, "staff@example.com");
+
+        assertThat(result.get(0).stocks().get(0).orderUrl()).isNull();
+    }
+
+    @Test
+    void updateStock_ignoresOrderUrl_forStaff() {
+        UUID ownerId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        BrewStoreStock stock = stubStaffUpdate(ownerId, staffId, storeId, 10);
+
+        var result = brewStockService.updateStock(
+                "staff@example.com",
+                10,
+                new StockRequest(
+                        "Milk",
+                        10,
+                        1,
+                        0,
+                        7,
+                        null,
+                        "https://evil.example/steal"));
+
+        assertThat(stock.getOrderUrl()).isEqualTo("https://shop.example/milk");
+        assertThat(result.orderUrl()).isNull();
+    }
+
+    private void stubListStocks(UUID ownerId, UUID storeId, UUID viewerId, String email) {
+        User viewer = user(email, viewerId);
+        BrewStore store = store(storeId, ownerId, false);
+        BrewStoreStockCategory category = BrewStoreStockCategory.builder()
+                .storeId(storeId)
+                .categoryName("Dairy")
+                .build();
+        ReflectionTestUtils.setField(category, "id", 7);
+        BrewStoreStock milk = stock(10, 7, "Milk", 8, 1);
+        ReflectionTestUtils.setField(milk, "orderUrl", "https://shop.example/milk");
+
+        when(userService.findByEmail(email)).thenReturn(Optional.of(viewer));
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(stockCategoryRepository.findByStoreIdOrderByCategoryNameAsc(storeId))
+                .thenReturn(List.of(category));
+        when(stockRepository.findByCategoryIdInOrderByStockNameAsc(List.of(7)))
+                .thenReturn(List.of(milk));
+    }
+
+    private BrewStoreStock stubStaffUpdate(UUID ownerId, UUID staffId, UUID storeId, int currentNum) {
+        User staff = user("staff@example.com", staffId);
+        BrewStore store = store(storeId, ownerId, false);
+        BrewStoreStockCategory category = BrewStoreStockCategory.builder()
+                .storeId(storeId)
+                .categoryName("Dairy")
+                .build();
+        ReflectionTestUtils.setField(category, "id", 7);
+        BrewStoreStock stock = stock(10, 7, "Milk", currentNum, 1);
+        ReflectionTestUtils.setField(stock, "orderUrl", "https://shop.example/milk");
+
+        when(userService.findByEmail("staff@example.com")).thenReturn(Optional.of(staff));
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(subscriptionRepository.findBySubscriberUserIdAndStoreId(staffId, storeId))
+                .thenReturn(Optional.of(BrewStoreSubscription.builder()
+                        .subscriberUserId(staffId)
+                        .storeId(storeId)
+                        .canEditStock(true)
+                        .build()));
+        when(brewScheduleService.isCurrentlyOnDuty(storeId, staffId)).thenReturn(true);
+        when(stockRepository.findById(10)).thenReturn(Optional.of(stock));
+        when(stockCategoryRepository.findById(7)).thenReturn(Optional.of(category));
+        when(stockRepository.existsByCategoryIdAndStockNameAndIdNot(7, "Milk", 10)).thenReturn(false);
+        when(stockRepository.save(stock)).thenReturn(stock);
+        return stock;
     }
 
     private void stubOwnerUpdate(UUID ownerId, UUID storeId, boolean hintOn, int currentNum) {

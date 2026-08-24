@@ -304,7 +304,7 @@ export function VevenoStoreStocksPanel({
         stockNum: stockForm.stockNum,
         stockMinNum: stockForm.stockMinNum,
         unit,
-        orderUrl: stockForm.orderUrl.trim() || null,
+        orderUrl: owned ? stockForm.orderUrl.trim() || null : null,
       });
 
       setStockCategories((prev) => {
@@ -478,7 +478,7 @@ export function VevenoStoreStocksPanel({
         live.version,
         {
           unit,
-          orderUrl: editForm.orderUrl.trim() || null,
+          ...(owned ? { orderUrl: editForm.orderUrl.trim() || null } : {}),
         },
       );
       if (ok) {
@@ -750,7 +750,7 @@ export function VevenoStoreStocksPanel({
                           <div className="veveno-stock-row__info">
                             <div className="veveno-stock-row__title">
                               <p className="veveno-store-row__name">{stock.stockName}</p>
-                              {isHttpUrl(stock.orderUrl) ? (
+                              {owned && isHttpUrl(stock.orderUrl) ? (
                                 <a
                                   className="veveno-stock-order"
                                   href={stock.orderUrl}
@@ -968,16 +968,18 @@ export function VevenoStoreStocksPanel({
               disabled={creatingStock}
             />
           ) : null}
-          <VevenoInput
-            label="발주 링크"
-            type="url"
-            value={stockForm.orderUrl}
-            onChange={(e) =>
-              setStockForm((prev) => ({ ...prev, orderUrl: e.target.value }))
-            }
-            placeholder="https://"
-            disabled={creatingStock}
-          />
+          {owned ? (
+            <VevenoInput
+              label="발주 링크"
+              type="url"
+              value={stockForm.orderUrl}
+              onChange={(e) =>
+                setStockForm((prev) => ({ ...prev, orderUrl: e.target.value }))
+              }
+              placeholder="https://"
+              disabled={creatingStock}
+            />
+          ) : null}
           <VevenoInput
             label="경고 수량"
             type="number"
@@ -1149,16 +1151,18 @@ export function VevenoStoreStocksPanel({
                 disabled={savingEdit}
               />
             ) : null}
-            <VevenoInput
-              label="발주 링크"
-              type="url"
-              value={editForm.orderUrl}
-              onChange={(e) =>
-                setEditForm((prev) => ({ ...prev, orderUrl: e.target.value }))
-              }
-              placeholder="https://"
-              disabled={savingEdit}
-            />
+            {owned ? (
+              <VevenoInput
+                label="발주 링크"
+                type="url"
+                value={editForm.orderUrl}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, orderUrl: e.target.value }))
+                }
+                placeholder="https://"
+                disabled={savingEdit}
+              />
+            ) : null}
             <VevenoInput
               label="경고 수량"
               type="number"

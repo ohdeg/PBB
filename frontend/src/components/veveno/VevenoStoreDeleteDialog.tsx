@@ -19,7 +19,7 @@ export function VevenoStoreDeleteDialog({
   onCancel,
 }: VevenoStoreDeleteDialogProps) {
   const [confirmation, setConfirmation] = useState('');
-  const canConfirm = confirmation === storeName;
+  const canConfirm = confirmation.trim() === storeName;
 
   useEffect(() => {
     if (!open) {
@@ -35,11 +35,14 @@ export function VevenoStoreDeleteDialog({
       </p>
       <div className="veveno-modal__field">
         <VevenoInput
+          className="veveno-store-delete__field"
           label={`"${storeName}"을(를) 입력하세요`}
           value={confirmation}
           onChange={(event) => setConfirmation(event.target.value)}
           placeholder={storeName}
           autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
           disabled={loading}
         />
       </div>

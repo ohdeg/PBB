@@ -2801,6 +2801,11 @@ html:not([data-theme='dark']) .global-nav__logo {
   color: var(--veveno-mute);
 }
 
+.veveno-store-delete__field .veveno-field__label {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .veveno-field > select,
 .veveno-field__input {
   width: 100%;

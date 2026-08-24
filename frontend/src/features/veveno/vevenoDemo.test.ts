@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { isVevenoDemoStoreId, VEVENO_DEMO_STORE_ID } from './vevenoDemo'
-import { applyDemoRole, resetVevenoDemo, vevenoDemoApi } from './vevenoDemoApi'
+import { applyDemoRole, resetVevenoDemo, setDemoRole, vevenoDemoApi } from './vevenoDemoApi'
 
 describe('veveno demo', () => {
   beforeEach(() => {
@@ -86,5 +86,35 @@ describe('veveno demo', () => {
 
     const { data: joins } = await vevenoDemoApi.listJoinRequests(VEVENO_DEMO_STORE_ID)
     expect(joins.map((row) => row.nickname)).toEqual(['하린'])
+  })
+
+  it('seeds soon-low ethiopia and hides order url from staff', async () => {
+    const { data: ownerCats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
+    const ethiopia = ownerCats.flatMap((cat) => cat.stocks).find((row) => row.stockName === '에티오피아')
+    expect(ethiopia?.soonLow).toBe(true)
+    expect(ethiopia?.daysOfStock).toBe(3)
+    expect(ethiopia?.orderUrl).toBe('https://example.com/beans')
+
+    setDemoRole('staff')
+    const { data: staffCats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
+    const staffEthiopia = staffCats
+      .flatMap((cat) => cat.stocks)
+      .find((row) => row.stockName === '에티오피아')
+    expect(staffEthiopia?.soonLow).toBe(true)
+    expect(staffEthiopia?.orderUrl).toBeNull()
+
+    if (!staffEthiopia) return
+    await vevenoDemoApi.updateStock(staffEthiopia.id, {
+      stockName: staffEthiopia.stockName,
+      stockNum: staffEthiopia.stockNum,
+      stockMinNum: staffEthiopia.stockMinNum,
+      version: staffEthiopia.version,
+      orderUrl: 'https://evil.example/steal',
+    })
+
+    setDemoRole('owner')
+    const { data: afterCats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
+    const after = afterCats.flatMap((cat) => cat.stocks).find((row) => row.stockName === '에티오피아')
+    expect(after?.orderUrl).toBe('https://example.com/beans')
   })
 })

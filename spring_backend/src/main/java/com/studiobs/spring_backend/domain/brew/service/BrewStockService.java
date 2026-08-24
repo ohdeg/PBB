@@ -70,12 +70,14 @@ public class BrewStockService {
                         Collectors.toList()));
         Map<Integer, List<BrewStoreStockUsageDay>> usageByStock =
                 loadUsageByStock(store.isStockUsageHint(), stocks);
+        boolean includeOrderUrl = isOwner(store, user.getId());
         List<StockCategoryResponse> result = new ArrayList<>(categories.size());
         for (BrewStoreStockCategory category : categories) {
             List<StockResponse> responses = stocksByCategory
                     .getOrDefault(category.getId(), List.of())
                     .stream()
-                    .map(stock -> toStockResponse(store.isStockUsageHint(), stock, usageByStock))
+                    .map(stock -> toStockResponse(
+                            store.isStockUsageHint(), stock, usageByStock, includeOrderUrl))
                     .toList();
             result.add(StockCategoryResponse.from(category, responses));
         }
@@ -125,10 +127,12 @@ public class BrewStockService {
         BrewStore store = requireStore(category.getStoreId());
         Map<Integer, List<BrewStoreStockUsageDay>> usageByStock =
                 loadUsageByStock(store.isStockUsageHint(), stocks);
+        boolean includeOrderUrl = isOwner(store, user.getId());
         return StockCategoryResponse.from(
                 category,
                 stocks.stream()
-                        .map(stock -> toStockResponse(store.isStockUsageHint(), stock, usageByStock))
+                        .map(stock -> toStockResponse(
+                                store.isStockUsageHint(), stock, usageByStock, includeOrderUrl))
                         .toList());
     }
 
@@ -145,6 +149,8 @@ public class BrewStockService {
         User user = requireUser(email);
         BrewStoreStockCategory category = requireStockCategory(categoryId);
         requireStockMutator(category.getStoreId(), user.getId());
+        BrewStore store = requireStore(category.getStoreId());
+        boolean includeOrderUrl = isOwner(store, user.getId());
         validateStockNums(request.stockNum(), request.stockMinNum());
         String name = request.stockName().trim();
         if (stockRepository.existsByCategoryIdAndStockName(categoryId, name)) {
@@ -156,10 +162,12 @@ public class BrewStockService {
                 .stockNum(request.stockNum())
                 .stockMinNum(request.stockMinNum())
                 .unit(resolveUnit(request.unit()))
-                .orderUrl(resolveOrderUrl(request.orderUrl() == null ? "" : request.orderUrl()))
+                .orderUrl(includeOrderUrl
+                        ? resolveOrderUrl(request.orderUrl() == null ? "" : request.orderUrl())
+                        : null)
                 .build());
         recordQtyLog(stock.getId(), user.getId(), 0, stock.getStockNum());
-        return StockResponse.from(stock);
+        return StockResponse.from(stock, false, null, includeOrderUrl);
     }
 
     @Transactional
@@ -168,6 +176,8 @@ public class BrewStockService {
         BrewStoreStock stock = requireStock(stockId);
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
         requireStockMutator(category.getStoreId(), user.getId());
+        BrewStore store = requireStore(category.getStoreId());
+        boolean includeOrderUrl = isOwner(store, user.getId());
         validateStockNums(request.stockNum(), request.stockMinNum());
         if (request.version() == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "재고 version이 필요합니다.");
@@ -195,18 +205,19 @@ public class BrewStockService {
         }
         int previousNum = stock.getStockNum();
         String unit = request.unit() == null ? stock.getUnit() : resolveUnit(request.unit());
-        String orderUrl = request.orderUrl() == null
-                ? stock.getOrderUrl()
-                : resolveOrderUrl(request.orderUrl());
+        String orderUrl = includeOrderUrl
+                ? (request.orderUrl() == null
+                        ? stock.getOrderUrl()
+                        : resolveOrderUrl(request.orderUrl()))
+                : stock.getOrderUrl();
         stock.update(targetCategoryId, name, request.stockNum(), request.stockMinNum(), unit, orderUrl);
         BrewStoreStock saved = stockRepository.save(stock);
         stockRepository.flush();
         recordQtyLog(saved.getId(), user.getId(), previousNum, saved.getStockNum());
-        BrewStore store = requireStore(category.getStoreId());
         if (store.isStockUsageHint()) {
             applyUsageDelta(saved.getId(), previousNum, saved.getStockNum());
         }
-        return toStockResponse(store.isStockUsageHint(), saved);
+        return toStockResponse(store.isStockUsageHint(), saved, includeOrderUrl);
     }
 
     @Transactional(readOnly = true)
@@ -320,29 +331,38 @@ public class BrewStockService {
                 .collect(Collectors.groupingBy(BrewStoreStockUsageDay::getStockId));
     }
 
-    private StockResponse toStockResponse(boolean enabled, BrewStoreStock stock) {
-        if (!enabled) {
-            return StockResponse.from(stock);
-        }
-        LocalDate from = BrewStockUsageForecast.windowStart(todaySeoul());
-        List<BrewStoreStockUsageDay> days =
-                usageDayRepository.findByStockIdAndUsedOnGreaterThanEqual(stock.getId(), from);
-        Forecast forecast = BrewStockUsageForecast.compute(stock, days);
-        return StockResponse.from(stock, forecast.soonLow(), forecast.daysOfStock());
+    private static boolean isOwner(BrewStore store, UUID userId) {
+        return store.getOwnerUserId().equals(userId);
     }
 
     private StockResponse toStockResponse(
             boolean enabled,
             BrewStoreStock stock,
-            Map<Integer, List<BrewStoreStockUsageDay>> usageByStock
+            boolean includeOrderUrl
     ) {
         if (!enabled) {
-            return StockResponse.from(stock);
+            return StockResponse.from(stock, false, null, includeOrderUrl);
+        }
+        LocalDate from = BrewStockUsageForecast.windowStart(todaySeoul());
+        List<BrewStoreStockUsageDay> days =
+                usageDayRepository.findByStockIdAndUsedOnGreaterThanEqual(stock.getId(), from);
+        Forecast forecast = BrewStockUsageForecast.compute(stock, days);
+        return StockResponse.from(stock, forecast.soonLow(), forecast.daysOfStock(), includeOrderUrl);
+    }
+
+    private StockResponse toStockResponse(
+            boolean enabled,
+            BrewStoreStock stock,
+            Map<Integer, List<BrewStoreStockUsageDay>> usageByStock,
+            boolean includeOrderUrl
+    ) {
+        if (!enabled) {
+            return StockResponse.from(stock, false, null, includeOrderUrl);
         }
         Forecast forecast = BrewStockUsageForecast.compute(
                 stock,
                 usageByStock.getOrDefault(stock.getId(), List.of()));
-        return StockResponse.from(stock, forecast.soonLow(), forecast.daysOfStock());
+        return StockResponse.from(stock, forecast.soonLow(), forecast.daysOfStock(), includeOrderUrl);
     }
 
     private void applyUsageDelta(Integer stockId, int previousNum, int nextNum) {

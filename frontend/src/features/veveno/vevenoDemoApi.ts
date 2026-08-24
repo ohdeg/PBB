@@ -30,8 +30,13 @@ import {
   VEVENO_DEMO_STORE_ID,
   type VevenoDemoRole,
 } from './vevenoDemo'
+import {
+  addDaysYmd,
+  computeStockUsageForecast,
+  stockUsageWindowStart,
+} from './vevenoStockForecast'
 
-const STORAGE_KEY = 'veveno:demo:v4'
+const STORAGE_KEY = 'veveno:demo:v5'
 const CREATED = '2026-01-15T00:00:00.000Z'
 const OWNER_NICK = '사장'
 const STAFF_NICK = '민수'
@@ -45,6 +50,12 @@ interface DemoTemplate extends VevenoChecklistTemplate {
 
 interface DemoStockLog extends VevenoStockLog {
   stockId: number
+}
+
+interface DemoUsageDay {
+  stockId: number
+  usedOn: string
+  qty: number
 }
 
 interface DemoState {
@@ -64,6 +75,7 @@ interface DemoState {
   notices: VevenoNotice[]
   categories: Omit<VevenoStockCategory, 'stocks'>[]
   stocks: VevenoStock[]
+  usageDays: DemoUsageDay[]
   logs: DemoStockLog[]
   subscribers: VevenoSubscriber[]
   joins: VevenoJoinRequest[]
@@ -108,7 +120,7 @@ function seedState(): DemoState {
       name: '베베노 카페',
       isPublic: false,
       stockEditOffDuty: false,
-      stockUsageHint: false,
+      stockUsageHint: true,
       inviteCode: 'DEMOCODE',
       createdAt: CREATED,
       updatedAt: CREATED,
@@ -159,10 +171,11 @@ function seedState(): DemoState {
       { id: 3, storeId: sid, categoryName: '소모품', createdAt: CREATED },
     ],
     stocks: [
-      stockRow(1, 1, '에티오피아', 2, 1, '개', 'https://example.com/beans', true, 3),
+      stockRow(1, 1, '에티오피아', 2, 1, '개', 'https://example.com/beans'),
       stockRow(2, 2, '우유', 4, 2, '개', null),
       stockRow(3, 3, '컵', 80, 20, '개', null),
     ],
+    usageDays: seedEthiopiaUsage(),
     logs: [],
     subscribers: [
       subscriberRow(VEVENO_DEMO_STAFF_ID, 'minsu@demo.veveno', STAFF_NICK, true),
@@ -266,8 +279,6 @@ function stockRow(
   stockMinNum: number,
   unit: string,
   orderUrl: string | null,
-  soonLow = false,
-  daysOfStock: number | null = null,
 ): VevenoStock {
   return {
     id,
@@ -279,10 +290,23 @@ function stockRow(
     orderUrl,
     version: 0,
     lowStock: stockNum <= stockMinNum,
-    soonLow,
-    daysOfStock,
+    soonLow: false,
+    daysOfStock: null,
     updatedAt: CREATED,
   }
+}
+
+function seoulTodayYmd(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+}
+
+function seedEthiopiaUsage(): DemoUsageDay[] {
+  const today = seoulTodayYmd()
+  return [
+    { stockId: 1, usedOn: addDaysYmd(today, -3), qty: 1 },
+    { stockId: 1, usedOn: addDaysYmd(today, -2), qty: 1 },
+    { stockId: 1, usedOn: addDaysYmd(today, -1), qty: 1 },
+  ]
 }
 
 function scheduleRow(
@@ -457,11 +481,19 @@ function actor(): { userId: string; nickname: string } {
 
 function markStock(stock: VevenoStock): VevenoStock {
   const lowStock = stock.stockMinNum != null && stock.stockNum <= stock.stockMinNum
+  if (!state().store.stockUsageHint) {
+    return { ...stock, lowStock, soonLow: false, daysOfStock: null }
+  }
+  const from = stockUsageWindowStart(seoulTodayYmd())
+  const days = state().usageDays.filter(
+    (row) => row.stockId === stock.id && row.usedOn >= from,
+  )
+  const forecast = computeStockUsageForecast(stock.stockNum, stock.stockMinNum, days)
   return {
     ...stock,
     lowStock,
-    soonLow: lowStock ? false : Boolean(stock.soonLow),
-    daysOfStock: stock.daysOfStock,
+    soonLow: forecast.soonLow,
+    daysOfStock: forecast.daysOfStock,
   }
 }
 
@@ -471,6 +503,41 @@ function viewStock(stock: VevenoStock): VevenoStock {
     return marked
   }
   return { ...marked, orderUrl: null }
+}
+
+function applyUsageDelta(stockId: number, previousNum: number, nextNum: number): void {
+  if (!state().store.stockUsageHint) {
+    return
+  }
+  const decrease = previousNum - nextNum
+  const today = seoulTodayYmd()
+  if (decrease >= 1) {
+    addUsage(stockId, today, decrease)
+    return
+  }
+  if (nextNum - previousNum === 1) {
+    subtractUsage(stockId, today, 1)
+  }
+}
+
+function addUsage(stockId: number, usedOn: string, qty: number): void {
+  const row = state().usageDays.find((day) => day.stockId === stockId && day.usedOn === usedOn)
+  if (row) {
+    row.qty += qty
+    return
+  }
+  state().usageDays.push({ stockId, usedOn, qty })
+}
+
+function subtractUsage(stockId: number, usedOn: string, qty: number): void {
+  const row = state().usageDays.find((day) => day.stockId === stockId && day.usedOn === usedOn)
+  if (!row) {
+    return
+  }
+  row.qty -= qty
+  if (row.qty <= 0) {
+    state().usageDays = state().usageDays.filter((day) => day !== row)
+  }
 }
 
 function categories(): VevenoStockCategory[] {
@@ -772,6 +839,7 @@ export const vevenoDemoApi = {
     s.categories = s.categories.filter((row) => row.id !== categoryId)
     s.stocks = s.stocks.filter((row) => row.categoryId !== categoryId)
     s.logs = s.logs.filter((row) => !stockIds.has(row.stockId))
+    s.usageDays = s.usageDays.filter((row) => !stockIds.has(row.stockId))
     persist()
     return ok<ApiMessageResponse>({ message: '삭제했습니다.' })
   },
@@ -850,6 +918,7 @@ export const vevenoDemoApi = {
     if (payload.orderUrl !== undefined && state().role === 'owner') {
       row.orderUrl = payload.orderUrl
     }
+    applyUsageDelta(stockId, fromNum, payload.stockNum)
     row.version += 1
     row.updatedAt = nowIso()
     if (fromNum !== payload.stockNum) {
@@ -870,6 +939,7 @@ export const vevenoDemoApi = {
     const s = state()
     s.stocks = s.stocks.filter((row) => row.id !== stockId)
     s.logs = s.logs.filter((row) => row.stockId !== stockId)
+    s.usageDays = s.usageDays.filter((row) => row.stockId !== stockId)
     persist()
     return ok<ApiMessageResponse>({ message: '삭제했습니다.' })
   },

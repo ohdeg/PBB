@@ -92,7 +92,7 @@ describe('veveno demo', () => {
     const { data: ownerCats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
     const ethiopia = ownerCats.flatMap((cat) => cat.stocks).find((row) => row.stockName === '에티오피아')
     expect(ethiopia?.soonLow).toBe(true)
-    expect(ethiopia?.daysOfStock).toBe(3)
+    expect(ethiopia?.daysOfStock).toBe(2)
     expect(ethiopia?.orderUrl).toBe('https://example.com/beans')
 
     setDemoRole('staff')
@@ -116,5 +116,23 @@ describe('veveno demo', () => {
     const { data: afterCats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
     const after = afterCats.flatMap((cat) => cat.stocks).find((row) => row.stockName === '에티오피아')
     expect(after?.orderUrl).toBe('https://example.com/beans')
+  })
+
+  it('clears soon-low when ethiopia stock is raised well above usage', async () => {
+    const { data: cats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
+    const ethiopia = cats.flatMap((cat) => cat.stocks).find((row) => row.stockName === '에티오피아')
+    expect(ethiopia?.soonLow).toBe(true)
+    if (!ethiopia) return
+
+    await vevenoDemoApi.updateStock(ethiopia.id, {
+      stockName: ethiopia.stockName,
+      stockNum: 20,
+      stockMinNum: ethiopia.stockMinNum,
+      version: ethiopia.version,
+    })
+    const { data: afterCats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
+    const after = afterCats.flatMap((cat) => cat.stocks).find((row) => row.stockName === '에티오피아')
+    expect(after?.soonLow).toBe(false)
+    expect(after?.daysOfStock).toBe(20)
   })
 })

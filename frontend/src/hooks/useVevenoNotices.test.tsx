@@ -2,9 +2,10 @@
 
 import { act, renderHook } from '@testing-library/react'
 import type { AxiosResponse } from 'axios'
-import type { FormEvent, SetStateAction } from 'react'
+import type { FormEvent, ReactNode, SetStateAction } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { vevenoApi } from '../api/vevenoApi'
+import { VevenoI18nProvider } from '../features/veveno/i18n/LanguageContext'
 import type { VevenoNotice, VevenoStore } from '../types/veveno'
 import { useVevenoNotices } from './useVevenoNotices'
 
@@ -49,6 +50,10 @@ describe('useVevenoNotices', () => {
     vi.clearAllMocks()
   })
 
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <VevenoI18nProvider locale="ko">{children}</VevenoI18nProvider>
+  )
+
   it('creates an owner notice and resets the form', async () => {
     vi.mocked(vevenoApi.createNotice).mockResolvedValue({
       data: createdNotice,
@@ -60,6 +65,7 @@ describe('useVevenoNotices', () => {
         storeId: ownerStore.id,
         setError,
       }),
+      { wrapper },
     )
 
     act(() => {
@@ -91,6 +97,7 @@ describe('useVevenoNotices', () => {
         storeId: ownerStore.id,
         setError,
       }),
+      { wrapper },
     )
 
     await act(async () => {

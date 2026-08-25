@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { vevenoApi } from '../../api/vevenoApi'
 import type { VevenoStock, VevenoStockCategory, VevenoStockLog } from '../../types/veveno'
 import { VevenoStoreStocksPanel, placeStock } from './VevenoStoreStocksPanel'
+import { VevenoI18nProvider } from '../../features/veveno/i18n/LanguageContext'
 
 vi.mock('../../api/vevenoApi', () => ({
   vevenoApi: {
@@ -85,16 +86,18 @@ function Harness({
     useState<VevenoStockCategory[]>(categories)
 
   return (
-    <VevenoStoreStocksPanel
-      active
-      storeId="store-1"
-      owned={owned}
-      onDuty={onDuty}
-      stockEditOffDuty={stockEditOffDuty}
-      stockCategories={stockCategories}
-      setStockCategories={setStockCategories}
-      onError={onError}
-    />
+    <VevenoI18nProvider locale="ko">
+      <VevenoStoreStocksPanel
+        active
+        storeId="store-1"
+        owned={owned}
+        onDuty={onDuty}
+        stockEditOffDuty={stockEditOffDuty}
+        stockCategories={stockCategories}
+        setStockCategories={setStockCategories}
+        onError={onError}
+      />
+    </VevenoI18nProvider>
   )
 }
 
@@ -165,6 +168,7 @@ describe('VevenoStoreStocksPanel', () => {
         },
       ])
       return (
+        <VevenoI18nProvider locale="ko">
         <VevenoStoreStocksPanel
           active
           storeId="store-1"
@@ -175,6 +179,7 @@ describe('VevenoStoreStocksPanel', () => {
           setStockCategories={setStockCategories}
           onError={vi.fn()}
         />
+        </VevenoI18nProvider>
       )
     }
 
@@ -195,6 +200,7 @@ describe('VevenoStoreStocksPanel', () => {
         },
       ])
       return (
+        <VevenoI18nProvider locale="ko">
         <VevenoStoreStocksPanel
           active
           storeId="store-1"
@@ -205,6 +211,7 @@ describe('VevenoStoreStocksPanel', () => {
           setStockCategories={setStockCategories}
           onError={vi.fn()}
         />
+        </VevenoI18nProvider>
       )
     }
 

@@ -48,7 +48,9 @@ import {
   parseRecipeContents,
   stringifyRecipeContents,
 } from '../types/veveno';
-import { getErrorMessage } from '../utils/error';
+import { getVevenoErrorMessage } from '../features/veveno/i18n/error';
+import { useTranslation } from '../features/veveno/i18n/LanguageContext';
+import { VevenoLangSwitch } from '../components/veveno/VevenoLangSwitch';
 
 type Tab = 'menus' | 'stocks' | 'checklists' | 'schedule' | 'tools' | 'settings';
 
@@ -61,13 +63,21 @@ const TAB_IDS: readonly Tab[] = [
   'settings',
 ];
 
-const TAB_HINT: Record<Tab, string> = {
-  menus: '레시피를 고르고 적어 두세요.',
-  stocks: '부족한 재고를 맞춰 두세요.',
-  checklists: '오늘 할 일을 체크하세요.',
-  schedule: '직원의 스케줄을 관리합니다.',
-  tools: '타이머·단위·농도를 바로 씁니다.',
-  settings: '가게와 직원을 관리합니다.',
+const TAB_HINT_KEYS: Record<
+  Tab,
+  | 'store.tabHints.menus'
+  | 'store.tabHints.stocks'
+  | 'store.tabHints.checklists'
+  | 'store.tabHints.schedule'
+  | 'store.tabHints.tools'
+  | 'store.tabHints.settings'
+> = {
+  menus: 'store.tabHints.menus',
+  stocks: 'store.tabHints.stocks',
+  checklists: 'store.tabHints.checklists',
+  schedule: 'store.tabHints.schedule',
+  tools: 'store.tabHints.tools',
+  settings: 'store.tabHints.settings',
 };
 
 const EMPTY_MENU_CREATE = {
@@ -77,10 +87,10 @@ const EMPTY_MENU_CREATE = {
   notes: '',
 };
 
-function storeRoleLabel(store: VevenoStore): string {
-  if (store.owned) return '사장';
-  if (store.subscribed) return '직원';
-  return '손님';
+function storeRoleKey(store: VevenoStore): 'owner' | 'staff' | 'guest' {
+  if (store.owned) return 'owner';
+  if (store.subscribed) return 'staff';
+  return 'guest';
 }
 
 function seoulDate(): string {
@@ -108,6 +118,7 @@ export function VevenoStorePage() {
     isVevenoDemoStoreId(storeId) ? getDemoRole() : 'owner',
   );
   const { showSplash, handleSplashFinish } = useVevenoSplash();
+  const t = useTranslation();
 
   const tab = parseTabParam(searchParams.get('tab'));
   const setTab = useCallback(
@@ -248,7 +259,7 @@ export function VevenoStorePage() {
         setSubscribers([]);
       }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '가게를 불러오지 못했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failLoadStore'), t));
     } finally {
       setLoading(false);
     }
@@ -286,7 +297,7 @@ export function VevenoStorePage() {
       setTab('menus');
       return;
     }
-    if (tab === 'settings' && !store.owned) {
+    if (tab === 'settings' && !store.owned && !store.subscribed) {
       setTab('menus');
     }
   }, [tab, store, setTab]);
@@ -349,7 +360,7 @@ export function VevenoStorePage() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(getErrorMessage(err, '레시피를 불러오지 못했습니다.'));
+          setError(getVevenoErrorMessage(err, t('errors.failLoadRecipe'), t));
         }
       }
     })();
@@ -411,7 +422,7 @@ export function VevenoStorePage() {
       setMenuName('');
       setSelectedMenuId(data.id);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '메뉴 추가에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failAddMenu'), t));
     }
   };
 
@@ -445,16 +456,16 @@ export function VevenoStorePage() {
     }
     const title = menuCreateForm.title.trim();
     if (!title) {
-      setError('메뉴 제목을 입력해 주세요.');
+      setError(t('menus.titleRequired'));
       return;
     }
     const isCustom = menuCreateForm.categoryKey === '__custom__';
     if (!menuCreateForm.categoryKey) {
-      setError('카테고리를 선택해 주세요.');
+      setError(t('menus.pickCategoryRequired'));
       return;
     }
     if (isCustom && !menuCreateForm.customCategoryName.trim()) {
-      setError('카테고리 이름을 입력해 주세요.');
+      setError(t('menus.categoryNameRequired'));
       return;
     }
 
@@ -490,7 +501,7 @@ export function VevenoStorePage() {
       setMenuCreateOpen(false);
       setMenuCreateForm(EMPTY_MENU_CREATE);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '메뉴 등록에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failRegisterMenu'), t));
     } finally {
       setCreatingMenuRecipe(false);
     }
@@ -537,14 +548,14 @@ export function VevenoStorePage() {
       setEditingMenuId(null);
       setEditingMenuName('');
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '메뉴 이름 수정에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failRenameMenu'), t));
     } finally {
       setSavingMenu(false);
     }
   };
 
   const handleDeleteMenu = async (menuId: string) => {
-    if (!window.confirm('메뉴와 하위 레시피를 삭제할까요?')) return;
+    if (!window.confirm(t('menus.confirmDeleteMenu'))) return;
     setSavingMenu(true);
     setError('');
     try {
@@ -559,7 +570,7 @@ export function VevenoStorePage() {
       setEditingMenuId(null);
       setEditingMenuName('');
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '메뉴 삭제에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failDeleteMenu'), t));
     } finally {
       setSavingMenu(false);
     }
@@ -579,20 +590,20 @@ export function VevenoStorePage() {
         setSelectedRecipeId(data.id);
       }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '레시피 저장에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failSaveRecipe'), t));
     }
   };
 
   const handleDeleteRecipe = async () => {
     if (!selectedRecipeId) return;
-    if (!window.confirm('이 레시피를 삭제할까요?')) return;
+    if (!window.confirm(t('menus.confirmDeleteRecipe'))) return;
     try {
       await vevenoApi.deleteRecipe(selectedRecipeId);
       setRecipes((prev) => prev.filter((r) => r.id !== selectedRecipeId));
       setSelectedRecipeId(null);
       setRecipeForm(EMPTY_RECIPE_CONTENT);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '레시피 삭제에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failDeleteRecipe'), t));
     }
   };
 
@@ -603,7 +614,7 @@ export function VevenoStorePage() {
       const { data } = await vevenoApi.updateStore(storeId, storeForm);
       setStore(data);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '가게 설정 저장에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failSaveStore'), t));
     }
   };
 
@@ -617,7 +628,7 @@ export function VevenoStorePage() {
       setCodeCopied(true);
       window.setTimeout(() => setCodeCopied(false), 2000);
     } catch {
-      setError('코드 복사에 실패했습니다.');
+      setError(t('errors.failCopyCode'));
     }
   };
 
@@ -626,7 +637,7 @@ export function VevenoStorePage() {
       return;
     }
     const ok = window.confirm(
-      '가게 코드를 재발급할까요?\n이전 코드로는 더 이상 검색할 수 없습니다.',
+      t('settings.regenerateConfirm'),
     );
     if (!ok) {
       return;
@@ -638,7 +649,7 @@ export function VevenoStorePage() {
       setStore(data);
       setCodeCopied(false);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '가게 코드 재발급에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failRegenCode'), t));
     } finally {
       setRegeneratingCode(false);
     }
@@ -672,7 +683,10 @@ export function VevenoStorePage() {
       );
       if (coverCount.count > 0) {
         const ok = window.confirm(
-          `퇴사일(${leaveDate}) 이후에 대체·추가 근무가 ${coverCount.count}건 있습니다.\n확인하면 해당 건이 삭제되고 퇴사가 진행됩니다. 계속할까요?`,
+          t('settings.confirmLeaveCovers', {
+            leaveDate,
+            count: coverCount.count,
+          }),
         );
         if (!ok) {
           return;
@@ -697,7 +711,7 @@ export function VevenoStorePage() {
       setLeaveOpen(false);
       setLeaveTarget(null);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '퇴사 처리에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failLeave'), t));
     } finally {
       setLeaving(false);
     }
@@ -711,7 +725,7 @@ export function VevenoStorePage() {
         prev.map((s) => (s.userId === data.userId ? data : s)),
       );
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '퇴사 예약 취소에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failClearLeave'), t));
     }
   };
 
@@ -730,7 +744,7 @@ export function VevenoStorePage() {
       setSubscribers(data);
       setApproveTarget(null);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '승인에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failApprove'), t));
     } finally {
       setApproving(false);
     }
@@ -748,7 +762,7 @@ export function VevenoStorePage() {
       });
       setTodayChecklists(data);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '체크에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failCheck'), t));
     }
   };
 
@@ -760,7 +774,7 @@ export function VevenoStorePage() {
       setDeleteDialogOpen(false);
       void navigate(isDemo ? '/hobbies/veveno' : '/hobbies/veveno/hub');
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '가게 삭제에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failDeleteStore'), t));
     } finally {
       setDeleting(false);
     }
@@ -775,30 +789,30 @@ export function VevenoStorePage() {
     dueToday.find((list) => list.templateId === interruptId) ?? null;
 
   const tabs: { id: Tab; label: string; visible?: boolean; badge?: string }[] = [
-    { id: 'menus', label: '메뉴', visible: true },
-    { id: 'stocks', label: '재고', visible: canEditStock },
+    { id: 'menus', label: t('store.tabs.menus'), visible: true },
+    { id: 'stocks', label: t('store.tabs.stocks'), visible: canEditStock },
     {
       id: 'checklists',
-      label: '할 일',
+      label: t('store.tabs.checklists'),
       visible: Boolean(store?.owned || store?.subscribed),
       badge: checklistOpenCount > 0 ? String(checklistOpenCount) : undefined,
     },
-    { id: 'schedule', label: '근무표', visible: Boolean(store?.owned || store?.subscribed) },
+    { id: 'schedule', label: t('store.tabs.schedule'), visible: Boolean(store?.owned || store?.subscribed) },
     {
       id: 'tools',
-      label: '도구',
+      label: t('store.tabs.tools'),
       visible: Boolean(store?.owned || store?.subscribed),
     },
-    { id: 'settings', label: '설정', visible: Boolean(store?.owned) },
+    { id: 'settings', label: t('store.tabs.settings'), visible: Boolean(store?.owned || store?.subscribed) },
   ];
-  const visibleTabs = tabs.filter((t) => t.visible);
+  const visibleTabs = tabs.filter((tabItem) => tabItem.visible);
 
   return (
     <>
       {showSplash ? <VevenoSplashScreen onFinish={handleSplashFinish} /> : null}
       {loading ? (
         <main className="veveno-shell">
-          <div className="veveno-shell__inner veveno-shell__loading">불러오는 중…</div>
+          <div className="veveno-shell__inner veveno-shell__loading">{t('store.loading')}</div>
         </main>
       ) : (
       <main className="veveno-shell">
@@ -816,19 +830,25 @@ export function VevenoStorePage() {
                 <>
                   <h1>{store.name}</h1>
                   <p className="veveno-shell__meta">
-                    {storeRoleLabel(store)}
+                    {t(
+                      storeRoleKey(store) === 'owner'
+                        ? 'store.roles.owner'
+                        : storeRoleKey(store) === 'staff'
+                          ? 'store.roles.staff'
+                          : 'store.roles.guest',
+                    )}
                     {' · '}
                     <VevenoVisibilityBadge isPublic={store.isPublic} />
                     {store.onDuty ? (
                       <>
                         {' · '}
-                        <VevenoBadge variant="success">근무중</VevenoBadge>
+                        <VevenoBadge variant="success">{t('store.onDuty')}</VevenoBadge>
                       </>
                     ) : null}
                     {store.subscribed && store.leaveDate ? (
                       <>
                         {' · '}
-                        <span>퇴사 예정 {store.leaveDate}</span>
+                        <span>{t('store.leaveSoon', { date: store.leaveDate })}</span>
                       </>
                     ) : null}
                   </p>
@@ -839,8 +859,8 @@ export function VevenoStorePage() {
               <button
                 type="button"
                 className="veveno-notice-icon-btn"
-                aria-label="공지"
-                title="공지"
+                aria-label={t('store.notices')}
+                title={t('store.notices')}
                 onClick={openNotices}
               >
                 <svg
@@ -868,27 +888,27 @@ export function VevenoStorePage() {
           {isDemo ? (
             <div className="veveno-demo-bar" role="status">
               <p className="veveno-demo-bar__copy">
-                체험 중 · 이 기기에만 저장돼요
+                {t('store.demoBanner')}
               </p>
               <div className="veveno-demo-bar__actions">
                 <div
                   className="veveno-demo-role"
                   role="group"
-                  aria-label="체험 역할"
+                  aria-label={t('store.demoRole')}
                 >
                   <button
                     type="button"
                     className={demoRole === 'owner' ? 'is-active' : ''}
                     onClick={() => handleDemoRole('owner')}
                   >
-                    사장
+                    {t('store.demoOwner')}
                   </button>
                   <button
                     type="button"
                     className={demoRole === 'staff' ? 'is-active' : ''}
                     onClick={() => handleDemoRole('staff')}
                   >
-                    직원
+                    {t('store.demoStaff')}
                   </button>
                 </div>
                 {accessToken ? null : (
@@ -897,19 +917,19 @@ export function VevenoStorePage() {
                     className="veveno-demo-bar__login"
                     state={{ from: '/hobbies/veveno/hub' }}
                   >
-                    로그인하고 내 가게 열기
+                    {t('store.demoLogin')}
                   </Link>
                 )}
                 <button
                   type="button"
                   className="veveno-demo-bar__end"
                   onClick={() => {
-                    if (window.confirm('체험 데이터를 지우고 나갈까요?')) {
+                    if (window.confirm(t('store.demoExitConfirm'))) {
                       void handleDeleteStore();
                     }
                   }}
                 >
-                  체험 끝내기
+                  {t('store.demoExit')}
                 </button>
               </div>
             </div>
@@ -920,7 +940,7 @@ export function VevenoStorePage() {
                 <div
                   className="veveno-seg-tabs veveno-seg-tabs--sticky"
                   role="tablist"
-                  aria-label="가게 작업"
+                  aria-label={t('store.tabsAria')}
                   style={{
                     gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)`,
                   }}
@@ -941,10 +961,10 @@ export function VevenoStorePage() {
                     </button>
                   ))}
                 </div>
-                <p className="veveno-tab-hint">{TAB_HINT[tab]}</p>
+                <p className="veveno-tab-hint">{t(TAB_HINT_KEYS[tab])}</p>
               </div>
             ) : (
-              <p className="veveno-tab-hint">{TAB_HINT[tab]}</p>
+              <p className="veveno-tab-hint">{t(TAB_HINT_KEYS[tab])}</p>
             )
           ) : null}
         </div>
@@ -962,7 +982,7 @@ export function VevenoStorePage() {
             onClick={() => setTab('checklists')}
           >
             {checklistBanner.title} {checklistBanner.checkedCount}/{checklistBanner.totalCount}
-            {checklistOpenCount > 1 ? ` · 외 ${checklistOpenCount - 1}` : ''}
+            {checklistOpenCount > 1 ? t('store.checklistMore', { count: checklistOpenCount - 1 }) : ''}
           </button>
         ) : null}
 
@@ -971,15 +991,15 @@ export function VevenoStorePage() {
             {tab === 'menus' ? (
               menus.length === 0 ? (
                 <VevenoEmptyState
-                  title="아직 메뉴가 없습니다"
+                  title={t('menus.emptyTitle')}
                   body={
                     store.owned
-                      ? '만드는 법을 적어 두면 바쁠 때도 같은 맛을 낼 수 있습니다.'
-                      : '사장님이 메뉴를 올리면 여기에 보여요.'
+                      ? t('menus.emptyBodyOwner')
+                      : t('menus.emptyBodyStaff')
                   }
                   action={
                     store.owned ? (
-                      <VevenoButton onClick={() => openMenuCreate()}>메뉴 추가</VevenoButton>
+                      <VevenoButton onClick={() => openMenuCreate()}>{t('menus.add')}</VevenoButton>
                     ) : undefined
                   }
                 />
@@ -988,16 +1008,16 @@ export function VevenoStorePage() {
                 <div className="veveno-toolbar">
                   <VevenoInput
                     id="menu-tab-search"
-                    label="검색"
+                    label={t('common.search')}
                     value={menuSearch}
                     onChange={(e) => setMenuSearch(e.target.value)}
-                    placeholder="메뉴·레시피 이름 검색"
+                    placeholder={t('menus.searchPh')}
                   />
                 </div>
                 <div className="veveno-menu-layout">
                   <aside className="veveno-menu-rail">
                     <div className="veveno-menu-rail__head">
-                      <h2 className="veveno-menu-rail__title">카테고리</h2>
+                      <h2 className="veveno-menu-rail__title">{t('menus.categories')}</h2>
                       {store.owned ? (
                         <VevenoButton
                           size="sm"
@@ -1014,7 +1034,7 @@ export function VevenoStorePage() {
                             });
                           }}
                         >
-                          {menuEditMode ? '편집 종료' : '편집'}
+                          {menuEditMode ? t('common.editDone') : t('common.edit')}
                         </VevenoButton>
                       ) : null}
                     </div>
@@ -1023,14 +1043,14 @@ export function VevenoStorePage() {
                         <VevenoInput
                           value={menuName}
                           onChange={(e) => setMenuName(e.target.value)}
-                          placeholder="카테고리 이름"
+                          placeholder={t('menus.categoryName')}
                         />
-                        <VevenoButton type="submit">추가</VevenoButton>
+                        <VevenoButton type="submit">{t('common.add')}</VevenoButton>
                       </form>
                     ) : null}
                     <div className="veveno-menu-rail__list">
                       {filteredMenus.length === 0 ? (
-                        <p className="veveno-empty">검색 결과가 없습니다.</p>
+                        <p className="veveno-empty">{t('menus.searchNone')}</p>
                       ) : (
                         filteredMenus.map((menu) => (
                           <button
@@ -1045,7 +1065,7 @@ export function VevenoStorePage() {
                           >
                             <span className="veveno-rail-item__name">{menu.name}</span>
                             {store.owned && menuEditMode ? (
-                              <span className="veveno-rail-item__hint">수정</span>
+                              <span className="veveno-rail-item__hint">{t('menus.hintEdit')}</span>
                             ) : null}
                           </button>
                         ))
@@ -1055,7 +1075,7 @@ export function VevenoStorePage() {
 
                   <div className="veveno-menu-main">
                     <VevenoCard
-                      title="레시피"
+                      title={t('menus.recipes')}
                       action={
                         store.owned ? (
                           <div className="veveno-card__actions">
@@ -1063,7 +1083,7 @@ export function VevenoStorePage() {
                               size="sm"
                               onClick={() => openMenuCreate(selectedMenuId ?? undefined)}
                             >
-                              새로 추가
+                              {t('common.createNew')}
                             </VevenoButton>
                             <VevenoButton
                               size="sm"
@@ -1079,34 +1099,34 @@ export function VevenoStorePage() {
                                 });
                               }}
                             >
-                              {recipeEditMode ? '편집 종료' : '편집'}
+                              {recipeEditMode ? t('common.editDone') : t('common.edit')}
                             </VevenoButton>
                           </div>
                         ) : null
                       }
                     >
                       {!selectedMenuId ? (
-                        <p className="veveno-empty">왼쪽에서 메뉴를 선택해 주세요.</p>
+                        <p className="veveno-empty">{t('menus.pickMenu')}</p>
                       ) : recipes.length === 0 ? (
                         store.owned && !recipeEditMode ? (
                           <VevenoEmptyState
-                            title="아직 레시피가 없습니다"
-                            body="추출·원두처럼 만드는 법을 한 장 적어 두세요."
+                            title={t('menus.emptyRecipesTitle')}
+                            body={t('menus.emptyRecipesBody')}
                             action={
                               <VevenoButton
                                 onClick={() =>
                                   openMenuCreate(selectedMenuId ?? undefined)
                                 }
                               >
-                                첫 레시피 적기
+                                {t('menus.firstRecipe')}
                               </VevenoButton>
                             }
                           />
                         ) : (
-                          <p className="veveno-empty">등록된 레시피가 없습니다.</p>
+                          <p className="veveno-empty">{t('menus.noRecipes')}</p>
                         )
                       ) : filteredRecipes.length === 0 ? (
-                        <p className="veveno-empty">검색 결과가 없습니다.</p>
+                        <p className="veveno-empty">{t('menus.searchNone')}</p>
                       ) : (
                         <div className="veveno-stack">
                           {filteredRecipes.map((recipe) => {
@@ -1132,7 +1152,7 @@ export function VevenoStorePage() {
                               >
                                 <div className="veveno-store-row__main">
                                   <p className="veveno-store-row__name">
-                                    {parsed.title || '레시피'}
+                                    {parsed.title || t('menus.recipeFallback')}
                                   </p>
                                   {parsed.notes ? (
                                     <p className="veveno-store-row__sub">
@@ -1150,10 +1170,10 @@ export function VevenoStorePage() {
                     </VevenoCard>
 
                     {store.owned && recipeEditMode && selectedMenuId && selectedRecipe ? (
-                      <VevenoCard title="레시피 편집">
+                      <VevenoCard title={t('menus.editRecipe')}>
                         <form className="veveno-form-stack" onSubmit={handleSaveRecipe}>
                           <VevenoInput
-                            label="제목"
+                            label={t('common.title')}
                             id="recipe-title"
                             value={recipeForm.title}
                             onChange={(e) =>
@@ -1162,11 +1182,11 @@ export function VevenoStorePage() {
                                 title: e.target.value,
                               }))
                             }
-                            placeholder="레시피 제목"
+                            placeholder={t('menus.recipeTitlePh')}
                           />
                           <div className="veveno-field">
                             <span className="veveno-field__label" id="recipe-notes-label">
-                              노트
+                              {t('common.notes')}
                             </span>
                             <VevenoRecipeNotesEditor
                               id="recipe-notes"
@@ -1177,23 +1197,22 @@ export function VevenoStorePage() {
                                   notes,
                                 }))
                               }
-                              placeholder="추출·원두·테이스팅 메모"
+                              placeholder={t('menus.notesPlaceholder')}
                               rows={8}
                             />
                             <p className="veveno-field__hint">
-                              구분점·번호 목록은 툴바에서, 들여쓰기는 Tab / Shift+Tab 또는
-                              툴바로 조절합니다.
+                              {t('menus.notesHint')}
                             </p>
                           </div>
                           <div className="veveno-btn-row">
-                            <VevenoButton type="submit">저장/수정</VevenoButton>
+                            <VevenoButton type="submit">{t('common.saveEdit')}</VevenoButton>
                             <VevenoButton
                               variant="danger"
                               onClick={() => {
                                 void handleDeleteRecipe();
                               }}
                             >
-                              삭제
+                              {t('common.delete')}
                             </VevenoButton>
                           </div>
                         </form>
@@ -1241,12 +1260,18 @@ export function VevenoStorePage() {
               <VevenoToolsPanel storeId={storeId} />
             ) : null}
 
-            {tab === 'settings' && store.owned ? (
+            {tab === 'settings' && (store.owned || store.subscribed) ? (
               <div className="veveno-settings-stack">
-                <VevenoCard title="업장 정보">
+                <VevenoCard title={t('settings.language')}>
+                  <p className="veveno-card-lead">{t('settings.languageHelp')}</p>
+                  <VevenoLangSwitch />
+                </VevenoCard>
+                {store.owned ? (
+                <div className="veveno-settings-owner">
+                <VevenoCard title={t('settings.storeInfo')}>
                   <form className="veveno-form-stack" onSubmit={handleSaveStore}>
                     <VevenoInput
-                      label="가게 이름"
+                      label={t('hub.storeName')}
                       id="store-name"
                       value={storeForm.name}
                       onChange={(e) =>
@@ -1265,9 +1290,9 @@ export function VevenoStorePage() {
                             }))
                           }
                         />
-                        공개 가게
+                        {t('settings.publicStore')}
                       </label>
-                      <VevenoHelpTip text="켜면 가게 검색에 이름이 보입니다. 꺼도 가게 코드로는 찾을 수 있습니다." />
+                      <VevenoHelpTip text={t('settings.publicHelp')} />
                     </div>
                     <div className="veveno-check-row">
                       <label className="veveno-check">
@@ -1281,9 +1306,9 @@ export function VevenoStorePage() {
                             }))
                           }
                         />
-                        근무 시간 외 재고 조정 허용
+                        {t('settings.stockOffDuty')}
                       </label>
-                      <VevenoHelpTip text="기본 설정(꺼짐)에서는 재고 권한이 있는 직원이 근무 중에만 수량을 변경할 수 있습니다. 기능을 켜면 직원의 근무 시간 외 재고 수정이 허용됩니다. (단, 사장님은 항상 수정 가능합니다.)" />
+                      <VevenoHelpTip text={t('settings.stockOffDutyHelp')} />
                     </div>
                     <div className="veveno-check-row">
                       <label className="veveno-check">
@@ -1297,14 +1322,14 @@ export function VevenoStorePage() {
                             }))
                           }
                         />
-                        재고 안내
+                        {t('settings.stockHint')}
                       </label>
-                      <VevenoHelpTip text="켜면 재고가 줄어든 기록을 모아, 목록에 약 N일분과 「곧 부족 · 재고 확인」을 보여 줍니다. 끄면 안내·기록 모두 멈춥니다." />
+                      <VevenoHelpTip text={t('settings.stockHintHelp')} />
                     </div>
                     <div className="veveno-invite-code">
                       <div className="veveno-check-row">
-                        <p className="veveno-field__label">가게 코드</p>
-                        <VevenoHelpTip text="직원에게 공유하면 이름 대신 코드로 정확히 찾을 수 있습니다. (비공개 가게도 코드로 검색 가능)" />
+                        <p className="veveno-field__label">{t('settings.inviteCode')}</p>
+                        <VevenoHelpTip text={t('settings.inviteHelp')} />
                       </div>
                       <div className="veveno-invite-code__row">
                         <code
@@ -1318,13 +1343,13 @@ export function VevenoStorePage() {
                           title={
                             store.inviteCode
                               ? codeCopied
-                                ? '복사됨'
-                                : '탭하여 복사'
+                                ? t('common.copied')
+                                : t('common.tapToCopy')
                               : undefined
                           }
                           aria-label={
                             store.inviteCode
-                              ? `가게 코드 ${store.inviteCode}, 탭하여 복사`
+                              ? t('settings.inviteCodeAria', { code: store.inviteCode })
                               : undefined
                           }
                           onClick={() => {
@@ -1348,7 +1373,7 @@ export function VevenoStorePage() {
                       </div>
                     </div>
                     <div className="veveno-btn-row">
-                      <VevenoButton type="submit">저장/수정</VevenoButton>
+                      <VevenoButton type="submit">{t('common.saveEdit')}</VevenoButton>
                       <VevenoButton
                         type="button"
                         variant="secondary"
@@ -1357,15 +1382,15 @@ export function VevenoStorePage() {
                           void handleRegenerateInviteCode();
                         }}
                       >
-                        재발급
+                        {t('settings.regenerate')}
                       </VevenoButton>
                     </div>
                   </form>
                 </VevenoCard>
 
-                <VevenoCard title="가입 승인">
+                <VevenoCard title={t('settings.joinApprove')}>
                   {joinRequests.length === 0 ? (
-                    <p className="veveno-empty">대기 중인 신청이 없습니다.</p>
+                    <p className="veveno-empty">{t('settings.joinEmpty')}</p>
                   ) : (
                     <div className="veveno-stack">
                       {joinRequests.map((req) => (
@@ -1379,7 +1404,7 @@ export function VevenoStorePage() {
                               size="sm"
                               onClick={() => setApproveTarget(req)}
                             >
-                              승인
+                              {t('common.approve')}
                             </VevenoButton>
                             <VevenoButton
                               size="sm"
@@ -1393,7 +1418,7 @@ export function VevenoStorePage() {
                                 })();
                               }}
                             >
-                              거절
+                              {t('common.reject')}
                             </VevenoButton>
                           </div>
                         </div>
@@ -1402,12 +1427,12 @@ export function VevenoStorePage() {
                   )}
                 </VevenoCard>
 
-                <VevenoCard title="직원 · 재고 권한">
+                <VevenoCard title={t('settings.staffPerms')}>
                   <p className="veveno-card-lead">
-                    근무자의 재고 수정 권한 및 퇴사자 관리
+                    {t('settings.staffPermsLead')}
                   </p>
                   {subscribers.length === 0 ? (
-                    <p className="veveno-empty">구독자가 없습니다.</p>
+                    <p className="veveno-empty">{t('settings.noSubscribers')}</p>
                   ) : (
                     <div className="veveno-stack">
                       {subscribers.map((sub) => (
@@ -1417,10 +1442,10 @@ export function VevenoStorePage() {
                             <p className="veveno-store-row__sub">
                               {sub.email}
                               {sub.workStartDate
-                                ? ` · 근무 시작 ${sub.workStartDate}`
+                                ? ` · ${t('settings.workStart', { date: sub.workStartDate })}`
                                 : ''}
                               {sub.leaveDate
-                                ? ` · 퇴사 예정 ${sub.leaveDate}`
+                                ? ` · ${t('settings.leaveSoon', { date: sub.leaveDate })}`
                                 : ''}
                             </p>
                           </div>
@@ -1445,13 +1470,13 @@ export function VevenoStorePage() {
                                       );
                                     } catch (err: unknown) {
                                       setError(
-                                        getErrorMessage(err, '권한 변경에 실패했습니다.'),
+                                        getVevenoErrorMessage(err, t('errors.failPermission'), t),
                                       );
                                     }
                                   })();
                                 }}
                               />
-                              재고 수정
+                              {t('settings.stockEdit')}
                             </label>
                             {sub.leaveDate ? (
                               <VevenoButton
@@ -1461,7 +1486,7 @@ export function VevenoStorePage() {
                                   void handleClearLeave(sub.userId)
                                 }
                               >
-                                퇴사 취소
+                                {t('settings.cancelLeave')}
                               </VevenoButton>
                             ) : (
                               <VevenoButton
@@ -1474,7 +1499,7 @@ export function VevenoStorePage() {
                                   })
                                 }
                               >
-                                퇴사
+                                {t('settings.leave')}
                               </VevenoButton>
                             )}
                           </div>
@@ -1489,9 +1514,11 @@ export function VevenoStorePage() {
                     variant="danger"
                     onClick={() => setDeleteDialogOpen(true)}
                   >
-                    {isDemo ? '체험 끝내기' : '가게 삭제'}
+                    {isDemo ? t('store.demoExit') : t('settings.deleteStore')}
                   </VevenoButton>
                 </div>
+                </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -1499,22 +1526,22 @@ export function VevenoStorePage() {
         ) : null}
       </div>
 
-      <VevenoModal open={noticesOpen} title="공지" onClose={closeNotices}>
+      <VevenoModal open={noticesOpen} title={t('store.notices')} onClose={closeNotices}>
         <div className="veveno-stack-lg">
           {store?.owned ? (
             <form className="veveno-form-stack veveno-notice-form" onSubmit={(e) => void handleSaveNotice(e)}>
               <VevenoInput
-                label={editingNoticeId ? '제목 수정' : '새 공지 제목'}
+                label={editingNoticeId ? t('notices.editTitle') : t('notices.newTitle')}
                 value={noticeForm.title}
                 onChange={(e) =>
                   setNoticeForm((prev) => ({ ...prev, title: e.target.value }))
                 }
-                placeholder="공지 제목"
+                placeholder={t('notices.titlePh')}
                 disabled={savingNotice}
               />
               <div className="veveno-field">
                 <label className="veveno-field__label" htmlFor="notice-body">
-                  본문
+                  {t('notices.body')}
                 </label>
                 <textarea
                   id="notice-body"
@@ -1524,7 +1551,7 @@ export function VevenoStorePage() {
                   onChange={(e) =>
                     setNoticeForm((prev) => ({ ...prev, body: e.target.value }))
                   }
-                  placeholder="직원에게 전달할 내용"
+                  placeholder={t('notices.bodyPh')}
                   disabled={savingNotice}
                 />
               </div>
@@ -1534,7 +1561,7 @@ export function VevenoStorePage() {
                   loading={savingNotice}
                   disabled={!noticeForm.title.trim() || !noticeForm.body.trim()}
                 >
-                  {editingNoticeId ? '수정 저장' : '공지 등록'}
+                  {editingNoticeId ? t('notices.saveEdit') : t('notices.create')}
                 </VevenoButton>
                 {editingNoticeId ? (
                   <VevenoButton
@@ -1543,7 +1570,7 @@ export function VevenoStorePage() {
                     disabled={savingNotice}
                     onClick={cancelNoticeEdit}
                   >
-                    작성 취소
+                    {t('notices.cancelEdit')}
                   </VevenoButton>
                 ) : null}
               </div>
@@ -1551,7 +1578,7 @@ export function VevenoStorePage() {
           ) : null}
 
           {notices.length === 0 ? (
-            <p className="veveno-empty">등록된 공지가 없습니다.</p>
+            <p className="veveno-empty">{t('notices.empty')}</p>
           ) : (
             <div className="veveno-stack">
               {notices.map((notice) => (
@@ -1571,7 +1598,7 @@ export function VevenoStorePage() {
                         disabled={savingNotice}
                         onClick={() => startEditNotice(notice)}
                       >
-                        수정
+                        {t('common.edit')}
                       </VevenoButton>
                       <VevenoButton
                         size="sm"
@@ -1579,7 +1606,7 @@ export function VevenoStorePage() {
                         disabled={savingNotice}
                         onClick={() => void handleDeleteNotice(notice.id)}
                       >
-                        삭제
+                        {t('common.delete')}
                       </VevenoButton>
                     </div>
                   ) : null}
@@ -1590,7 +1617,7 @@ export function VevenoStorePage() {
 
           <div className="veveno-modal__actions">
             <VevenoButton variant="secondary" onClick={closeNotices} disabled={savingNotice}>
-              닫기
+              {t('common.close')}
             </VevenoButton>
           </div>
         </div>
@@ -1598,7 +1625,7 @@ export function VevenoStorePage() {
 
       <VevenoModal
         open={menuCreateOpen}
-        title="메뉴 등록"
+        title={t('menus.register')}
         onClose={closeMenuCreate}
         closeOnBackdrop={!creatingMenuRecipe}
       >
@@ -1610,7 +1637,7 @@ export function VevenoStorePage() {
           ) : null}
           <div className="veveno-field">
             <label className="veveno-field__label" htmlFor="menu-create-category">
-              카테고리
+              {t('menus.category')}
             </label>
             <select
               id="menu-create-category"
@@ -1626,18 +1653,18 @@ export function VevenoStorePage() {
               }
               disabled={creatingMenuRecipe}
             >
-              <option value="">카테고리 선택</option>
+              <option value="">{t('menus.pickCategory')}</option>
               {menus.map((menu) => (
                 <option key={menu.id} value={menu.id}>
                   {menu.name}
                 </option>
               ))}
-              <option value="__custom__">직접 입력</option>
+              <option value="__custom__">{t('units.custom')}</option>
             </select>
           </div>
           {menuCreateForm.categoryKey === '__custom__' ? (
             <VevenoInput
-              label="카테고리 이름"
+              label={t('menus.categoryName')}
               value={menuCreateForm.customCategoryName}
               onChange={(e) =>
                 setMenuCreateForm((prev) => ({
@@ -1645,22 +1672,22 @@ export function VevenoStorePage() {
                   customCategoryName: e.target.value,
                 }))
               }
-              placeholder="새 카테고리 이름"
+              placeholder={t('menus.newCategoryPh')}
               disabled={creatingMenuRecipe}
             />
           ) : null}
           <VevenoInput
-            label="제목"
+            label={t('common.title')}
             value={menuCreateForm.title}
             onChange={(e) =>
               setMenuCreateForm((prev) => ({ ...prev, title: e.target.value }))
             }
-            placeholder="메뉴 제목"
+            placeholder={t('menus.menuTitlePh')}
             disabled={creatingMenuRecipe}
           />
           <div className="veveno-field">
             <span className="veveno-field__label" id="menu-create-notes-label">
-              노트
+              {t('common.notes')}
             </span>
                             <VevenoRecipeNotesEditor
               id="menu-create-notes"
@@ -1668,13 +1695,12 @@ export function VevenoStorePage() {
               onChange={(notes) =>
                 setMenuCreateForm((prev) => ({ ...prev, notes }))
               }
-              placeholder="추출·원두·테이스팅 메모"
+              placeholder={t('menus.notesPlaceholder')}
               rows={6}
               disabled={creatingMenuRecipe}
             />
             <p className="veveno-field__hint">
-              구분점·번호 목록은 툴바에서, 들여쓰기는 Tab / Shift+Tab 또는 툴바로
-              조절합니다.
+              {t('menus.notesHint')}
             </p>
           </div>
           <div className="veveno-modal__actions">
@@ -1683,10 +1709,10 @@ export function VevenoStorePage() {
               disabled={creatingMenuRecipe}
               onClick={closeMenuCreate}
             >
-              취소
+              {t('common.cancel')}
             </VevenoButton>
             <VevenoButton type="submit" loading={creatingMenuRecipe}>
-              추가
+              {t('common.add')}
             </VevenoButton>
           </div>
         </form>
@@ -1694,22 +1720,22 @@ export function VevenoStorePage() {
 
       <VevenoModal
         open={menuEditOpen}
-        title="메뉴 수정"
+        title={t('menus.editMenu')}
         onClose={closeMenuEditModal}
         closeOnBackdrop={!savingMenu}
       >
         <form className="veveno-form-stack" onSubmit={handleSaveMenuName}>
           <VevenoInput
-            label="이름"
+            label={t('common.name')}
             id="edit-menu-name"
             value={editingMenuName}
             onChange={(e) => setEditingMenuName(e.target.value)}
-            placeholder="카테고리 이름"
+            placeholder={t('menus.categoryName')}
             disabled={savingMenu}
           />
           <div className="veveno-modal__actions">
             <VevenoButton type="submit" disabled={savingMenu || !editingMenuName.trim()}>
-              {savingMenu ? '저장 중…' : '저장'}
+              {savingMenu ? t('common.saving') : t('common.save')}
             </VevenoButton>
             <VevenoButton
               type="button"
@@ -1721,7 +1747,7 @@ export function VevenoStorePage() {
                 }
               }}
             >
-              삭제
+              {t('common.delete')}
             </VevenoButton>
             <VevenoButton
               type="button"
@@ -1729,7 +1755,7 @@ export function VevenoStorePage() {
               disabled={savingMenu}
               onClick={closeMenuEditModal}
             >
-              취소
+              {t('common.cancel')}
             </VevenoButton>
           </div>
         </form>
@@ -1737,26 +1763,26 @@ export function VevenoStorePage() {
 
       <VevenoModal
         open={recipeViewOpen}
-        title={viewRecipeContent.title || '레시피'}
+        title={viewRecipeContent.title || t('menus.recipeFallback')}
         onClose={() => setRecipeViewOpen(false)}
       >
         <div className="veveno-recipe-view">
           {viewRecipeContent.notes ? (
             <VevenoRecipeNotesView notes={viewRecipeContent.notes} />
           ) : (
-            <p className="veveno-empty">노트가 없습니다.</p>
+            <p className="veveno-empty">{t('menus.noNotes')}</p>
           )}
         </div>
         <div className="veveno-modal__actions">
           <VevenoButton variant="secondary" onClick={() => setRecipeViewOpen(false)}>
-            닫기
+            {t('common.close')}
           </VevenoButton>
         </div>
       </VevenoModal>
 
       <VevenoModal
         open={Boolean(interruptList)}
-        title={interruptList ? interruptList.title : '할 일'}
+        title={interruptList ? interruptList.title : t('store.tabs.checklists')}
         onClose={() => {
           if (interruptList) {
             sessionStorage.setItem(interruptKey(storeId, interruptList.templateId), '1');
@@ -1804,7 +1830,7 @@ export function VevenoStorePage() {
 
       <VevenoModal
         open={leaveOpen}
-        title={`${leaveTarget?.nickname ?? ''} 퇴사`}
+        title={t('settings.leaveTitle', { nickname: leaveTarget?.nickname ?? '' })}
         onClose={() => {
           if (!leaving) {
             setLeaveOpen(false);
@@ -1814,11 +1840,10 @@ export function VevenoStorePage() {
       >
         <form className="veveno-form-stack" onSubmit={(e) => void handleConfirmLeave(e)}>
           <p className="veveno-card-lead">
-            퇴사일(마지막 근무일)을 선택하세요. 그날까지 근무할 수 있고, 다음날부터
-            구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 처리됩니다.
+            {t('settings.leaveLead')}
           </p>
           <VevenoInput
-            label="퇴사일"
+            label={t('settings.leaveDate')}
             id="leave-date"
             type="date"
             required
@@ -1835,10 +1860,10 @@ export function VevenoStorePage() {
                 setLeaveTarget(null);
               }}
             >
-              취소
+              {t('common.cancel')}
             </VevenoButton>
             <VevenoButton type="submit" variant="danger" loading={leaving}>
-              퇴사 처리
+              {t('settings.leaveSubmit')}
             </VevenoButton>
           </div>
         </form>

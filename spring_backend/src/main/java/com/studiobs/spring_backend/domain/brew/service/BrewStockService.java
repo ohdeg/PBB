@@ -94,7 +94,7 @@ public class BrewStockService {
         requireStockMutator(storeId, user.getId());
         String name = request.name().trim();
         if (stockCategoryRepository.existsByStoreIdAndCategoryName(storeId, name)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 카테고리 이름입니다.");
+            throw new BusinessException(HttpStatus.CONFLICT, "CATEGORY_NAME_TAKEN", "이미 있는 카테고리 이름입니다.");
         }
         BrewStoreStockCategory category = stockCategoryRepository.save(
                 BrewStoreStockCategory.builder().storeId(storeId).categoryName(name).build());
@@ -112,14 +112,14 @@ public class BrewStockService {
         requireStockMutator(category.getStoreId(), user.getId());
         String name = request.name().trim();
         if (name.isEmpty()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "카테고리 이름을 입력해 주세요.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CATEGORY_NAME_REQUIRED", "카테고리 이름을 입력해 주세요.");
         }
         if (!category.getCategoryName().equalsIgnoreCase(name)
                 && stockCategoryRepository.existsByStoreIdAndCategoryName(
                         category.getStoreId(),
                         name
                 )) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 카테고리 이름입니다.");
+            throw new BusinessException(HttpStatus.CONFLICT, "CATEGORY_NAME_TAKEN", "이미 있는 카테고리 이름입니다.");
         }
         category.rename(name);
         List<BrewStoreStock> stocks =
@@ -154,7 +154,7 @@ public class BrewStockService {
         validateStockNums(request.stockNum(), request.stockMinNum());
         String name = request.stockName().trim();
         if (stockRepository.existsByCategoryIdAndStockName(categoryId, name)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 재고 이름입니다.");
+            throw new BusinessException(HttpStatus.CONFLICT, "STOCK_NAME_TAKEN", "이미 있는 재고 이름입니다.");
         }
         BrewStoreStock stock = stockRepository.save(BrewStoreStock.builder()
                 .categoryId(categoryId)
@@ -180,12 +180,13 @@ public class BrewStockService {
         boolean includeOrderUrl = isOwner(store, user.getId());
         validateStockNums(request.stockNum(), request.stockMinNum());
         if (request.version() == null) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "재고 version이 필요합니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "STOCK_VERSION_REQUIRED", "재고 version이 필요합니다.");
         }
         int currentVersion = stock.getVersion() == null ? 0 : stock.getVersion();
         if (currentVersion != request.version()) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
+                    "STOCK_STALE",
                     "다른 사용자가 재고를 수정했습니다. 다시 불러온 뒤 수정하세요."
             );
         }
@@ -193,7 +194,7 @@ public class BrewStockService {
                 request.categoryId() != null ? request.categoryId() : stock.getCategoryId();
         BrewStoreStockCategory targetCategory = requireStockCategory(targetCategoryId);
         if (!targetCategory.getStoreId().equals(category.getStoreId())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "다른 가게 카테고리로는 옮길 수 없습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "STOCK_CATEGORY_WRONG_STORE", "다른 가게 카테고리로는 옮길 수 없습니다.");
         }
         String name = request.stockName().trim();
         if (stockRepository.existsByCategoryIdAndStockNameAndIdNot(
@@ -201,7 +202,7 @@ public class BrewStockService {
                 name,
                 stockId
         )) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 있는 재고 이름입니다.");
+            throw new BusinessException(HttpStatus.CONFLICT, "STOCK_NAME_TAKEN", "이미 있는 재고 이름입니다.");
         }
         int previousNum = stock.getStockNum();
         String unit = request.unit() == null ? stock.getUnit() : resolveUnit(request.unit());
@@ -227,7 +228,7 @@ public class BrewStockService {
         BrewStoreStock stock = requireStock(stockId);
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
         if (!category.getStoreId().equals(storeId)) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "재고를 찾을 수 없습니다.");
+            throw new BusinessException(HttpStatus.NOT_FOUND, "STOCK_NOT_FOUND", "재고를 찾을 수 없습니다.");
         }
         List<BrewStoreStockLog> logs = stockLogRepository.findTop50ByStockIdOrderByIdDesc(stockId);
         Map<UUID, String> nicknames = userService.nicknameMap(
@@ -262,7 +263,7 @@ public class BrewStockService {
                 .map(BrewStoreSubscription::isCanEditStock)
                 .orElse(false);
         if (!allowed) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "재고 수정 권한이 없습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "STOCK_EDIT_FORBIDDEN", "재고 수정 권한이 없습니다.");
         }
     }
 
@@ -278,6 +279,7 @@ public class BrewStockService {
         if (!brewScheduleService.isCurrentlyOnDuty(storeId, userId)) {
             throw new BusinessException(
                     HttpStatus.FORBIDDEN,
+                    "STOCK_EDIT_OFF_DUTY",
                     "근무 시간에만 재고를 수정할 수 있습니다."
             );
         }
@@ -286,19 +288,20 @@ public class BrewStockService {
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+                        new BusinessException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "로그인이 필요합니다."));
     }
 
     private BrewStore requireStore(UUID storeId) {
         return storeRepository.findById(storeId)
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.NOT_FOUND, "가게를 찾을 수 없습니다."));
+                        new BusinessException(HttpStatus.NOT_FOUND, "STORE_NOT_FOUND", "가게를 찾을 수 없습니다."));
     }
 
     private BrewStoreStockCategory requireStockCategory(Integer categoryId) {
         return stockCategoryRepository.findById(categoryId)
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND,
+                        "STOCK_CATEGORY_NOT_FOUND",
                         "재고 카테고리를 찾을 수 없습니다."
                 ));
     }
@@ -306,15 +309,15 @@ public class BrewStockService {
     private BrewStoreStock requireStock(Integer stockId) {
         return stockRepository.findById(stockId)
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.NOT_FOUND, "재고를 찾을 수 없습니다."));
+                        new BusinessException(HttpStatus.NOT_FOUND, "STOCK_NOT_FOUND", "재고를 찾을 수 없습니다."));
     }
 
     private void validateStockNums(int stockNum, Integer stockMinNum) {
         if (stockNum < 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "재고 수량은 0 이상이어야 합니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "STOCK_QTY_NEGATIVE", "재고 수량은 0 이상이어야 합니다.");
         }
         if (stockMinNum != null && stockMinNum < 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "경고 수량은 0 이상이어야 합니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "STOCK_MIN_NEGATIVE", "경고 수량은 0 이상이어야 합니다.");
         }
     }
 
@@ -407,7 +410,7 @@ public class BrewStockService {
             return "개";
         }
         if (unit.length() > UNIT_MAX_LEN) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "단위는 16자까지 입력할 수 있습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "UNIT_TOO_LONG", "단위는 16자까지 입력할 수 있습니다.");
         }
         return unit;
     }
@@ -422,7 +425,7 @@ public class BrewStockService {
         }
         String lower = url.toLowerCase(Locale.ROOT);
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "http 또는 https 주소만 넣을 수 있습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "ORDER_URL_INVALID", "http 또는 https 주소만 넣을 수 있습니다.");
         }
         return url;
     }

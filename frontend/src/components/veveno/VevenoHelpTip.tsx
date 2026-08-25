@@ -1,11 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 interface VevenoHelpTipProps {
   text: string;
   label?: string;
 }
 
-export function VevenoHelpTip({ text, label = '도움말' }: VevenoHelpTipProps) {
+export function VevenoHelpTip({ text, label }: VevenoHelpTipProps) {
+  const t = useTranslation();
+  const resolvedLabel = label ?? t('common.help');
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
   const bubbleId = useId();
@@ -35,7 +38,7 @@ export function VevenoHelpTip({ text, label = '도움말' }: VevenoHelpTipProps)
       <button
         type="button"
         className="veveno-help-tip__btn"
-        aria-label={label}
+        aria-label={resolvedLabel}
         aria-expanded={open}
         aria-describedby={bubbleId}
         onClick={() => setOpen((prev) => !prev)}

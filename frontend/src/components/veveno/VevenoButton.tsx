@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 interface VevenoButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -17,6 +18,7 @@ export function VevenoButton({
   type = 'button',
   ...props
 }: VevenoButtonProps) {
+  const t = useTranslation();
   const classes = [
     'veveno-btn',
     `veveno-btn--${variant}`,
@@ -33,7 +35,7 @@ export function VevenoButton({
       disabled={disabled || loading}
       {...props}
     >
-      {loading ? '처리 중...' : children}
+      {loading ? t('common.processing') : children}
     </button>
   );
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { VevenoBadge } from './VevenoBadge';
 
 interface VevenoStoreRowProps {
@@ -20,6 +21,7 @@ export function VevenoStoreRow({
   onClick,
   trailing,
 }: VevenoStoreRowProps) {
+  const t = useTranslation();
   const className = [
     'veveno-store-row',
     selected ? 'is-selected' : '',
@@ -35,7 +37,7 @@ export function VevenoStoreRow({
         <div className="veveno-store-row__main">
           <div className="veveno-store-row__title-row">
             <p className="veveno-store-row__name">{name}</p>
-            {selected ? <VevenoBadge variant="info">선택</VevenoBadge> : null}
+            {selected ? <VevenoBadge variant="info">{t('common.select')}</VevenoBadge> : null}
           </div>
           {subtitle ? <p className="veveno-store-row__sub">{subtitle}</p> : null}
         </div>

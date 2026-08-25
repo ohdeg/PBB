@@ -69,4 +69,5 @@ export interface PasswordChangeRequest {
 
 export interface ApiErrorBody {
   message: string;
+  code?: string;
 }

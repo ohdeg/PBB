@@ -193,17 +193,23 @@ FigJam §8~8-3 + Notion DB 스키마 기준.
 
 홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO).  
 랜딩은 로그인·가게 여부와 관계없이 **항상 표시**(홈「소개 보기」용). **가게 열기** → 로그인 또는 허브(`/hub`). **사장님으로 써보기** → 로컬 체험 `/hobbies/veveno/stores/demo`(로그인 없음, 이 기기만 저장).  
-체험 가게 배너에서 **사장 | 직원** 토글(같은 데이터, 권한만 바뀜). 직원 보기에서는 설정 탭·메뉴 편집·발주 URL이 숨겨진다. 시드 에티오피아는 사용량 예측으로 **곧 부족**(약 2일분). 수량을 충분히 올리면 뱃지가 사라진다. **체험 끝내기**는 시드를 초기화하고 랜딩으로 돌아간다.  
+체험 가게 배너에서 **사장 | 직원** 토글(같은 데이터, 권한만 바뀜). 직원 보기에서는 메뉴 편집·발주 URL이 숨겨진다. **설정 탭은 언어용으로 열리고**, 업장·직원 설정은 사장님만 본다. 시드 에티오피아는 사용량 예측으로 **곧 부족**(약 2일분). 수량을 충분히 올리면 뱃지가 사라진다. **체험 끝내기**는 시드를 초기화하고 랜딩으로 돌아간다.  
 허브(내 가게·근무 가게·검색)와 **실가게** 상세는 로그인 필수. 헤더: 열람자 본인이 해당 가게 **현재 근무 구간**이면 「근무중」 뱃지(업주·직원 공통, 정규·승인 대타/추가·자정 넘김). `onDuty`는 업주도 스케줄 기준(상시 true 아님). 재고 수정은 업주 상시, 직원은 `canEditStock`+근무 중.  
 허브 가게 카드: 오늘 **due**인 오픈·마감만 `오픈 3/8 · 마감 아직`(0=아직, 전부=완료). 근무가 아니면 줄 없음.
+
+**언어** (`ko` / `en` / `ja`, 칩 라벨은 항상 한국어 / English / 日本語): 첫 방문은 `navigator.languages` → `navigator.language`에서 지원 태그를 고르고, 없으면 `ko`. **칩·설정에서 고른 뒤에만** `localStorage` `veveno:lang`에 저장한다(그 전엔 방문마다 브라우저를 따른다). 전환 위치: 랜딩 칩, 허브 상단, 가게 설정(사장·직원·체험 공통). 계정/가게 DB 언어·첫 방문 모달 없음. 날짜 표시는 `ko-KR` / `en-US` / `ja-JP`, 영업일 기준은 Asia/Seoul. 사용자가 적은 가게·메뉴·재고 이름은 번역하지 않는다.
 
 ```mermaid
 flowchart LR
     home([홈]) --> landing[/hobbies/veveno 랜딩]
     landing -->|"가게 열기 · 로그인"| hub[허브]
     landing -->|"가게 열기 · 비로그인"| login([/login])
+    landing --> langChips[언어 칩]
+    langChips --> landing
     landing -->|"사장님으로 써보기"| demo[로컬 체험 /stores/demo]
     demo -->|"사장 / 직원 토글"| demo
+    demo --> demoLang[설정 · 언어]
+    demoLang --> demo
     demo -->|"체험 끝내기"| landing
     login --> hub
     hub --> register[업장 등록]
@@ -218,7 +224,7 @@ flowchart LR
 진입 시 허브/가게에서는 **Veveno 스플래시**(앱 외부에서 진입할 때)를 표시한 뒤 본 화면으로 전환.
 옛 경로 `/hobbies/brew-note` → 랜딩, `/hobbies/brew-note/stores/:id` → `/hobbies/veveno/stores/:id` 리다이렉트.
 
-- 설정(owner): **가게 코드** 표시·복사·재발급 (`invite_code` 8자 UNIQUE)
+- 설정: **언어** 카드(사장·직원·체험 공통, 이 기기만). owner는 이어서 **가게 코드** 표시·복사·재발급 (`invite_code` 8자 UNIQUE)
 - 허브 검색: 이름 부분일치 + 8자 영숫자면 코드 정확 일치(비공개 포함)
 
 ### 8-1. 도메인
@@ -619,7 +625,7 @@ flowchart LR
 flowchart LR
     open([ITEM +]) --> photo[1 사진 선택]
     photo --> worn{착용 사진에서 옷만 추출?}
-    worn -->|"아니오"| classify[기존 분류·배경제거]
+    worn -->|"아니오"| classify[분류만 · skipRembg]
     worn -->|"예"| target[필수 종류 선택 TOP/BOTTOM/OUTER/DRESS]
     target --> extract[보이는 옷 영역만 분할·투명 PNG]
     extract -->|"마스크 품질 실패"| blocked[경고 · 미리보기 제거 · 저장 차단]
@@ -627,8 +633,12 @@ flowchart LR
     extract -->|"성공"| details[2 이름·분류·따뜻함·옷사이즈]
     classify -->|"옷아님·실패"| photo
     classify -->|"성공"| details
+    details --> rembg[백그라운드 POST /ml/rembg]
+    rembg -->|"실패"| details
+    rembg -->|"완료"| ready[투명 PNG 미리보기]
     details -->|"사진 다시"| photo
-    details --> save[저장]
+    ready --> save[저장]
+    details -->|"rembg 전"| waitSave[저장 비활성]
     cardEdit([카드 · 수정]) --> editDetails[기존 값 프리필 · 2단계]
     editDetails -->|"사진 다시"| photo
     editDetails --> upsert[PUT /items id]
@@ -636,7 +646,7 @@ flowchart LR
 
 옷장 카드: 이미지·이름·분류·따뜻함만 표시(치수·버튼 없음). **카드 클릭 → 상세 모달**(치수 전체 + 입어보기·수정·삭제; 가방/모자/주얼리는 입어보기 없음).
 슬롯: TOP·BOTTOM·OUTER·SHOES·DRESS·**BAG·HAT·JEWELRY**. 신발·악세서리는 warmth null · 악세서리는 치수 필드 없음.
-옷장 ITEM+: predict가 slot / categoryCode / warmth(1–5, 신발·악세서리는 null) / taxonomyGroup을 프리필. 등록·수정 시 **브랜드·상품 URL(선택)** 저장. 기본 상품 사진 흐름은 기존 generic rembg를 유지한다. 「착용 사진에서 옷만 추출」을 켜면 TOP/BOTTOM/OUTER/DRESS(신발·악세서리 제외)를 먼저 고르고, `POST /api/v1/sranko/ml/predict` multipart의 `extractWornGarment=true`·`targetSlot`로 요청한다. 성공 시 해당 종류가 classifier보다 우선하며, 사진에 실제로 보이는 의류 픽셀만 crop한 투명 PNG를 사용한다. OUTER는 cloth 모델 한계상 보이는 최외곽 상체 의류 영역이다. 품질 실패는 `garmentExtractionApplied=false`·`extractionWarning`으로 미리보기를 지우고 저장을 막는다. 유저가 대분류·소분류·따뜻함을 수정한 값이 저장·향후 학습 GT. **DRESS 소분류는 소매 타입**(`긴팔`/`반팔`/`민소매`; slot=원피스, 레거시 `원피스`→`긴팔`). BOTTOM 소분류가 기장 스타일(반바지=짧음, 데님·면바지·슬랙스=김, 치마=넓은 허용). DRESS 옷 치수 키는 어깨·가슴·소매길이·허리·엉덩이·총기장 순서.
+옷장 ITEM+: predict가 slot / categoryCode / warmth(1–5, 신발·악세서리는 null) / taxonomyGroup을 프리필. 등록·수정 시 **브랜드·상품 URL(선택)** 저장. **기본 상품 사진**은 `skipBackgroundRemoval`으로 **분류만 먼저** 2단계로 보내고, `POST /ml/rembg`로 배경 제거를 이어 한다(저장은 rembg 완료·PNG 준비 후). 「착용 사진에서 옷만 추출」을 켜면 TOP/BOTTOM/OUTER/DRESS(신발·악세서리 제외)를 먼저 고르고, `POST /api/v1/sranko/ml/predict` multipart의 `extractWornGarment=true`·`targetSlot`로 **한 번에** 요청한다. 성공 시 해당 종류가 classifier보다 우선하며, 사진에 실제로 보이는 의류 픽셀만 crop한 투명 PNG를 사용한다. OUTER는 cloth 모델 한계상 보이는 최외곽 상체 의류 영역이다. 품질 실패는 `garmentExtractionApplied=false`·`extractionWarning`으로 미리보기를 지우고 저장을 막는다. 유저가 대분류·소분류·따뜻함을 수정한 값이 저장·향후 학습 GT. **DRESS 소분류는 소매 타입**(`긴팔`/`반팔`/`민소매`; slot=원피스, 레거시 `원피스`→`긴팔`). BOTTOM 소분류가 기장 스타일(반바지=짧음, 데님·면바지·슬랙스=김, 치마=넓은 허용). DRESS 옷 치수 키는 어깨·가슴·소매길이·허리·엉덩이·총기장 순서.
 **수정**: 상세 「수정」→ 등록과 같은 모달에 기존 값 프리필. 사진 미변경 시 기존 `imageUrl` 유지, 변경 시 재업로드 후 `PUT /items`에 `id`로 upsert(이전 R2 이미지 삭제).
 **다중 선택 바**: 카드 체크로 아이템 다중 선택 → sticky 바에서 「선택 해제」·「삭제」(확인 후 `DELETE` 일괄)·「룩 입어보기」. **룩 입어보기**: OUTER/TOP/BOTTOM/DRESS/**HAT**/**SHOES** (슬롯당 1 · DRESS↔TOP/BOTTOM 배타 · max 5) → Gemini 풀룩 착용 1장 → `POST /looks` `source=TRY_ON`. 가방·주얼리만 선택된 경우 버튼 비활성. 플랫레이 콜라주(COMPOSE)는 제거(기존 COMPOSE 룩은 조회만 가능).
 옷장 **내 사이즈** / **성별(마네킹)**: 헤더 「정보 수정」 모달에서 관리(성별·사이즈 저장/삭제).  

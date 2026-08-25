@@ -14,14 +14,17 @@ import { VevenoInput } from '../components/veveno/VevenoInput';
 import { VevenoStoreRow } from '../components/veveno/VevenoStoreRow';
 import { VevenoVisibilityBadge } from '../components/veveno/VevenoVisibilityBadge';
 import { hubTodayLine } from '../components/veveno/vevenoHubTodayLine';
+import { VevenoLangSwitch } from '../components/veveno/VevenoLangSwitch';
+import { getVevenoErrorMessage } from '../features/veveno/i18n/error';
+import { useTranslation } from '../features/veveno/i18n/LanguageContext';
 import { useAuthStore } from '../stores/authStore';
 import type { VevenoStore } from '../types/veveno';
-import { getErrorMessage } from '../utils/error';
 
 type HubPanel = 'none' | 'find' | 'create';
 
 export function VevenoPage() {
   const navigate = useNavigate();
+  const t = useTranslation();
   const accessToken = useAuthStore((state) => state.accessToken);
   const { showSplash, handleSplashFinish } = useVevenoSplash();
   const [myStores, setMyStores] = useState<VevenoStore[]>([]);
@@ -68,7 +71,7 @@ export function VevenoPage() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(getErrorMessage(err, '가게 목록을 불러오지 못했습니다.'));
+          setError(getVevenoErrorMessage(err, t('errors.failLoadStores'), t));
         }
       } finally {
         if (!cancelled) {
@@ -79,7 +82,7 @@ export function VevenoPage() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -98,7 +101,7 @@ export function VevenoPage() {
         ids.map(async (id) => {
           try {
             const { data } = await vevenoApi.listTodayChecklists(id);
-            return [id, hubTodayLine(data)] as const;
+            return [id, hubTodayLine(data, t)] as const;
           } catch {
             return [id, undefined] as const;
           }
@@ -118,7 +121,7 @@ export function VevenoPage() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, myStores, subscriptions]);
+  }, [accessToken, myStores, subscriptions, t]);
 
   useEffect(() => {
     if (panel === 'none') {
@@ -142,7 +145,7 @@ export function VevenoPage() {
     const q = joinQuery.trim();
     if (!q) {
       setSearchResults([]);
-      setSearchMessage('가게 이름 또는 코드를 입력해 주세요.');
+      setSearchMessage(t('hub.searchEmptyQuery'));
       return;
     }
     setSearching(true);
@@ -151,10 +154,10 @@ export function VevenoPage() {
     try {
       const { data } = await vevenoApi.searchStores(q);
       setSearchResults(data);
-      setSearchMessage(data.length === 0 ? '검색 결과가 없습니다.' : null);
+      setSearchMessage(data.length === 0 ? t('hub.searchNone') : null);
     } catch (err: unknown) {
       setSearchResults([]);
-      setSearchMessage(getErrorMessage(err, '가게 검색에 실패했습니다.'));
+      setSearchMessage(getVevenoErrorMessage(err, t('errors.failSearch'), t));
     } finally {
       setSearching(false);
     }
@@ -171,7 +174,7 @@ export function VevenoPage() {
     event.preventDefault();
     const name = storeName.trim();
     if (!name) {
-      setError('가게 이름을 입력해 주세요.');
+      setError(t('hub.nameRequired'));
       return;
     }
     setCreating(true);
@@ -180,7 +183,7 @@ export function VevenoPage() {
       const { data } = await vevenoApi.createStore({ name, isPublic });
       void navigate(`/hobbies/veveno/stores/${data.id}`);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '가게 등록에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failCreateStore'), t));
     } finally {
       setCreating(false);
     }
@@ -195,12 +198,12 @@ export function VevenoPage() {
     setFeedback('');
     try {
       await vevenoApi.requestJoin(store.id);
-      setFeedback('가입 신청이 접수되었습니다. 업주 승인을 기다려 주세요.');
+      setFeedback(t('hub.joinOk'));
       setJoinQuery('');
       setSearchResults([]);
       setSearchMessage(null);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '가입 신청에 실패했습니다.'));
+      setError(getVevenoErrorMessage(err, t('errors.failJoin'), t));
     } finally {
       setJoiningStoreId(null);
     }
@@ -213,7 +216,7 @@ export function VevenoPage() {
   if (loading) {
     return (
       <main className="veveno-shell">
-        <div className="veveno-shell__inner veveno-shell__loading">불러오는 중…</div>
+        <div className="veveno-shell__inner veveno-shell__loading">{t('hub.loading')}</div>
       </main>
     );
   }
@@ -225,17 +228,18 @@ export function VevenoPage() {
       <div className="veveno-shell__inner veveno-shell__inner--hub">
         <div className="veveno-shell__top">
           <Link to="/" className="veveno-shell__back">
-            ← 메인
+            {t('common.backMain')}
           </Link>
+          <VevenoLangSwitch />
         </div>
 
         <header className="veveno-shell__hero veveno-shell__hero--hub">
           <p className="veveno-shell__hero-brand">Veveno</p>
           {bothEmpty ? null : (
             <div className="veveno-hero-cta">
-              <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+              <VevenoButton onClick={() => openPanel('create')}>{t('hub.register')}</VevenoButton>
               <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
-                가게 찾기
+                {t('hub.find')}
               </VevenoButton>
             </div>
           )}
@@ -254,13 +258,13 @@ export function VevenoPage() {
 
         {bothEmpty ? (
           <VevenoEmptyState
-            title="아직 가게가 없습니다"
-            body="내 가게를 만들거나, 코드·이름으로 근무할 가게를 찾으세요."
+            title={t('hub.emptyTitle')}
+            body={t('hub.emptyBody')}
             action={
               <>
-                <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+                <VevenoButton onClick={() => openPanel('create')}>{t('hub.register')}</VevenoButton>
                 <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
-                  가게 찾기
+                  {t('hub.find')}
                 </VevenoButton>
               </>
             }
@@ -268,7 +272,7 @@ export function VevenoPage() {
         ) : (
         <div className="veveno-hub-grid">
           <section className="veveno-section">
-            <VevenoCard title="내 가게">
+            <VevenoCard title={t('hub.myStores')}>
               {hasOwned ? (
                 <div className="veveno-stack">
                   {myStores.map((store) => (
@@ -284,7 +288,7 @@ export function VevenoPage() {
                         <>
                           <VevenoVisibilityBadge isPublic={store.isPublic} />
                           {store.onDuty ? (
-                            <VevenoBadge variant="success">근무중</VevenoBadge>
+                            <VevenoBadge variant="success">{t('hub.onDuty')}</VevenoBadge>
                           ) : null}
                         </>
                       }
@@ -293,10 +297,10 @@ export function VevenoPage() {
                 </div>
               ) : (
                 <VevenoEmptyState
-                  title="내 가게가 없습니다"
-                  body="이름을 정하면 바로 노트를 시작할 수 있습니다."
+                  title={t('hub.noMineTitle')}
+                  body={t('hub.noMineBody')}
                   action={
-                    <VevenoButton onClick={() => openPanel('create')}>가게 등록</VevenoButton>
+                    <VevenoButton onClick={() => openPanel('create')}>{t('hub.register')}</VevenoButton>
                   }
                 />
               )}
@@ -304,7 +308,7 @@ export function VevenoPage() {
           </section>
 
           <section className="veveno-section">
-            <VevenoCard title="근무 가게">
+            <VevenoCard title={t('hub.workStores')}>
               {hasSubs ? (
                 <div className="veveno-stack">
                   {subscriptions.map((store) => (
@@ -320,7 +324,7 @@ export function VevenoPage() {
                         <>
                           <VevenoVisibilityBadge isPublic={store.isPublic} />
                           {store.onDuty ? (
-                            <VevenoBadge variant="success">근무중</VevenoBadge>
+                            <VevenoBadge variant="success">{t('hub.onDuty')}</VevenoBadge>
                           ) : null}
                         </>
                       }
@@ -329,11 +333,11 @@ export function VevenoPage() {
                 </div>
               ) : (
                 <VevenoEmptyState
-                  title="근무 중인 가게가 없습니다"
-                  body="가게 이름이나 코드로 찾아 가입하세요."
+                  title={t('hub.noWorkTitle')}
+                  body={t('hub.noWorkBody')}
                   action={
                     <VevenoButton variant="secondary" onClick={() => openPanel('find')}>
-                      가게 찾기
+                      {t('hub.find')}
                     </VevenoButton>
                   }
                 />
@@ -347,29 +351,26 @@ export function VevenoPage() {
           <section className="veveno-section veveno-hub-panel" ref={panelRef}>
             <div className="veveno-hub-panel__bar">
               <p className="veveno-section__label">
-                {panel === 'find' ? '가게 찾기' : '가게 등록'}
+                {panel === 'find' ? t('hub.findPanel') : t('hub.createPanel')}
               </p>
               <VevenoButton size="sm" variant="ghost" onClick={() => setPanel('none')}>
-                닫기
+                {t('common.close')}
               </VevenoButton>
             </div>
 
             {panel === 'find' ? (
-              <VevenoCard title="가게 검색 · 가입">
-                <p className="veveno-card-lead">
-                  가게 이름 또는 가게 코드(8자)로 찾아 가입을 신청합니다. 동명이 있을 때는
-                  코드를 쓰면 정확히 찾을 수 있습니다.
-                </p>
+              <VevenoCard title={t('hub.searchCard')}>
+                <p className="veveno-card-lead">{t('hub.searchLead')}</p>
                 <div className="veveno-search-row">
                   <VevenoInput
                     value={joinQuery}
                     onChange={(e) => setJoinQuery(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
-                    placeholder="가게 이름 또는 코드"
+                    placeholder={t('hub.searchPlaceholder')}
                     autoComplete="off"
                   />
                   <VevenoButton onClick={() => void handleSearch()} loading={searching}>
-                    검색
+                    {t('common.search')}
                   </VevenoButton>
                 </div>
 
@@ -388,18 +389,18 @@ export function VevenoPage() {
                               <p className="veveno-store-row__name">{store.name}</p>
                               <VevenoVisibilityBadge isPublic={store.isPublic} />
                               {store.owned ? (
-                                <VevenoBadge variant="info">내 가게</VevenoBadge>
+                                <VevenoBadge variant="info">{t('hub.myStoreBadge')}</VevenoBadge>
                               ) : null}
                               {store.subscribed ? (
-                                <VevenoBadge variant="success">구독 중</VevenoBadge>
+                                <VevenoBadge variant="success">{t('hub.subscribedBadge')}</VevenoBadge>
                               ) : null}
                               {store.onDuty ? (
-                                <VevenoBadge variant="success">근무중</VevenoBadge>
+                                <VevenoBadge variant="success">{t('hub.onDuty')}</VevenoBadge>
                               ) : null}
                             </div>
                             {!canOpen ? (
                               <p className="veveno-store-row__sub">
-                                비공개 가게입니다. 가입 승인 후 열람할 수 있습니다.
+                                {t('hub.privateHint')}
                               </p>
                             ) : null}
                           </div>
@@ -412,7 +413,7 @@ export function VevenoPage() {
                                 void navigate(`/hobbies/veveno/stores/${store.id}`);
                               }}
                             >
-                              열기
+                              {t('common.open')}
                             </VevenoButton>
                             {!store.owned && !store.subscribed ? (
                               <VevenoButton
@@ -422,7 +423,7 @@ export function VevenoPage() {
                                   void handleJoin(store);
                                 }}
                               >
-                                가입 신청
+                                {t('hub.join')}
                               </VevenoButton>
                             ) : null}
                           </div>
@@ -433,16 +434,14 @@ export function VevenoPage() {
                 ) : null}
               </VevenoCard>
             ) : (
-              <VevenoCard title="가게 등록">
-                <p className="veveno-card-lead">
-                  이름과 공개 여부만 정하면 새 노트를 시작할 수 있습니다.
-                </p>
+              <VevenoCard title={t('hub.createTitle')}>
+                <p className="veveno-card-lead">{t('hub.createLead')}</p>
                 <form className="veveno-form-stack" onSubmit={handleCreateStore}>
                   <VevenoInput
-                    label="가게 이름"
+                    label={t('hub.storeName')}
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
-                    placeholder="예: 5DEG Roasters"
+                    placeholder={t('hub.storeNamePh')}
                     maxLength={120}
                     disabled={creating}
                   />
@@ -453,10 +452,10 @@ export function VevenoPage() {
                       onChange={(e) => setIsPublic(e.target.checked)}
                       disabled={creating}
                     />
-                    공개 가게
+                    {t('hub.publicStore')}
                   </label>
                   <VevenoButton type="submit" loading={creating}>
-                    가게 생성
+                    {t('hub.createSubmit')}
                   </VevenoButton>
                 </form>
               </VevenoCard>

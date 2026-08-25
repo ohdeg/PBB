@@ -1,9 +1,12 @@
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
+
 interface VevenoVisibilityBadgeProps {
   isPublic: boolean;
 }
 
 export function VevenoVisibilityBadge({ isPublic }: VevenoVisibilityBadgeProps) {
-  const label = isPublic ? '공개 가게' : '비공개 가게';
+  const t = useTranslation();
+  const label = isPublic ? t('settings.publicStore') : t('store.privateStore');
   return (
     <span
       className={`veveno-visibility ${isPublic ? 'veveno-visibility--open' : 'veveno-visibility--closed'}`}

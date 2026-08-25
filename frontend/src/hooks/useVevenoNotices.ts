@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { vevenoApi } from '../api/vevenoApi'
+import { getVevenoErrorMessage } from '../features/veveno/i18n/error'
+import { useTranslation } from '../features/veveno/i18n/LanguageContext'
 import type { VevenoNotice, VevenoStore } from '../types/veveno'
-import { getErrorMessage } from '../utils/error'
 
 interface UseVevenoNoticesOptions {
   store: VevenoStore | null
@@ -15,6 +16,7 @@ export function useVevenoNotices({
   storeId,
   setError,
 }: UseVevenoNoticesOptions) {
+  const t = useTranslation()
   const [notices, setNotices] = useState<VevenoNotice[]>([])
   const [noticesOpen, setNoticesOpen] = useState(false)
   const [noticeForm, setNoticeForm] = useState({ title: '', body: '' })
@@ -52,7 +54,7 @@ export function useVevenoNotices({
     const title = noticeForm.title.trim()
     const body = noticeForm.body.trim()
     if (!title || !body) {
-      setError('제목과 본문을 입력해 주세요.')
+      setError(t('notices.titleBodyRequired'))
       return
     }
 
@@ -74,14 +76,14 @@ export function useVevenoNotices({
       setEditingNoticeId(null)
       setNoticeForm({ title: '', body: '' })
     } catch (error: unknown) {
-      setError(getErrorMessage(error, '공지 저장에 실패했습니다.'))
+      setError(getVevenoErrorMessage(error, t('errors.failNoticeSave'), t))
     } finally {
       setSavingNotice(false)
     }
   }
 
   const handleDeleteNotice = async (noticeId: string) => {
-    if (!store?.owned || !window.confirm('이 공지를 삭제할까요?')) return
+    if (!store?.owned || !window.confirm(t('notices.confirmDelete'))) return
 
     setSavingNotice(true)
     setError('')
@@ -95,7 +97,7 @@ export function useVevenoNotices({
         setNoticeForm({ title: '', body: '' })
       }
     } catch (error: unknown) {
-      setError(getErrorMessage(error, '공지 삭제에 실패했습니다.'))
+      setError(getVevenoErrorMessage(error, t('errors.failNoticeDelete'), t))
     } finally {
       setSavingNotice(false)
     }

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
+import { VevenoI18nProvider } from './features/veveno/i18n/LanguageContext';
 import { bootstrapAuth } from './api/axios';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { AppShell } from './components/AppShell';
@@ -148,6 +149,14 @@ function LegacyVevenoStoreRedirect() {
   return <Navigate to={`/hobbies/veveno/stores/${storeId ?? ''}`} replace />;
 }
 
+function VevenoI18nLayout() {
+  return (
+    <VevenoI18nProvider>
+      <Outlet />
+    </VevenoI18nProvider>
+  );
+}
+
 export default function App() {
   // 최초 진입 경로만 본다 (홈→Veveno 이동 시 boot 로직을 다시 돌리지 않음)
   const skipBootSplash = useRef(
@@ -210,12 +219,14 @@ export default function App() {
                 path="/hobbies/analyze-baseball"
                 element={<Navigate to="/" replace />}
               />
-              <Route path="/hobbies/veveno" element={<VevenoLandingPage />} />
-              <Route path="/hobbies/veveno/hub" element={<VevenoPage />} />
-              <Route
-                path="/hobbies/veveno/stores/:storeId"
-                element={<VevenoStorePage />}
-              />
+              <Route element={<VevenoI18nLayout />}>
+                <Route path="/hobbies/veveno" element={<VevenoLandingPage />} />
+                <Route path="/hobbies/veveno/hub" element={<VevenoPage />} />
+                <Route
+                  path="/hobbies/veveno/stores/:storeId"
+                  element={<VevenoStorePage />}
+                />
+              </Route>
               <Route
                 path="/hobbies/brew-note"
                 element={<Navigate to="/hobbies/veveno" replace />}

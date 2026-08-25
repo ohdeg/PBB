@@ -26,6 +26,8 @@ export type SrankoUploadKind = 'item' | 'look' | 'post' | 'tryon';
 export interface SrankoPredictOptions {
   extractWornGarment: boolean;
   targetSlot?: SrankoWornGarmentSlot;
+  /** Product-photo path: classify only; call rembg separately. */
+  skipBackgroundRemoval?: boolean;
 }
 
 export interface SrankoPredictResult {
@@ -43,6 +45,12 @@ export interface SrankoPredictResult {
   height: number;
   garmentExtractionApplied: boolean;
   extractionWarning: string | null;
+}
+
+export interface SrankoRembgResult {
+  imagePngBase64: string;
+  width: number;
+  height: number;
 }
 
 interface SrankoPredictApi extends SrankoPredictResult {}
@@ -701,6 +709,10 @@ export const srankoApi = {
       const form = new FormData();
       form.append('file', file);
       form.append('extractWornGarment', String(options.extractWornGarment));
+      form.append(
+        'skipBackgroundRemoval',
+        String(Boolean(options.skipBackgroundRemoval)),
+      );
       if (options.extractWornGarment && options.targetSlot) {
         form.append('targetSlot', options.targetSlot);
       }
@@ -723,6 +735,28 @@ export const srankoApi = {
       };
     } catch (error) {
       rethrow(error, '옷 분류에 실패했어요.');
+    }
+  },
+
+  async rembg(file: File): Promise<SrankoRembgResult> {
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await apiClient.post<{
+        imagePngBase64: string;
+        width: number;
+        height: number;
+      }>(`${BASE}/ml/rembg`, form);
+      if (!data.imagePngBase64) {
+        throw new Error('배경제거 결과가 비어 있습니다.');
+      }
+      return {
+        imagePngBase64: data.imagePngBase64,
+        width: data.width,
+        height: data.height,
+      };
+    } catch (error) {
+      rethrow(error, '배경 제거에 실패했어요.');
     }
   },
 

@@ -116,7 +116,7 @@ public class BrewScheduleService {
         Map<Integer, ScheduleSlotRequest> slotsByDay = new HashMap<>();
         for (ScheduleSlotRequest slot : request.slots()) {
             if (slotsByDay.put(slot.dayOfWeek(), slot) != null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "같은 요일 슬롯이 중복됩니다.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "SCHEDULE_DUP_SLOT", "같은 요일 슬롯이 중복됩니다.");
             }
             try {
                 BrewShiftTimes.requireValidRange(slot.startTime(), slot.endTime());
@@ -152,10 +152,10 @@ public class BrewScheduleService {
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
         if (from == null || to == null || to.isBefore(from)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "조회 기간이 올바르지 않습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CALENDAR_RANGE_INVALID", "조회 기간이 올바르지 않습니다.");
         }
         if (from.plusDays(62).isBefore(to)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "조회 기간은 최대 62일입니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CALENDAR_RANGE_TOO_LONG", "조회 기간은 최대 62일입니다.");
         }
 
         boolean owner = store.getOwnerUserId().equals(user.getId());
@@ -361,12 +361,12 @@ public class BrewScheduleService {
 
         if (isExtra) {
             if (request.originalUserId() != null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "추가 근무에는 원래 근무자가 없습니다.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "EXTRA_NO_ORIGINAL", "추가 근무에는 원래 근무자가 없습니다.");
             }
             originalUserId = null;
             if (isOwner) {
                 if (request.coverUserId() == null) {
-                    throw new BusinessException(HttpStatus.BAD_REQUEST, "추가 근무자를 선택해 주세요.");
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "EXTRA_COVER_REQUIRED", "추가 근무자를 선택해 주세요.");
                 }
                 validateCoverUser(
                         storeId,
@@ -381,7 +381,7 @@ public class BrewScheduleService {
                 status = BrewShiftCover.STATUS_PENDING_COVER;
             } else {
                 if (request.coverUserId() != null && !request.coverUserId().equals(actor.getId())) {
-                    throw new BusinessException(HttpStatus.BAD_REQUEST, "직원 추가 근무는 본인만 신청할 수 있습니다.");
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "EXTRA_SELF_ONLY", "직원 추가 근무는 본인만 신청할 수 있습니다.");
                 }
                 validateCoverUser(
                         storeId,
@@ -397,13 +397,13 @@ public class BrewScheduleService {
             }
         } else {
             if (request.originalUserId() == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "원래 근무자를 선택해 주세요.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "COVER_ORIGINAL_REQUIRED", "원래 근무자를 선택해 주세요.");
             }
             requireSubscriber(storeId, request.originalUserId());
             originalUserId = request.originalUserId();
             if (isOwner) {
                 if (request.coverUserId() == null) {
-                    throw new BusinessException(HttpStatus.BAD_REQUEST, "대타자를 선택해 주세요.");
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "COVER_USER_REQUIRED", "대타자를 선택해 주세요.");
                 }
                 validateCoverUser(
                         storeId,
@@ -420,11 +420,12 @@ public class BrewScheduleService {
                 if (!actor.getId().equals(originalUserId)) {
                     throw new BusinessException(
                             HttpStatus.FORBIDDEN,
+                            "COVER_SELF_SHIFT_ONLY",
                             "직원은 본인 근무에 대해서만 신청할 수 있습니다."
                     );
                 }
                 if (request.coverUserId() != null) {
-                    throw new BusinessException(HttpStatus.BAD_REQUEST, "직원 신청에서는 업주가 근무자를 지정합니다.");
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "COVER_STAFF_NO_ASSIGN", "직원 신청에서는 업주가 근무자를 지정합니다.");
                 }
                 coverUserId = null;
                 initiatorType = BrewShiftCover.INITIATOR_EMPLOYEE;
@@ -456,7 +457,7 @@ public class BrewScheduleService {
         }
         String kind = raw.trim().toUpperCase();
         if (!BrewShiftCover.KIND_COVER.equals(kind) && !BrewShiftCover.KIND_EXTRA.equals(kind)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "근무 종류가 올바르지 않습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "SHIFT_KIND_INVALID", "근무 종류가 올바르지 않습니다.");
         }
         return kind;
     }
@@ -467,12 +468,13 @@ public class BrewScheduleService {
         BrewShiftCover cover = requireCover(coverId);
         requireOwnedStore(cover.getStoreId(), owner.getId());
         if (!BrewShiftCover.STATUS_PENDING_OWNER.equals(cover.getStatus())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "업주 대타자 지정 대기 상태가 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "COVER_NOT_PENDING_ASSIGN", "업주 대타자 지정 대기 상태가 아닙니다.");
         }
         if (BrewShiftCover.KIND_EXTRA.equals(
                 cover.getShiftKind() == null ? BrewShiftCover.KIND_COVER : cover.getShiftKind())) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST,
+                    "EXTRA_USE_APPROVE",
                     "추가 근무는 담당자 지정 대신 승인하세요."
             );
         }
@@ -501,20 +503,20 @@ public class BrewScheduleService {
         if (BrewShiftCover.KIND_EXTRA.equals(kind)
                 && BrewShiftCover.STATUS_PENDING_OWNER.equals(cover.getStatus())) {
             if (!isOwner) {
-                throw new BusinessException(HttpStatus.FORBIDDEN, "업주만 추가 근무를 승인할 수 있습니다.");
+                throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_EXTRA_APPROVE_ONLY", "업주만 추가 근무를 승인할 수 있습니다.");
             }
             if (cover.getCoverUserId() == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "추가 근무자가 없습니다.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "EXTRA_NO_COVER_USER", "추가 근무자가 없습니다.");
             }
             cover.decide(BrewShiftCover.STATUS_APPROVED, actor.getId());
             return toCoverResponse(coverRepository.save(cover));
         }
 
         if (!actor.getId().equals(cover.getCoverUserId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "지정된 대타자만 수락할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "COVER_ACCEPT_ONLY", "지정된 대타자만 수락할 수 있습니다.");
         }
         if (!BrewShiftCover.STATUS_PENDING_COVER.equals(cover.getStatus())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "대타자 수락 대기 상태가 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "COVER_NOT_PENDING_ACCEPT", "대타자 수락 대기 상태가 아닙니다.");
         }
         cover.decide(BrewShiftCover.STATUS_APPROVED, actor.getId());
         return toCoverResponse(coverRepository.save(cover));
@@ -529,16 +531,16 @@ public class BrewScheduleService {
 
         if (BrewShiftCover.STATUS_PENDING_OWNER.equals(cover.getStatus())) {
             if (!isOwner) {
-                throw new BusinessException(HttpStatus.FORBIDDEN, "업주만 거절할 수 있습니다.");
+                throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_REJECT_ONLY", "업주만 거절할 수 있습니다.");
             }
             cover.decide(BrewShiftCover.STATUS_REJECTED, actor.getId());
         } else if (BrewShiftCover.STATUS_PENDING_COVER.equals(cover.getStatus())) {
             if (!actor.getId().equals(cover.getCoverUserId()) && !isOwner) {
-                throw new BusinessException(HttpStatus.FORBIDDEN, "대타자 또는 업주만 거절할 수 있습니다.");
+                throw new BusinessException(HttpStatus.FORBIDDEN, "COVER_OR_OWNER_REJECT", "대타자 또는 업주만 거절할 수 있습니다.");
             }
             cover.decide(BrewShiftCover.STATUS_REJECTED, actor.getId());
         } else {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "거절할 수 있는 상태가 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "REJECT_WRONG_STATUS", "거절할 수 있는 상태가 아닙니다.");
         }
         return toCoverResponse(coverRepository.save(cover));
     }
@@ -551,7 +553,7 @@ public class BrewScheduleService {
         boolean isOwner = store.getOwnerUserId().equals(actor.getId());
         boolean isRequester = cover.getRequestedByUserId().equals(actor.getId());
         if (!isOwner && !isRequester) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "신청자 또는 업주만 취소할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "CANCEL_REQUESTER_OR_OWNER", "신청자 또는 업주만 취소할 수 있습니다.");
         }
         String status = cover.getStatus();
         if (!BrewShiftCover.STATUS_PENDING_OWNER.equals(status)
@@ -559,6 +561,7 @@ public class BrewScheduleService {
                 && !BrewShiftCover.STATUS_APPROVED.equals(status)) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST,
+                    "CANCEL_WRONG_STATUS",
                     "대기 중이거나 승인된 대체·추가만 취소할 수 있습니다."
             );
         }
@@ -749,6 +752,7 @@ public class BrewScheduleService {
         if (!existing.isEmpty()) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
+                    "COVER_ALREADY_ACTIVE",
                     "해당 날짜에 이미 진행 중이거나 승인된 대타가 있습니다."
             );
         }
@@ -786,7 +790,7 @@ public class BrewScheduleService {
             LocalTime endTime
     ) {
         if (originalUserId != null && originalUserId.equals(coverUserId)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "본인을 대타로 지정할 수 없습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "COVER_SELF", "본인을 대타로 지정할 수 없습니다.");
         }
         requireSubscriber(storeId, coverUserId);
 
@@ -829,6 +833,7 @@ public class BrewScheduleService {
             if (overlaps(coverFrom, coverTo, shiftFrom, shiftTo)) {
                 throw new BusinessException(
                         HttpStatus.CONFLICT,
+                        "COVER_ON_REGULAR",
                         "해당 시간에 정규 근무가 있는 직원은 지정할 수 없습니다."
                 );
             }
@@ -845,6 +850,7 @@ public class BrewScheduleService {
             if (overlaps(coverFrom, coverTo, otherFrom, otherTo)) {
                 throw new BusinessException(
                         HttpStatus.CONFLICT,
+                        "COVER_ON_OTHER",
                         "해당 시간에 승인된 다른 근무(대체/추가)가 있는 직원은 지정할 수 없습니다."
                 );
             }
@@ -871,10 +877,10 @@ public class BrewScheduleService {
     private LocalDate requireApplyDate(ReplaceSchedulesRequest request, LocalDate today) {
         LocalDate from = request.effectiveFrom();
         if (from == null) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "적용 날짜를 선택해 주세요.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "EFFECTIVE_DATE_REQUIRED", "적용 날짜를 선택해 주세요.");
         }
         if (from.isBefore(today.minusYears(1)) || from.isAfter(today.plusYears(1))) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "적용 날짜는 오늘 기준 1년 이내여야 합니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "EFFECTIVE_DATE_OUT_OF_RANGE", "적용 날짜는 오늘 기준 1년 이내여야 합니다.");
         }
         return from;
     }
@@ -993,18 +999,18 @@ public class BrewScheduleService {
 
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "로그인이 필요합니다."));
     }
 
     private BrewStore requireStore(UUID storeId) {
         return storeRepository.findById(storeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "가게를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "STORE_NOT_FOUND", "가게를 찾을 수 없습니다."));
     }
 
     private BrewStore requireOwnedStore(UUID storeId, UUID ownerId) {
         BrewStore store = requireStore(storeId);
         if (!store.getOwnerUserId().equals(ownerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "가게 소유자만 관리할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");
         }
         return store;
     }
@@ -1016,18 +1022,18 @@ public class BrewScheduleService {
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, store.getId())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "MEMBERS_ONLY", "가게 구성원만 이용할 수 있습니다.");
     }
 
     private void requireSubscriber(UUID storeId, UUID userId) {
         if (!subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, storeId)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "해당 사용자는 이 가게의 직원이 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "NOT_SUBSCRIBER", "해당 사용자는 이 가게의 직원이 아닙니다.");
         }
     }
 
     private BrewShiftCover requireCover(UUID coverId) {
         return coverRepository.findById(coverId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "대타 요청을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "COVER_NOT_FOUND", "대타 요청을 찾을 수 없습니다."));
     }
 
     /** 퇴사 처리: 정규 근무 삭제 + 퇴사일 이후 연관 대체/추가 삭제 */
@@ -1070,7 +1076,7 @@ public class BrewScheduleService {
         assertMember(store, user.getId());
         boolean owner = store.getOwnerUserId().equals(user.getId());
         if (!owner && !user.getId().equals(targetUserId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "본인 또는 업주만 조회할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "SELF_OR_OWNER_VIEW", "본인 또는 업주만 조회할 수 있습니다.");
         }
         return coverRepository.findInvolvingUserAfterLeaveDate(
                 storeId,

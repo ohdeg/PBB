@@ -13,6 +13,7 @@ import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostCreateRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPredictResponse;
+import com.studiobs.spring_backend.domain.sranko.dto.SrankoRembgResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPlaceSearchHit;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPrefsPatchRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPrefsResponse;
@@ -286,14 +287,24 @@ public class SrankoController {
             HttpServletRequest request,
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "false") boolean extractWornGarment,
-            @RequestParam(required = false) String targetSlot
+            @RequestParam(required = false) String targetSlot,
+            @RequestParam(defaultValue = "false") boolean skipBackgroundRemoval
     ) {
         return srankoService.predictItem(
                 accessTokenResolver.requireEmail(request),
                 file,
                 extractWornGarment,
-                targetSlot
+                targetSlot,
+                skipBackgroundRemoval
         );
+    }
+
+    @PostMapping(value = "/ml/rembg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SrankoRembgResponse rembg(
+            HttpServletRequest request,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return srankoService.rembgItem(accessTokenResolver.requireEmail(request), file);
     }
 
     @GetMapping("/weather")

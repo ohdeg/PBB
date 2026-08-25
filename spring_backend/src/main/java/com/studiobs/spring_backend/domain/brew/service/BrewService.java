@@ -191,7 +191,7 @@ public class BrewService {
                 return code;
             }
         }
-        throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "가게 코드 발급에 실패했습니다. 다시 시도해 주세요.");
+        throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "INVITE_CODE_FAILED", "가게 코드 발급에 실패했습니다. 다시 시도해 주세요.");
     }
 
     @Transactional
@@ -311,10 +311,10 @@ public class BrewService {
         User user = requireUser(email);
         BrewStore store = requireStore(storeId);
         if (store.getOwnerUserId().equals(user.getId())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "본인 가게에는 가입 신청할 수 없습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "JOIN_OWN_STORE", "본인 가게에는 가입 신청할 수 없습니다.");
         }
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(user.getId(), storeId)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 구독 중인 가게입니다.");
+            throw new BusinessException(HttpStatus.CONFLICT, "ALREADY_SUBSCRIBED", "이미 구독 중인 가게입니다.");
         }
         brewRedisService.saveJoinRequest(storeId, user.getId());
     }
@@ -336,14 +336,14 @@ public class BrewService {
         User owner = requireUser(email);
         requireOwnedStore(storeId, owner.getId());
         if (!brewRedisService.hasJoinRequest(storeId, requesterId)) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "대기 중인 가입 신청이 없습니다.");
+            throw new BusinessException(HttpStatus.NOT_FOUND, "JOIN_NOT_FOUND", "대기 중인 가입 신청이 없습니다.");
         }
         boolean canEditStock = Boolean.TRUE.equals(request.canEditStock());
         LocalDate workStartDate = request.workStartDate();
         if (workStartDate != null) {
             LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
             if (workStartDate.isBefore(today.minusYears(1)) || workStartDate.isAfter(today.plusYears(1))) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "근무 시작일은 오늘 기준 1년 이내여야 합니다.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "WORK_START_OUT_OF_RANGE", "근무 시작일은 오늘 기준 1년 이내여야 합니다.");
             }
         }
         if (!subscriptionRepository.existsBySubscriberUserIdAndStoreId(requesterId, storeId)) {
@@ -411,11 +411,11 @@ public class BrewService {
         processDueLeavesForStore(storeId);
         BrewStoreSubscription sub = subscriptionRepository
                 .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "SUBSCRIBER_NOT_FOUND", "구독자를 찾을 수 없습니다."));
         sub.setCanEditStock(Boolean.TRUE.equals(request.canEditStock()));
         subscriptionRepository.save(sub);
         User subscriber = userService.findById(subscriberId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "회원을 찾을 수 없습니다."));
         return toSubscriberResponse(subscriber, sub);
     }
 
@@ -448,7 +448,7 @@ public class BrewService {
     public void unsubscribe(String email, UUID storeId, LeaveDateRequest request) {
         requireUser(email);
         requireStore(storeId);
-        throw new BusinessException(HttpStatus.FORBIDDEN, "퇴사는 사장님만 지정할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_RESIGN_ONLY", "퇴사는 사장님만 지정할 수 있습니다.");
     }
 
     /** 예약된 퇴사 취소 */
@@ -462,11 +462,11 @@ public class BrewService {
         requireOwnedStore(storeId, actor.getId());
         BrewStoreSubscription sub = subscriptionRepository
                 .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "SUBSCRIBER_NOT_FOUND", "구독자를 찾을 수 없습니다."));
         sub.clearLeave();
         subscriptionRepository.save(sub);
         User subscriber = userService.findById(subscriberId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "회원을 찾을 수 없습니다."));
         return toSubscriberResponse(subscriber, sub);
     }
 
@@ -475,7 +475,7 @@ public class BrewService {
     public void clearMyScheduledLeave(String email, UUID storeId) {
         requireUser(email);
         requireStore(storeId);
-        throw new BusinessException(HttpStatus.FORBIDDEN, "퇴사는 사장님만 지정할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_RESIGN_ONLY", "퇴사는 사장님만 지정할 수 있습니다.");
     }
 
     private SubscriberResponse applyLeave(
@@ -486,15 +486,15 @@ public class BrewService {
             boolean returnResponseIfScheduled
     ) {
         if (leaveDate == null) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "퇴사일을 입력해 주세요.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "LEAVE_DATE_REQUIRED", "퇴사일을 입력해 주세요.");
         }
         LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
         if (leaveDate.isBefore(today.minusYears(1)) || leaveDate.isAfter(today.plusYears(1))) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "퇴사일은 오늘 기준 1년 이내여야 합니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "LEAVE_DATE_OUT_OF_RANGE", "퇴사일은 오늘 기준 1년 이내여야 합니다.");
         }
         BrewStoreSubscription sub = subscriptionRepository
                 .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "구독자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "SUBSCRIBER_NOT_FOUND", "구독자를 찾을 수 없습니다."));
 
         if (leaveDate.isBefore(today)) {
             finalizeLeave(storeId, subscriberId, leaveDate);
@@ -508,7 +508,7 @@ public class BrewService {
             return null;
         }
         User subscriber = userService.findById(subscriberId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "회원을 찾을 수 없습니다."));
         return toSubscriberResponse(subscriber, sub);
     }
 
@@ -638,7 +638,7 @@ public class BrewService {
             return;
         }
         if (viewerId == null) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "비공개 가게입니다. 로그인이 필요합니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "PRIVATE_STORE_LOGIN", "비공개 가게입니다. 로그인이 필요합니다.");
         }
         if (store.getOwnerUserId().equals(viewerId)) {
             return;
@@ -646,7 +646,7 @@ public class BrewService {
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(viewerId, store.getId())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "구독 또는 소유자만 열람할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "VIEW_MEMBERS_ONLY", "구독 또는 소유자만 열람할 수 있습니다.");
     }
 
     private void assertMember(BrewStore store, UUID userId) {
@@ -656,12 +656,12 @@ public class BrewService {
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, store.getId())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "MEMBERS_ONLY", "가게 구성원만 이용할 수 있습니다.");
     }
 
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "로그인이 필요합니다."));
     }
 
     private UUID resolveUserId(String emailOrNull) {
@@ -675,25 +675,25 @@ public class BrewService {
 
     private BrewStore requireStore(UUID storeId) {
         return storeRepository.findById(storeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "가게를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "STORE_NOT_FOUND", "가게를 찾을 수 없습니다."));
     }
 
     private BrewStore requireOwnedStore(UUID storeId, UUID ownerId) {
         BrewStore store = requireStore(storeId);
         if (!store.getOwnerUserId().equals(ownerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "가게 소유자만 관리할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");
         }
         return store;
     }
 
     private BrewMenu requireMenu(UUID menuId) {
         return menuRepository.findById(menuId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "메뉴를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "MENU_NOT_FOUND", "메뉴를 찾을 수 없습니다."));
     }
 
     private BrewRecipe requireRecipe(UUID recipeId) {
         return recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "레시피를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "RECIPE_NOT_FOUND", "레시피를 찾을 수 없습니다."));
     }
 
     private String findEmailByUserId(UUID userId) {
@@ -701,6 +701,6 @@ public class BrewService {
         // Add findById on UserService if missing
         return userService.findById(userId)
                 .map(User::getEmail)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "회원을 찾을 수 없습니다."));
     }
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { HobbyProductShot } from './HobbyProductShot';
 import type { HobbyBlockTone } from '../data/hobbies';
@@ -31,6 +32,13 @@ export interface HobbyLandingLayoutProps {
   startLabel?: string;
   secondaryAction?: { label: string; to: string };
   logoSrc?: string;
+  headerExtra?: ReactNode;
+  homeLabel?: string;
+  featuresEyebrow?: string;
+  featuresTitle?: string;
+  featuresAria?: string;
+  promoAria?: string;
+  heroAria?: string;
 }
 
 /** 홈(figma)과 같은 리듬의 취미 앱 소개 랜딩 */
@@ -54,12 +62,22 @@ export function HobbyLandingLayout({
   startLabel = '시작하기',
   secondaryAction,
   logoSrc,
+  headerExtra,
+  homeLabel = '홈으로',
+  featuresEyebrow = '할 수 있는 일',
+  featuresTitle = '이 앱에서',
+  featuresAria = '기능 소개',
+  promoAria = '사용 현황',
+  heroAria,
 }: HobbyLandingLayoutProps) {
   const marquee = [...marqueeItems, ...marqueeItems];
 
   return (
     <main className="hobby-landing figma-home">
-      <section className="figma-hero" aria-label={`${title} 소개`}>
+      <section className="figma-hero" aria-label={heroAria ?? `${title} 소개`}>
+        {headerExtra ? (
+          <div className="hobby-landing__header-extra">{headerExtra}</div>
+        ) : null}
         <p className="figma-eyebrow">{eyebrow}</p>
         <div className="hobby-landing__title-row">
           {logoSrc ? (
@@ -89,7 +107,7 @@ export function HobbyLandingLayout({
             </Link>
           ) : (
             <Link to="/" className="figma-pill figma-pill--secondary">
-              홈으로
+              {homeLabel}
             </Link>
           )}
         </div>
@@ -126,7 +144,7 @@ export function HobbyLandingLayout({
       </section>
 
       {promoBanner ? (
-        <aside className="hobby-landing__promo" aria-label="사용 현황">
+        <aside className="hobby-landing__promo" aria-label={promoAria}>
           <p className="hobby-landing__promo-eyebrow">{promoEyebrow}</p>
           <p className="hobby-landing__promo-copy">{promoBanner}</p>
         </aside>
@@ -135,10 +153,10 @@ export function HobbyLandingLayout({
       <section
         id="feature-list"
         className="hobby-landing__features"
-        aria-label="기능 소개"
+        aria-label={featuresAria}
       >
-        <p className="figma-eyebrow">할 수 있는 일</p>
-        <h2 className="hobby-landing__features-title">이 앱에서</h2>
+        <p className="figma-eyebrow">{featuresEyebrow}</p>
+        <h2 className="hobby-landing__features-title">{featuresTitle}</h2>
         <div className="hobby-landing__feature-grid">
           {features.map((feature) => (
             <article key={feature.title} className="hobby-landing__feature-card">

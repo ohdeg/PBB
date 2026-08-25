@@ -17,6 +17,7 @@ import com.studiobs.spring_backend.domain.sranko.dto.SrankoLookResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostCreateRequest;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPostResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPredictResponse;
+import com.studiobs.spring_backend.domain.sranko.dto.SrankoRembgResponse;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPlaceDto;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPlaceSearchHit;
 import com.studiobs.spring_backend.domain.sranko.dto.SrankoPrefsPatchRequest;
@@ -256,7 +257,7 @@ public class SrankoService {
     }
 
     public SrankoPredictResponse predictItem(String email, MultipartFile file) {
-        return predictItem(email, file, false, null);
+        return predictItem(email, file, false, null, false);
     }
 
     public SrankoPredictResponse predictItem(
@@ -265,10 +266,26 @@ public class SrankoService {
             boolean extractWornGarment,
             String targetSlot
     ) {
+        return predictItem(email, file, extractWornGarment, targetSlot, false);
+    }
+
+    public SrankoPredictResponse predictItem(
+            String email,
+            MultipartFile file,
+            boolean extractWornGarment,
+            String targetSlot,
+            boolean skipBackgroundRemoval
+    ) {
         requireUser(email);
         String normalizedTarget = targetSlot == null
                 ? null
                 : targetSlot.trim().toUpperCase(Locale.ROOT);
+        if (extractWornGarment && skipBackgroundRemoval) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "착용 사진 추출과 배경제거 생략은 함께 사용할 수 없습니다."
+            );
+        }
         if (extractWornGarment && !WORN_GARMENT_SLOTS.contains(normalizedTarget)) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST,
@@ -293,7 +310,8 @@ public class SrankoService {
                 file.getOriginalFilename(),
                 file.getContentType(),
                 extractWornGarment,
-                normalizedTarget
+                normalizedTarget,
+                skipBackgroundRemoval
         );
         if (extractWornGarment && !Boolean.TRUE.equals(ml.garmentExtractionApplied())) {
             String warning = ml.extractionWarning() == null || ml.extractionWarning().isBlank()
@@ -335,7 +353,7 @@ public class SrankoService {
             );
         }
         String pngBase64 = ml.imagePngBase64();
-        if (pngBase64 == null || pngBase64.isBlank()) {
+        if (!skipBackgroundRemoval && (pngBase64 == null || pngBase64.isBlank())) {
             throw new BusinessException(HttpStatus.BAD_GATEWAY, "배경제거 결과가 비어 있습니다.");
         }
         String responseSlot = extractWornGarment ? normalizedTarget : ml.slot();
@@ -346,7 +364,7 @@ public class SrankoService {
         }
         return new SrankoPredictResponse(
                 null,
-                pngBase64,
+                skipBackgroundRemoval ? null : pngBase64,
                 responseSlot,
                 responseCategory,
                 ml.warmth(),
@@ -360,6 +378,24 @@ public class SrankoService {
                 Boolean.TRUE.equals(ml.garmentExtractionApplied()),
                 ml.extractionWarning()
         );
+    }
+
+    public SrankoRembgResponse rembgItem(String email, MultipartFile file) {
+        requireUser(email);
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지 파일이 비어 있습니다.");
+        }
+        if (file.getSize() > MAX_UPLOAD_BYTES) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지는 8MB 이하여야 합니다.");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException ex) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지를 읽을 수 없습니다.");
+        }
+        var ml = srankoMlClient.rembg(bytes, file.getOriginalFilename(), file.getContentType());
+        return new SrankoRembgResponse(ml.imagePngBase64(), ml.width(), ml.height());
     }
 
     @Transactional(readOnly = true)

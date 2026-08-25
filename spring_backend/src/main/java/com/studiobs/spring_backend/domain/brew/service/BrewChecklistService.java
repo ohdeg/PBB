@@ -84,7 +84,7 @@ public class BrewChecklistService {
         assertMember(store, user.getId());
         boolean owner = store.getOwnerUserId().equals(user.getId());
         if (!request.personal() && !owner) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "가게 목록은 사장님만 만들 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "STORE_CHECKLIST_OWNER_ONLY", "가게 목록은 사장님만 만들 수 있습니다.");
         }
         BrewChecklistTemplate template = templateRepository.save(BrewChecklistTemplate.builder()
                 .storeId(storeId)
@@ -238,7 +238,7 @@ public class BrewChecklistService {
         assertMember(store, user.getId());
         BrewChecklistTemplate template = requireTemplate(templateId);
         if (!template.getStoreId().equals(storeId)) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "체크리스트를 찾을 수 없습니다.");
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CHECKLIST_NOT_FOUND", "체크리스트를 찾을 수 없습니다.");
         }
         assertVisible(template, user.getId(), store.getOwnerUserId().equals(user.getId()));
         LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
@@ -260,7 +260,7 @@ public class BrewChecklistService {
         assertMember(store, user.getId());
         BrewChecklistTemplate template = requireTemplate(templateId);
         if (!template.getStoreId().equals(storeId)) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "체크리스트를 찾을 수 없습니다.");
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CHECKLIST_NOT_FOUND", "체크리스트를 찾을 수 없습니다.");
         }
         boolean owner = store.getOwnerUserId().equals(user.getId());
         assertVisible(template, user.getId(), owner);
@@ -285,15 +285,15 @@ public class BrewChecklistService {
                             brewScheduleService.regularShiftOn(storeId, user.getId(), today.minusDays(1)))
             );
             if (!due) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "아직 열리지 않은 체크리스트입니다.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "CHECKLIST_NOT_OPEN", "아직 열리지 않은 체크리스트입니다.");
             }
             run = runRepository.save(new BrewChecklistRun(templateId, today));
         }
 
         BrewChecklistItem item = itemRepository.findById(request.itemId())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "항목을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "CHECKLIST_ITEM_NOT_FOUND", "항목을 찾을 수 없습니다."));
         if (!item.getTemplateId().equals(templateId)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "이 목록의 항목이 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CHECKLIST_ITEM_WRONG_LIST", "이 목록의 항목이 아닙니다.");
         }
         BrewChecklistCheckId checkId = new BrewChecklistCheckId(run.getId(), item.getId());
         if (request.checked()) {
@@ -356,7 +356,7 @@ public class BrewChecklistService {
             items.add(new BrewChecklistItem(templateId, trimmed, order++));
         }
         if (items.isEmpty()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "항목을 한 개 이상 입력해 주세요.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CHECKLIST_ITEMS_REQUIRED", "항목을 한 개 이상 입력해 주세요.");
         }
         return itemRepository.saveAll(items);
     }
@@ -364,7 +364,7 @@ public class BrewChecklistService {
     private static String requireTrigger(String raw) {
         String trigger = raw == null ? "" : raw.trim().toUpperCase();
         if (!TRIGGERS.contains(trigger)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "열림 조건을 확인해 주세요.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CHECKLIST_TRIGGER_INVALID", "열림 조건을 확인해 주세요.");
         }
         return trigger;
     }
@@ -372,7 +372,7 @@ public class BrewChecklistService {
     private static LocalTime resolveTime(String triggerType, LocalTime triggerTime) {
         if (BrewChecklistOpen.CLOCK.equals(triggerType)) {
             if (triggerTime == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "시각을 입력해 주세요.");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "CHECKLIST_TIME_REQUIRED", "시각을 입력해 주세요.");
             }
             return triggerTime;
         }
@@ -389,7 +389,7 @@ public class BrewChecklistService {
         String audience = raw.trim().toUpperCase();
         if (!BrewChecklistOpen.ON_DUTY.equals(audience)
                 && !BrewChecklistOpen.OWNER_ONLY.equals(audience)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "공개 대상을 확인해 주세요.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CHECKLIST_AUDIENCE_INVALID", "공개 대상을 확인해 주세요.");
         }
         return audience;
     }
@@ -416,19 +416,19 @@ public class BrewChecklistService {
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+                        new BusinessException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "로그인이 필요합니다."));
     }
 
     private BrewStore requireStore(UUID storeId) {
         return storeRepository.findById(storeId)
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.NOT_FOUND, "가게를 찾을 수 없습니다."));
+                        new BusinessException(HttpStatus.NOT_FOUND, "STORE_NOT_FOUND", "가게를 찾을 수 없습니다."));
     }
 
     private BrewChecklistTemplate requireTemplate(UUID templateId) {
         return templateRepository.findById(templateId)
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.NOT_FOUND, "체크리스트를 찾을 수 없습니다."));
+                        new BusinessException(HttpStatus.NOT_FOUND, "CHECKLIST_NOT_FOUND", "체크리스트를 찾을 수 없습니다."));
     }
 
     private void assertMember(BrewStore store, UUID userId) {
@@ -438,29 +438,29 @@ public class BrewChecklistService {
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, store.getId())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "MEMBERS_ONLY", "가게 구성원만 이용할 수 있습니다.");
     }
 
     private void assertCanEdit(BrewStore store, BrewChecklistTemplate template, UUID userId) {
         if (template.isPersonal()) {
             if (!userId.equals(template.getOwnerUserId())) {
-                throw new BusinessException(HttpStatus.FORBIDDEN, "본인 목록만 수정할 수 있습니다.");
+                throw new BusinessException(HttpStatus.FORBIDDEN, "CHECKLIST_PERSONAL_ONLY", "본인 목록만 수정할 수 있습니다.");
             }
             return;
         }
         if (!store.getOwnerUserId().equals(userId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "가게 목록은 사장님만 수정할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "CHECKLIST_STORE_OWNER_EDIT", "가게 목록은 사장님만 수정할 수 있습니다.");
         }
     }
 
     private void assertVisible(BrewChecklistTemplate template, UUID userId, boolean storeOwner) {
         if (template.isPersonal() && !userId.equals(template.getOwnerUserId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "다른 사람의 목록입니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "CHECKLIST_OTHER_PERSON", "다른 사람의 목록입니다.");
         }
         if (!template.isPersonal()
                 && BrewChecklistOpen.OWNER_ONLY.equals(template.getAudience())
                 && !storeOwner) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "사장님만 열 수 있는 목록입니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "CHECKLIST_OWNER_OPEN_ONLY", "사장님만 열 수 있는 목록입니다.");
         }
     }
 }

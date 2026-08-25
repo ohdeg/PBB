@@ -966,6 +966,39 @@ html:not([data-theme='dark']) .global-nav__logo {
 }
 
 /* Hobby app landings — shared with home figma rhythm */
+.hobby-landing__header-extra {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.85rem;
+}
+
+.veveno-lang {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.veveno-lang__btn {
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--veveno-mute, #6b6560);
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.veveno-lang__btn[aria-pressed='true'] {
+  color: var(--veveno-ink, #1c1917);
+  background: color-mix(in srgb, var(--veveno-ink, #1c1917) 8%, transparent);
+}
+
+[data-theme='dark'] .veveno-lang__btn[aria-pressed='true'] {
+  color: var(--veveno-ink, #f5f5f4);
+}
+
 .hobby-landing {
   width: 100%;
   background: var(--canvas);
@@ -1535,7 +1568,8 @@ html:not([data-theme='dark']) .global-nav__logo {
   }
 }
 
-.veveno-settings-stack {
+.veveno-settings-stack,
+.veveno-settings-owner {
   display: grid;
   gap: 1.35rem;
 }

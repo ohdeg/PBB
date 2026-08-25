@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { VevenoInput } from './VevenoInput';
 
 type UnitKind = 'mass' | 'volume' | 'temp' | 'scale';
@@ -52,6 +53,7 @@ function formatNumber(n: number): string {
 }
 
 export function VevenoUnitConverter() {
+  const t = useTranslation();
   const [kind, setKind] = useState<UnitKind>('mass');
   const [amount, setAmount] = useState('100');
   const [fromId, setFromId] = useState('g');
@@ -75,7 +77,7 @@ export function VevenoUnitConverter() {
     if (kind === 'scale') {
       const factor = Number(scale);
       if (!Number.isFinite(factor) || factor <= 0) return null;
-      return { label: '배율 결과', value: value * factor };
+      return { label: t('converter.scaleResult'), value: value * factor };
     }
 
     const from = units.find((u) => u.id === fromId);
@@ -85,7 +87,7 @@ export function VevenoUnitConverter() {
       label: to.label,
       value: convertMassOrVolume(value, from, to),
     };
-  }, [amount, kind, fromId, toId, tempUnit, scale, units]);
+  }, [amount, kind, fromId, toId, tempUnit, scale, units, t]);
 
   const switchKind = (next: UnitKind) => {
     setKind(next);
@@ -100,13 +102,13 @@ export function VevenoUnitConverter() {
 
   return (
     <div className="veveno-tools-block">
-      <div className="veveno-tools-seg" role="tablist" aria-label="단위 종류">
+      <div className="veveno-tools-seg" role="tablist" aria-label={t('converter.kindAria')}>
         {(
           [
-            ['mass', '무게'],
-            ['volume', '부피'],
-            ['temp', '온도'],
-            ['scale', '배율'],
+            ['mass', t('converter.mass')],
+            ['volume', t('converter.volume')],
+            ['temp', t('converter.temp')],
+            ['scale', t('converter.scale')],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -125,7 +127,13 @@ export function VevenoUnitConverter() {
       <div className="veveno-unit-grid">
         <VevenoInput
           id="veveno-unit-amount"
-          label={kind === 'temp' ? '온도' : kind === 'scale' ? '기준 값' : '값'}
+          label={
+            kind === 'temp'
+              ? t('converter.temp')
+              : kind === 'scale'
+                ? t('converter.baseValue')
+                : t('converter.value')
+          }
           inputMode="decimal"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -133,7 +141,7 @@ export function VevenoUnitConverter() {
 
         {kind === 'temp' ? (
           <label className="veveno-field">
-            <span className="veveno-field__label">단위</span>
+            <span className="veveno-field__label">{t('converter.unit')}</span>
             <select
               className="veveno-field__input"
               value={tempUnit}
@@ -148,11 +156,11 @@ export function VevenoUnitConverter() {
         {kind === 'scale' ? (
           <VevenoInput
             id="veveno-unit-scale"
-            label="배율"
+            label={t('converter.scale')}
             inputMode="decimal"
             value={scale}
             onChange={(e) => setScale(e.target.value)}
-            placeholder="예: 0.5, 2"
+            placeholder={t('converter.scalePh')}
           />
         ) : null}
 
@@ -191,7 +199,7 @@ export function VevenoUnitConverter() {
       </div>
 
       <div className="veveno-unit-result" aria-live="polite">
-        <p className="veveno-unit-result__label">{result?.label ?? '결과'}</p>
+        <p className="veveno-unit-result__label">{result?.label ?? t('converter.result')}</p>
         <p className="veveno-unit-result__value">
           {result ? formatNumber(result.value) : '—'}
         </p>

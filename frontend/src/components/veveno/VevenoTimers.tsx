@@ -6,8 +6,9 @@ import {
 } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { vevenoApi } from '../../api/vevenoApi';
+import { getVevenoErrorMessage } from '../../features/veveno/i18n/error';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import type { VevenoTimerPreset, VevenoTimerPresetStep } from '../../types/veveno';
-import { getErrorMessage } from '../../utils/error';
 import { VevenoButton } from './VevenoButton';
 import { VevenoInput } from './VevenoInput';
 import { VevenoActionMenu } from './VevenoActionMenu';
@@ -142,6 +143,7 @@ function collectStepsFromDraft(draftSteps: DraftStep[]): VevenoTimerPresetStep[]
 }
 
 export function VevenoTimers({ storeId }: VevenoTimersProps) {
+  const t = useTranslation();
   const snapshot = useSyncExternalStore(
     subscribeVevenoTimers,
     getVevenoTimerState,
@@ -150,7 +152,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
 
   const [timerName, setTimerName] = useState('');
   const [draftSteps, setDraftSteps] = useState<DraftStep[]>([
-    newDraftStep('1단계', '15', '0'),
+    newDraftStep('', '15', '0'),
   ]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<SaveTarget>('personal');
@@ -173,9 +175,9 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
       setStorePresets(store.data);
       setPresetError('');
     } catch (err: unknown) {
-      setPresetError(getErrorMessage(err, '프리셋을 불러오지 못했습니다.'));
+      setPresetError(getVevenoErrorMessage(err, t('errors.failLoadPresets'), t));
     }
-  }, [storeId]);
+  }, [storeId, t]);
 
   useEffect(() => {
     if (
@@ -201,7 +203,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     setTimerName(timer.name);
     const drafts = timerToDraftSteps(timer);
     setDraftSteps(
-      drafts.length > 0 ? drafts : [newDraftStep('1단계', '15', '0')],
+      drafts.length > 0 ? drafts : [newDraftStep('', '15', '0')],
     );
   };
 
@@ -215,7 +217,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     setTimerName(preset.name);
     const drafts = stepsToDraft(preset.steps);
     setDraftSteps(
-      drafts.length > 0 ? drafts : [newDraftStep('1단계', '15', '0')],
+      drafts.length > 0 ? drafts : [newDraftStep('', '15', '0')],
     );
   };
 
@@ -236,7 +238,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
 
     addVevenoTimer(timerName, steps);
     setTimerName('');
-    setDraftSteps([newDraftStep('1단계', '15', '0')]);
+    setDraftSteps([newDraftStep('', '15', '0')]);
     setEditingPreset(null);
   };
 
@@ -244,7 +246,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
     const steps = collectStepsFromDraft(draftSteps);
     if (steps.length === 0) return;
     const payload = {
-      name: timerName.trim() || '프리셋',
+      name: timerName.trim() || t('timers.defaultName'),
       steps,
     };
     setPresetBusy(true);
@@ -267,7 +269,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
       setEditingPreset(null);
       await loadPresets();
     } catch (err: unknown) {
-      setPresetError(getErrorMessage(err, '프리셋 저장에 실패했습니다.'));
+      setPresetError(getVevenoErrorMessage(err, t('errors.failSavePreset'), t));
     } finally {
       setPresetBusy(false);
     }
@@ -293,7 +295,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
       }
       await loadPresets();
     } catch (err: unknown) {
-      setPresetError(getErrorMessage(err, '프리셋 저장에 실패했습니다.'));
+      setPresetError(getVevenoErrorMessage(err, t('errors.failSavePreset'), t));
     } finally {
       setPresetBusy(false);
     }
@@ -312,7 +314,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
       }
       await loadPresets();
     } catch (err: unknown) {
-      setPresetError(getErrorMessage(err, '프리셋 삭제에 실패했습니다.'));
+      setPresetError(getVevenoErrorMessage(err, t('errors.failDeletePreset'), t));
     } finally {
       setPresetBusy(false);
     }
@@ -334,7 +336,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
               <div>
                 <p className="veveno-preset-card__name">{preset.name}</p>
                 <p className="veveno-preset-card__meta">
-                  {preset.steps.length}단계 ·{' '}
+                  {t('timers.stepCount', { count: preset.steps.length })} ·{' '}
                   {preset.steps.map((s) => formatTimerMs(s.durationMs)).join(' → ')}
                 </p>
               </div>
@@ -343,16 +345,16 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   size="sm"
                   onClick={() => applyPresetAsTimer(preset)}
                 >
-                  타이머 추가
+                  {t('timers.addTimer')}
                 </VevenoButton>
                 <VevenoActionMenu
                   actions={[
                     {
-                      label: '폼으로 불러오기',
+                      label: t('timers.loadForm'),
                       onSelect: () => loadPresetIntoForm(preset),
                     },
                     {
-                      label: '삭제',
+                      label: t('common.delete'),
                       danger: true,
                       disabled: presetBusy,
                       onSelect: () => {
@@ -374,14 +376,13 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
       <section className="veveno-tools-block">
         <h3 className="veveno-tools-block__title">
           {editingId
-            ? '타이머 수정'
+            ? t('timers.editTimer')
             : editingPreset
-              ? '프리셋 수정'
-              : '타이머'}
+              ? t('timers.editPreset')
+              : t('timers.title')}
         </h3>
         <p className="veveno-tools-block__lead">
-          단계는 1개면 일반 타이머, 2개 이상이면 끝나자마자 다음이 이어집니다.
-          프리셋은 내 계정 또는 이 가게에 저장할 수 있습니다.
+          {t('timers.lead')}
         </p>
         {presetError ? (
           <p className="veveno-notice veveno-notice--error" role="alert">
@@ -391,10 +392,10 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
         <form className="veveno-timer-form" onSubmit={handleSubmit}>
           <VevenoInput
             id="veveno-timer-name"
-            label="이름"
+            label={t('common.name')}
             value={timerName}
             onChange={(e) => setTimerName(e.target.value)}
-            placeholder="예: 추출 / 로스팅 후 식힘"
+            placeholder={t('timers.namePh')}
           />
           <div className="veveno-chain-drafts">
             {draftSteps.map((step, index) => (
@@ -403,8 +404,8 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   id={`timer-step-name-${step.id}`}
                   label={
                     draftSteps.length === 1
-                      ? '단계 이름'
-                      : `${index + 1}단계 이름`
+                      ? t('timers.stepName')
+                      : t('timers.stepNameN', { n: index + 1 })
                   }
                   value={step.name}
                   onChange={(e) => {
@@ -415,12 +416,12 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                       ),
                     );
                   }}
-                  placeholder={draftSteps.length === 1 ? '예: 추출' : undefined}
+                  placeholder={draftSteps.length === 1 ? t('timers.stepNamePh') : undefined}
                 />
                 <div className="veveno-timer-duration">
                   <VevenoInput
                     id={`timer-step-min-${step.id}`}
-                    label="분"
+                    label={t('timers.minutes')}
                     inputMode="numeric"
                     value={step.minutes}
                     onChange={(e) => {
@@ -434,7 +435,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   />
                   <VevenoInput
                     id={`timer-step-sec-${step.id}`}
-                    label="초"
+                    label={t('timers.seconds')}
                     inputMode="numeric"
                     value={step.seconds}
                     onChange={(e) => {
@@ -457,7 +458,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                       )
                     }
                   >
-                    단계 삭제
+                    {t('timers.deleteStep')}
                   </VevenoButton>
                 ) : null}
               </div>
@@ -471,11 +472,11 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
               onClick={() =>
                 setDraftSteps((prev) => [
                   ...prev,
-                  newDraftStep(`${prev.length + 1}단계`, '5', '0'),
+                  newDraftStep(t('timers.stepN', { n: prev.length + 1 }), '5', '0'),
                 ])
               }
             >
-              단계 추가
+              {t('timers.addStep')}
             </VevenoButton>
             <div className="veveno-timer-form__row-end">
               {editingId || editingPreset ? (
@@ -485,13 +486,13 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   size="sm"
                   onClick={cancelEdit}
                 >
-                  취소
+                  {t('common.cancel')}
                 </VevenoButton>
               ) : null}
               {!editingPreset ? (
                 <select
                   className="veveno-select-inline"
-                  aria-label="프리셋 저장 위치"
+                  aria-label={t('timers.saveLocation')}
                   value={saveTarget}
                   onChange={(e) =>
                     setSaveTarget(
@@ -499,8 +500,8 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                     )
                   }
                 >
-                  <option value="personal">내 계정</option>
-                  <option value="store">이 가게</option>
+                  <option value="personal">{t('timers.personal')}</option>
+                  <option value="store">{t('timers.store')}</option>
                 </select>
               ) : null}
               <VevenoButton
@@ -511,11 +512,11 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   void handleSavePreset();
                 }}
               >
-                {editingPreset ? '프리셋 저장' : '프리셋으로 저장'}
+                {editingPreset ? t('timers.savePreset') : t('timers.saveAsPreset')}
               </VevenoButton>
               {!editingPreset ? (
                 <VevenoButton type="submit">
-                  {editingId ? '타이머 저장' : '타이머 추가'}
+                  {editingId ? t('timers.saveTimer') : t('timers.addTimer')}
                 </VevenoButton>
               ) : null}
             </div>
@@ -523,7 +524,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
         </form>
 
         {snapshot.timers.length === 0 ? (
-          <p className="veveno-empty">아직 타이머가 없습니다.</p>
+          <p className="veveno-empty">{t('timers.empty')}</p>
         ) : (
           <ul className="veveno-timer-list">
             {snapshot.timers.map((timer) => {
@@ -551,29 +552,29 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                     <VevenoActionMenu
                       actions={[
                         {
-                          label: '수정',
+                          label: t('common.edit'),
                           onSelect: () => beginEdit(timer),
                         },
                         {
-                          label: '복제',
+                          label: t('timers.duplicate'),
                           onSelect: () => duplicateVevenoTimer(timer.id),
                         },
                         {
-                          label: '내 프리셋으로 저장',
+                          label: t('timers.savePersonal'),
                           disabled: presetBusy,
                           onSelect: () => {
                             void handleSaveTimerAsPreset(timer, 'personal');
                           },
                         },
                         {
-                          label: '가게 프리셋으로 저장',
+                          label: t('timers.saveStore'),
                           disabled: presetBusy,
                           onSelect: () => {
                             void handleSaveTimerAsPreset(timer, 'store');
                           },
                         },
                         {
-                          label: '삭제',
+                          label: t('common.delete'),
                           danger: true,
                           onSelect: () => {
                             if (editingId === timer.id) {
@@ -590,20 +591,28 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                   </p>
                   <p className="veveno-timer-card__meta">
                     {timer.status === 'done'
-                      ? '완료'
+                      ? t('timers.done')
                       : isMultiStep
-                        ? `${timer.currentStepIndex + 1}/${timer.steps.length} · ${current?.name ?? '단계'}`
+                        ? t('timers.stepProgress', {
+                            current: timer.currentStepIndex + 1,
+                            total: timer.steps.length,
+                            name: current?.name ?? t('timers.stepFallback'),
+                          })
                         : current?.name
                           ? current.name
-                          : `설정 ${formatTimerMs(current?.durationMs ?? 0)}`}
-                    {timer.status === 'paused' ? ' · 일시정지' : ''}
-                    {timer.status === 'running' ? ' · 진행 중' : ''}
-                    {isEditing ? ' · 수정 중' : ''}
+                          : t('timers.setDuration', {
+                              duration: formatTimerMs(current?.durationMs ?? 0),
+                            })}
+                    {timer.status === 'paused' ? t('timers.paused') : ''}
+                    {timer.status === 'running' ? t('timers.running') : ''}
+                    {isEditing ? t('timers.editing') : ''}
                   </p>
                   {isMultiStep ? (
                     <ol className="veveno-chain-steps">
                       {hiddenBefore > 0 ? (
-                        <li className="is-more">완료된 {hiddenBefore}단계</li>
+                        <li className="is-more">
+                          {t('timers.hiddenBefore', { count: hiddenBefore })}
+                        </li>
                       ) : null}
                       {visibleSteps.map((step, offset) => {
                         const index = visibleStart + offset;
@@ -626,7 +635,9 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                         );
                       })}
                       {hiddenAfter > 0 ? (
-                        <li className="is-more">이후 {hiddenAfter}단계 더</li>
+                        <li className="is-more">
+                          {t('timers.hiddenAfter', { count: hiddenAfter })}
+                        </li>
                       ) : null}
                     </ol>
                   ) : null}
@@ -636,11 +647,11 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                         size="sm"
                         onClick={() => acknowledgeVevenoTimer(timer.id)}
                       >
-                        완료
+                        {t('timers.done')}
                       </VevenoButton>
                     ) : timer.status === 'running' ? (
                       <VevenoIconButton
-                        label="일시정지"
+                        label={t('timers.pause')}
                         primary
                         onClick={() => pauseVevenoTimer(timer.id)}
                       >
@@ -648,7 +659,9 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                       </VevenoIconButton>
                     ) : (
                       <VevenoIconButton
-                        label={timer.status === 'done' ? '다시 시작' : '시작'}
+                        label={
+                          timer.status === 'done' ? t('timers.restart') : t('timers.start')
+                        }
                         primary
                         onClick={() => startVevenoTimer(timer.id)}
                       >
@@ -656,7 +669,7 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
                       </VevenoIconButton>
                     )}
                     <VevenoIconButton
-                      label="정지 (처음으로)"
+                      label={t('timers.stop')}
                       onClick={() => resetVevenoTimer(timer.id)}
                     >
                       <StopIcon />
@@ -670,12 +683,16 @@ export function VevenoTimers({ storeId }: VevenoTimersProps) {
       </section>
 
       <section className="veveno-tools-block">
-        <h3 className="veveno-tools-block__title">프리셋</h3>
-        {renderPresetList('내 프리셋', personalPresets, '저장된 내 프리셋이 없습니다.')}
+        <h3 className="veveno-tools-block__title">{t('timers.presets')}</h3>
         {renderPresetList(
-          '이 가게 프리셋',
+          t('timers.myPresets'),
+          personalPresets,
+          t('timers.myPresetsEmpty'),
+        )}
+        {renderPresetList(
+          t('timers.storePresets'),
           storePresets,
-          '이 가게에 공유된 프리셋이 없습니다.',
+          t('timers.storePresetsEmpty'),
         )}
       </section>
     </div>

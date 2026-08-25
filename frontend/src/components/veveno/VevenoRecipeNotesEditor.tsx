@@ -6,6 +6,7 @@ import {
   toggleBulletOnSelection,
   toggleNumberedOnSelection,
 } from './vevenoNotesList';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 interface VevenoRecipeNotesEditorProps {
   id: string;
@@ -20,10 +21,12 @@ export function VevenoRecipeNotesEditor({
   id,
   value,
   onChange,
-  placeholder = '추출·원두·테이스팅 메모',
+  placeholder,
   rows = 8,
   disabled = false,
 }: VevenoRecipeNotesEditorProps) {
+  const t = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t('recipe.notesPlaceholder');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
@@ -95,50 +98,50 @@ export function VevenoRecipeNotesEditor({
 
   return (
     <div className="veveno-notes-editor">
-      <div className="veveno-notes-toolbar" role="toolbar" aria-label="노트 목록 서식">
+      <div className="veveno-notes-toolbar" role="toolbar" aria-label={t('recipe.toolbarAria')}>
         <button
           type="button"
           className="veveno-notes-toolbar__btn"
           disabled={disabled}
-          title="구분점 목록"
-          aria-label="구분점 목록"
+          title={t('recipe.bulletsTitle')}
+          aria-label={t('recipe.bulletsTitle')}
           onClick={() => applyTransform(toggleBulletOnSelection)}
         >
           <span aria-hidden>•</span>
-          <span>구분점</span>
+          <span>{t('recipe.bullets')}</span>
         </button>
         <button
           type="button"
           className="veveno-notes-toolbar__btn"
           disabled={disabled}
-          title="번호 목록"
-          aria-label="번호 목록"
+          title={t('recipe.numberedTitle')}
+          aria-label={t('recipe.numberedTitle')}
           onClick={() => applyTransform(toggleNumberedOnSelection)}
         >
           <span aria-hidden>1.</span>
-          <span>목록</span>
+          <span>{t('recipe.numbered')}</span>
         </button>
         <button
           type="button"
           className="veveno-notes-toolbar__btn"
           disabled={disabled}
-          title="들여쓰기 (Tab)"
-          aria-label="들여쓰기"
+          title={t('recipe.indentTitle')}
+          aria-label={t('recipe.indent')}
           onClick={() => applyTransform(indentSelection)}
         >
           <span aria-hidden>→</span>
-          <span>들여쓰기</span>
+          <span>{t('recipe.indent')}</span>
         </button>
         <button
           type="button"
           className="veveno-notes-toolbar__btn"
           disabled={disabled}
-          title="내어쓰기 (Shift+Tab)"
-          aria-label="내어쓰기"
+          title={t('recipe.outdentTitle')}
+          aria-label={t('recipe.outdent')}
           onClick={() => applyTransform(outdentSelection)}
         >
           <span aria-hidden>←</span>
-          <span>내어쓰기</span>
+          <span>{t('recipe.outdent')}</span>
         </button>
       </div>
       <textarea
@@ -149,7 +152,7 @@ export function VevenoRecipeNotesEditor({
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         disabled={disabled}
         aria-labelledby={id ? `${id}-label` : undefined}
       />

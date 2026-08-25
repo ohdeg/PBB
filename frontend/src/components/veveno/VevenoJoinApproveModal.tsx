@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
+import { vevenoWeekdayLabels } from '../../features/veveno/i18n/translate';
 import type { VevenoJoinRequest, VevenoScheduleSlotInput } from '../../types/veveno';
 import { VevenoButton } from './VevenoButton';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
 import { VevenoTimeInput } from './VevenoTimeInput';
-
-const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 interface DaySlot {
   enabled: boolean;
@@ -55,6 +55,8 @@ export function VevenoJoinApproveModal({
   onClose,
   onSave,
 }: VevenoJoinApproveModalProps) {
+  const t = useTranslation();
+  const dayLabels = vevenoWeekdayLabels(t);
   const [canEditStock, setCanEditStock] = useState(false);
   const [workStartDate, setWorkStartDate] = useState(todayKey);
   const [bulkStartTime, setBulkStartTime] = useState('09:00');
@@ -77,7 +79,7 @@ export function VevenoJoinApproveModal({
   const applyBulkTimesToSelectedDays = () => {
     const selected = Object.values(slots).some((slot) => slot.enabled);
     if (!selected) {
-      setBulkHint('시간을 적용할 요일을 먼저 선택해 주세요.');
+      setBulkHint(t('joinApprove.pickDaysFirst'));
       return;
     }
     setBulkHint('');
@@ -120,7 +122,7 @@ export function VevenoJoinApproveModal({
   return (
     <VevenoModal
       open={open}
-      title="가입 승인"
+      title={t('joinApprove.title')}
       onClose={() => {
         if (!loading) {
           onClose();
@@ -130,16 +132,16 @@ export function VevenoJoinApproveModal({
       {request ? (
         <form className="veveno-form-stack" onSubmit={handleSubmit}>
           <p className="veveno-card-lead">
-            {request.nickname} ({request.email}) 승인 시 근무·재고 권한을 함께 저장합니다.
+            {t('joinApprove.lead', { nickname: request.nickname, email: request.email })}
           </p>
           <VevenoInput
-            label="근무 시작일"
+            label={t('joinApprove.workStart')}
             id="join-work-start"
             type="date"
             required
             value={workStartDate}
             onChange={(e) => setWorkStartDate(e.target.value)}
-            hint="이 날짜부터 정규 근무가 달력에 표시됩니다."
+            hint={t('joinApprove.workStartHint')}
           />
           <label className="veveno-check">
             <input
@@ -147,23 +149,23 @@ export function VevenoJoinApproveModal({
               checked={canEditStock}
               onChange={(e) => setCanEditStock(e.target.checked)}
             />
-            재고 수정 가능
+            {t('joinApprove.stockEdit')}
           </label>
           <div className="veveno-stack">
-            <p className="veveno-field__label">정규 근무 (선택)</p>
+            <p className="veveno-field__label">{t('joinApprove.regularOptional')}</p>
             <div className="veveno-schedule-bulk">
-              <p className="veveno-field__label">선택 요일 일괄 시간</p>
+              <p className="veveno-field__label">{t('joinApprove.bulkTime')}</p>
               <div className="veveno-schedule-slot-row veveno-schedule-bulk__row">
                 <VevenoTimeInput
                   value={bulkStartTime}
                   onChange={setBulkStartTime}
-                  aria-label="일괄 시작 시각"
+                  aria-label={t('joinApprove.bulkStart')}
                 />
                 <span>~</span>
                 <VevenoTimeInput
                   value={bulkEndTime}
                   onChange={setBulkEndTime}
-                  aria-label="일괄 종료 시각"
+                  aria-label={t('joinApprove.bulkEnd')}
                 />
                 <VevenoButton
                   type="button"
@@ -171,11 +173,11 @@ export function VevenoJoinApproveModal({
                   variant="secondary"
                   onClick={applyBulkTimesToSelectedDays}
                 >
-                  선택 요일에 적용
+                  {t('joinApprove.applySelectedDays')}
                 </VevenoButton>
               </div>
               <p className="veveno-field__hint">
-                요일을 체크한 뒤 적용하면 같은 시간이 들어갑니다.
+                {t('joinApprove.bulkHint')}
               </p>
               {bulkHint ? (
                 <p className="veveno-field__error" role="alert">
@@ -183,7 +185,7 @@ export function VevenoJoinApproveModal({
                 </p>
               ) : null}
             </div>
-            {DAY_LABELS.map((label, i) => {
+            {dayLabels.map((label, i) => {
               const dow = i + 1;
               const slot = slots[dow] ?? emptySlot();
               return (
@@ -208,7 +210,7 @@ export function VevenoJoinApproveModal({
                   <VevenoTimeInput
                     value={slot.startTime}
                     disabled={!slot.enabled}
-                    aria-label={`${label} 시작`}
+                    aria-label={t('joinApprove.dayStart', { day: label })}
                     onChange={(startTime) =>
                       setSlots((prev) => ({
                         ...prev,
@@ -223,7 +225,7 @@ export function VevenoJoinApproveModal({
                   <VevenoTimeInput
                     value={slot.endTime}
                     disabled={!slot.enabled}
-                    aria-label={`${label} 종료`}
+                    aria-label={t('joinApprove.dayEnd', { day: label })}
                     onChange={(endTime) =>
                       setSlots((prev) => ({
                         ...prev,
@@ -239,8 +241,7 @@ export function VevenoJoinApproveModal({
             })}
           </div>
           <p className="veveno-card-lead">
-            종료 시각이 시작보다 이르면 자정 넘김으로 저장됩니다. 요일을 비워 두면 나중에
-            근무 탭에서 지정할 수 있습니다.
+            {t('joinApprove.overnightHint')}
           </p>
           <div className="veveno-btn-row">
             <VevenoButton
@@ -249,10 +250,10 @@ export function VevenoJoinApproveModal({
               disabled={loading}
               onClick={onClose}
             >
-              취소
+              {t('common.cancel')}
             </VevenoButton>
             <VevenoButton type="submit" loading={loading}>
-              저장 · 승인
+              {t('joinApprove.saveApprove')}
             </VevenoButton>
           </div>
         </form>

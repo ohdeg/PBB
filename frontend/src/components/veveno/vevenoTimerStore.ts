@@ -1,3 +1,10 @@
+import { resolveVevenoLocale } from '../../features/veveno/i18n/detect';
+import { createTranslator } from '../../features/veveno/i18n/translate';
+
+function timerT() {
+  return createTranslator(resolveVevenoLocale());
+}
+
 export type VevenoTimerRunStatus = 'idle' | 'running' | 'paused' | 'done';
 
 export interface VevenoTimerStep {
@@ -315,7 +322,13 @@ function syncFromClock(): void {
     const nextIndex = timer.currentStepIndex + 1;
     if (nextIndex >= timer.steps.length) {
       startCompletionAlarm(timer.id);
-      notify('Veveno 타이머', `${timer.name || '타이머'} 완료`, 'finish', false);
+      const t = timerT();
+      notify(
+        `Veveno ${t('timers.title')}`,
+        `${timer.name || t('timers.title')} ${t('timers.done')}`,
+        'finish',
+        false,
+      );
       return {
         ...timer,
         remainingMs: 0,
@@ -328,9 +341,10 @@ function syncFromClock(): void {
 
     const nextStep = timer.steps[nextIndex];
     const currentStep = timer.steps[timer.currentStepIndex];
+    const t = timerT();
     notify(
-      'Veveno 타이머',
-      `${currentStep?.name || '단계'} 완료 → ${nextStep.name || '다음'} 시작`,
+      `Veveno ${t('timers.title')}`,
+      `${currentStep?.name || t('timers.stepFallback')} ${t('timers.done')} → ${nextStep.name || t('timers.stepFallback')} ${t('timers.start')}`,
       'step',
     );
     return {
@@ -371,7 +385,7 @@ export function addVevenoTimer(
   const normalized = steps
     .map((step, index) => ({
       id: newId(),
-      name: step.name.trim() || `${index + 1}단계`,
+      name: step.name.trim() || timerT()('timers.stepN', { n: index + 1 }),
       durationMs: Math.max(1000, Math.floor(step.durationMs)),
     }))
     .filter((step) => step.durationMs > 0);
@@ -382,7 +396,7 @@ export function addVevenoTimer(
       ...state.timers,
       {
         id: newId(),
-        name: name.trim() || '타이머',
+        name: name.trim() || timerT()('timers.title'),
         steps: normalized,
         currentStepIndex: 0,
         remainingMs: normalized[0].durationMs,
@@ -494,7 +508,7 @@ export function duplicateVevenoTimer(id: string): void {
       ...state.timers,
       {
         id: newId(),
-        name: `${source.name} 복사`,
+        name: `${source.name} ${timerT()('common.copy')}`,
         steps,
         currentStepIndex: 0,
         remainingMs: steps[0].durationMs,
@@ -516,7 +530,7 @@ export function updateVevenoTimer(
   const normalized = steps
     .map((step, index) => ({
       id: newId(),
-      name: step.name.trim() || `${index + 1}단계`,
+      name: step.name.trim() || timerT()('timers.stepN', { n: index + 1 }),
       durationMs: Math.max(1000, Math.floor(step.durationMs)),
     }))
     .filter((step) => step.durationMs > 0);
@@ -527,7 +541,7 @@ export function updateVevenoTimer(
       if (timer.id !== id) return timer;
       return {
         ...timer,
-        name: name.trim() || '타이머',
+        name: name.trim() || timerT()('timers.title'),
         steps: normalized,
         currentStepIndex: 0,
         remainingMs: normalized[0].durationMs,

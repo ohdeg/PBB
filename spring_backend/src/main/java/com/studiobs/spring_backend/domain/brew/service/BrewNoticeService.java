@@ -82,19 +82,19 @@ public class BrewNoticeService {
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+                        new BusinessException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "로그인이 필요합니다."));
     }
 
     private BrewStore requireStore(UUID storeId) {
         return storeRepository.findById(storeId)
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.NOT_FOUND, "가게를 찾을 수 없습니다."));
+                        new BusinessException(HttpStatus.NOT_FOUND, "STORE_NOT_FOUND", "가게를 찾을 수 없습니다."));
     }
 
     private BrewStore requireOwnedStore(UUID storeId, UUID ownerId) {
         BrewStore store = requireStore(storeId);
         if (!store.getOwnerUserId().equals(ownerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "가게 소유자만 관리할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");
         }
         return store;
     }
@@ -106,13 +106,13 @@ public class BrewNoticeService {
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, store.getId())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "MEMBERS_ONLY", "가게 구성원만 이용할 수 있습니다.");
     }
 
     private BrewStoreNotice requireNotice(UUID noticeId) {
         return noticeRepository.findById(noticeId)
                 .orElseThrow(() ->
-                        new BusinessException(HttpStatus.NOT_FOUND, "공지를 찾을 수 없습니다."));
+                        new BusinessException(HttpStatus.NOT_FOUND, "NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다."));
     }
 
     private String nicknameOf(UUID userId) {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 interface VevenoSplashScreenProps {
   onFinish: () => void;
@@ -32,6 +33,7 @@ export function useVevenoSplash() {
 }
 
 export function VevenoSplashScreen({ onFinish }: VevenoSplashScreenProps) {
+  const t = useTranslation();
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export function VevenoSplashScreen({ onFinish }: VevenoSplashScreenProps) {
           <span className="veveno-splash__mark-core">V</span>
         </div>
         <p className="veveno-splash__brand">Veveno</p>
-        <p className="veveno-splash__tagline">가게 노트</p>
+        <p className="veveno-splash__tagline">{t('splash.tagline')}</p>
       </div>
     </div>
   );

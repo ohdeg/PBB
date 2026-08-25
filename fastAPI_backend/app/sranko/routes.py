@@ -46,6 +46,12 @@ class FitWarpResponse(BaseModel):
     height: int
 
 
+class RembgResponse(BaseModel):
+    imagePngBase64: str = Field(description="rembg PNG as base64 (no data: prefix)")
+    width: int
+    height: int
+
+
 @router.get("/health")
 def ml_health() -> dict[str, str | bool]:
     try:
@@ -63,30 +69,40 @@ _TARGET_DEFAULTS: dict[str, tuple[str, str, str, int]] = {
 }
 
 
-@router.post("/predict", response_model=PredictResponse)
-async def predict(
-    file: UploadFile = File(...),
-    extractWornGarment: bool = Form(False),
-    targetSlot: str | None = Form(None),
-) -> PredictResponse:
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="image file required")
-
-    raw = await file.read()
+def _load_upload_image(raw: bytes) -> Image.Image:
     if not raw:
         raise HTTPException(status_code=400, detail="empty file")
     if len(raw) > 12 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="file too large")
-
     try:
         image = Image.open(io.BytesIO(raw))
         image.load()
     except Exception as ex:  # noqa: BLE001
         logger.warning("invalid image: %s", ex)
         raise HTTPException(status_code=400, detail="cannot read image") from ex
+    return image
+
+
+@router.post("/predict", response_model=PredictResponse)
+async def predict(
+    file: UploadFile = File(...),
+    extractWornGarment: bool = Form(False),
+    targetSlot: str | None = Form(None),
+    skipBackgroundRemoval: bool = Form(False),
+) -> PredictResponse:
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="image file required")
+
+    raw = await file.read()
+    image = _load_upload_image(raw)
 
     width, height = image.size
     normalized_target = targetSlot.strip().upper() if targetSlot else None
+    if extractWornGarment and skipBackgroundRemoval:
+        raise HTTPException(
+            status_code=400,
+            detail="skipBackgroundRemoval cannot be used with extractWornGarment",
+        )
     if extractWornGarment and normalized_target not in WORN_GARMENT_SLOTS:
         raise HTTPException(
             status_code=400,
@@ -208,6 +224,23 @@ async def predict(
             extractionWarning=None,
         )
 
+    if skipBackgroundRemoval:
+        return PredictResponse(
+            classNum=label.class_num,
+            category1=label.category1,
+            category2=label.category2,
+            slot=label.slot,
+            categoryCode=label.category_code,
+            warmth=label.warmth,
+            taxonomyGroup=label.taxonomy_group,
+            rejected=False,
+            width=width,
+            height=height,
+            imagePngBase64="",
+            garmentExtractionApplied=False,
+            extractionWarning=None,
+        )
+
     try:
         png_bytes = remove_background_png(image)
     except Exception as ex:  # noqa: BLE001
@@ -228,6 +261,31 @@ async def predict(
         imagePngBase64=base64.b64encode(png_bytes).decode("ascii"),
         garmentExtractionApplied=False,
         extractionWarning=None,
+    )
+
+
+@router.post("/rembg", response_model=RembgResponse)
+async def rembg_only(
+    file: UploadFile = File(...),
+) -> RembgResponse:
+    """Background removal only — used after classify-first ITEM+ flow."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="image file required")
+
+    raw = await file.read()
+    image = _load_upload_image(raw)
+    width, height = image.size
+
+    try:
+        png_bytes = remove_background_png(image)
+    except Exception as ex:  # noqa: BLE001
+        logger.exception("rembg failed")
+        raise HTTPException(status_code=500, detail="background removal failed") from ex
+
+    return RembgResponse(
+        imagePngBase64=base64.b64encode(png_bytes).decode("ascii"),
+        width=width,
+        height=height,
     )
 
 

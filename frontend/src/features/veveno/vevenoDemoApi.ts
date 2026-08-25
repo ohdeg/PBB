@@ -40,6 +40,10 @@ const STORAGE_KEY = 'veveno:demo:v5'
 const CREATED = '2026-01-15T00:00:00.000Z'
 const OWNER_NICK = '사장'
 const STAFF_NICK = '민수'
+
+function fail(code: string, ko: string): Promise<never> {
+  return Promise.reject(Object.assign(new Error(ko), { code }))
+}
 const STAFF_JIHYE_ID = 'demo-staff-jihye'
 const STAFF_TAEHO_ID = 'demo-staff-taeho'
 const STAFF_HARIN_ID = 'demo-pending-harin'
@@ -714,7 +718,7 @@ export const vevenoDemoApi = {
   updateMenu(menuId: string, name: string) {
     const menu = state().menus.find((row) => row.id === menuId)
     if (!menu) {
-      return Promise.reject(new Error('메뉴를 찾을 수 없습니다.'))
+      return fail('MENU_NOT_FOUND', '메뉴를 찾을 수 없습니다.')
     }
     menu.name = name
     menu.updatedAt = nowIso()
@@ -755,7 +759,7 @@ export const vevenoDemoApi = {
   updateNotice(noticeId: string, payload: VevenoNoticeInput) {
     const notice = state().notices.find((row) => row.id === noticeId)
     if (!notice) {
-      return Promise.reject(new Error('공지를 찾을 수 없습니다.'))
+      return fail('NOTICE_NOT_FOUND', '공지를 찾을 수 없습니다.')
     }
     notice.title = payload.title
     notice.body = payload.body
@@ -792,7 +796,7 @@ export const vevenoDemoApi = {
   updateRecipe(recipeId: string, contents: string) {
     const row = state().recipes.find((item) => item.id === recipeId)
     if (!row) {
-      return Promise.reject(new Error('레시피를 찾을 수 없습니다.'))
+      return fail('RECIPE_NOT_FOUND', '레시피를 찾을 수 없습니다.')
     }
     row.contents = contents
     row.updatedAt = nowIso()
@@ -826,7 +830,7 @@ export const vevenoDemoApi = {
   updateStockCategory(categoryId: number, name: string) {
     const cat = state().categories.find((row) => row.id === categoryId)
     if (!cat) {
-      return Promise.reject(new Error('분류를 찾을 수 없습니다.'))
+      return fail('CATEGORY_NOT_FOUND', '분류를 찾을 수 없습니다.')
     }
     cat.categoryName = name
     persist()
@@ -900,10 +904,10 @@ export const vevenoDemoApi = {
   ) {
     const row = state().stocks.find((item) => item.id === stockId)
     if (!row) {
-      return Promise.reject(new Error('재고를 찾을 수 없습니다.'))
+      return fail('STOCK_NOT_FOUND', '재고를 찾을 수 없습니다.')
     }
     if (row.version !== payload.version) {
-      return Promise.reject(new Error('다른 화면에서 재고가 바뀌었습니다. 다시 불러와 주세요.'))
+      return fail('STOCK_STALE', '다른 화면에서 재고가 바뀌었습니다. 다시 불러와 주세요.')
     }
     const fromNum = row.stockNum
     row.stockName = payload.stockName
@@ -954,7 +958,7 @@ export const vevenoDemoApi = {
   },
 
   requestJoin() {
-    return ok<ApiMessageResponse>({ message: '체험 가게에는 가입할 수 없습니다.' })
+    return fail('DEMO_JOIN_BLOCKED', '체험 가게에는 가입할 수 없습니다.')
   },
 
   listJoinRequests(_storeId: string) {
@@ -968,7 +972,7 @@ export const vevenoDemoApi = {
   updateStockPermission(_storeId: string, userId: string, canEditStock: boolean) {
     const sub = state().subscribers.find((row) => row.userId === userId)
     if (!sub) {
-      return Promise.reject(new Error('직원을 찾을 수 없습니다.'))
+      return fail('STAFF_NOT_FOUND', '직원을 찾을 수 없습니다.')
     }
     sub.canEditStock = canEditStock
     persist()
@@ -987,7 +991,7 @@ export const vevenoDemoApi = {
     const s = state()
     const join = s.joins.find((row) => row.userId === userId)
     if (!join) {
-      return Promise.reject(new Error('가입 신청을 찾을 수 없습니다.'))
+      return fail('JOIN_REQUEST_NOT_FOUND', '가입 신청을 찾을 수 없습니다.')
     }
     s.joins = s.joins.filter((row) => row.userId !== userId)
     s.subscribers.push({
@@ -1025,7 +1029,7 @@ export const vevenoDemoApi = {
   resignSubscriber(_storeId: string, userId: string, leaveDate: string) {
     const sub = state().subscribers.find((row) => row.userId === userId)
     if (!sub) {
-      return Promise.reject(new Error('직원을 찾을 수 없습니다.'))
+      return fail('STAFF_NOT_FOUND', '직원을 찾을 수 없습니다.')
     }
     sub.leaveDate = leaveDate
     persist()
@@ -1035,7 +1039,7 @@ export const vevenoDemoApi = {
   clearSubscriberLeave(_storeId: string, userId: string) {
     const sub = state().subscribers.find((row) => row.userId === userId)
     if (!sub) {
-      return Promise.reject(new Error('직원을 찾을 수 없습니다.'))
+      return fail('STAFF_NOT_FOUND', '직원을 찾을 수 없습니다.')
     }
     sub.leaveDate = null
     persist()
@@ -1184,7 +1188,7 @@ export const vevenoDemoApi = {
   assignCover(coverId: string, coverUserId: string) {
     const cover = state().covers.find((row) => row.id === coverId)
     if (!cover) {
-      return Promise.reject(new Error('대타를 찾을 수 없습니다.'))
+      return fail('COVER_NOT_FOUND', '대타를 찾을 수 없습니다.')
     }
     cover.coverUserId = coverUserId
     cover.coverNickname = nickOf(coverUserId)
@@ -1196,7 +1200,7 @@ export const vevenoDemoApi = {
   acceptCover(coverId: string) {
     const cover = state().covers.find((row) => row.id === coverId)
     if (!cover) {
-      return Promise.reject(new Error('대타를 찾을 수 없습니다.'))
+      return fail('COVER_NOT_FOUND', '대타를 찾을 수 없습니다.')
     }
     cover.status = 'APPROVED'
     cover.decidedByUserId = actor().userId
@@ -1208,7 +1212,7 @@ export const vevenoDemoApi = {
   rejectCover(coverId: string) {
     const cover = state().covers.find((row) => row.id === coverId)
     if (!cover) {
-      return Promise.reject(new Error('대타를 찾을 수 없습니다.'))
+      return fail('COVER_NOT_FOUND', '대타를 찾을 수 없습니다.')
     }
     cover.status = 'REJECTED'
     cover.decidedByUserId = actor().userId
@@ -1220,7 +1224,7 @@ export const vevenoDemoApi = {
   cancelCover(coverId: string) {
     const cover = state().covers.find((row) => row.id === coverId)
     if (!cover) {
-      return Promise.reject(new Error('대타를 찾을 수 없습니다.'))
+      return fail('COVER_NOT_FOUND', '대타를 찾을 수 없습니다.')
     }
     cover.status = 'CANCELLED'
     persist()
@@ -1252,7 +1256,7 @@ export const vevenoDemoApi = {
   updatePersonalTimerPreset(presetId: string, payload: VevenoTimerPresetInput) {
     const row = state().personalPresets.find((item) => item.id === presetId)
     if (!row) {
-      return Promise.reject(new Error('프리셋을 찾을 수 없습니다.'))
+      return fail('PRESET_NOT_FOUND', '프리셋을 찾을 수 없습니다.')
     }
     row.name = payload.name
     row.steps = payload.steps
@@ -1297,7 +1301,7 @@ export const vevenoDemoApi = {
   ) {
     const row = state().storePresets.find((item) => item.id === presetId)
     if (!row) {
-      return Promise.reject(new Error('프리셋을 찾을 수 없습니다.'))
+      return fail('PRESET_NOT_FOUND', '프리셋을 찾을 수 없습니다.')
     }
     row.name = payload.name
     row.steps = payload.steps
@@ -1346,7 +1350,7 @@ export const vevenoDemoApi = {
   updateChecklist(templateId: string, payload: VevenoChecklistInput) {
     const row = state().checklists.find((item) => item.id === templateId)
     if (!row) {
-      return Promise.reject(new Error('할 일을 찾을 수 없습니다.'))
+      return fail('CHECKLIST_NOT_FOUND', '할 일을 찾을 수 없습니다.')
     }
     row.title = payload.title
     row.triggerType = payload.triggerType

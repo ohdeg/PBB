@@ -235,6 +235,11 @@ export function useSrankoMutations() {
     [],
   );
 
+  const rembgItem = useCallback(
+    async (file: File) => srankoApi.rembg(file),
+    [],
+  );
+
   return {
     saveItem,
     removeItem,
@@ -247,5 +252,6 @@ export function useSrankoMutations() {
     uploadImage,
     deleteUpload,
     predictItem,
+    rembgItem,
   };
 }

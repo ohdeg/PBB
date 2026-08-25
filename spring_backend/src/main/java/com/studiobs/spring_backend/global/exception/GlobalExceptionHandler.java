@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<MessageResponse> handleBusinessException(BusinessException ex) {
         return ResponseEntity.status(ex.getStatus())
-                .body(new MessageResponse(ex.getMessage()));
+                .body(new MessageResponse(ex.getMessage(), ex.getCode()));
     }
 
     @ExceptionHandler({
@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<MessageResponse> handleOptimisticLock(RuntimeException ex) {
         log.info("Optimistic lock conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new MessageResponse(STOCK_CONFLICT_MESSAGE));
+                .body(new MessageResponse(STOCK_CONFLICT_MESSAGE, "STOCK_STALE"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
+import { vevenoWeekdayLabels, type TranslateFn } from '../../features/veveno/i18n/translate';
 import type { VevenoCalendarOccurrence } from '../../types/veveno';
 import {
   VEVENO_HOUR_HEIGHT_PX,
@@ -10,8 +12,6 @@ import {
   type VevenoStaffColor,
   type VevenoTimetableSegment,
 } from './vevenoTimetableUtils';
-
-const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 interface VevenoWeekTimelineViewProps {
   days: Date[];
@@ -30,15 +30,19 @@ function formatTime(t: string): string {
   return t.length >= 5 ? t.slice(0, 5) : t;
 }
 
-function blockTitle(occ: VevenoCalendarOccurrence): string {
+function blockTitle(occ: VevenoCalendarOccurrence, t: TranslateFn): string {
   const time = `${formatTime(occ.startTime)}–${formatTime(occ.endTime)}${
-    occ.overnight ? ' (익일)' : ''
+    occ.overnight ? t('schedule.nextDayParen') : ''
   }`;
   if (occ.type === 'COVER') {
-    return `${occ.nickname} 대체(${occ.relatedNickname ?? ''})\n${time}`;
+    return t('schedule.coverTitle', {
+      nickname: occ.nickname,
+      related: occ.relatedNickname ?? '',
+      time,
+    });
   }
   if (occ.type === 'EXTRA') {
-    return `${occ.nickname} 추가\n${time}`;
+    return t('schedule.extraTitle', { nickname: occ.nickname, time });
   }
   return `${occ.nickname}\n${time}`;
 }
@@ -63,12 +67,14 @@ function DayColumn({
   hourCount,
   range,
   colorMap,
+  t,
 }: {
   dayOccurrences: VevenoCalendarOccurrence[];
   rangeHeight: number;
   hourCount: number;
   range: ReturnType<typeof getVevenoWeekTimetableRange>;
   colorMap: Map<string, VevenoStaffColor>;
+  t: TranslateFn;
 }) {
   const segments = layoutVevenoDayTimetableBlocks(dayOccurrences, range);
 
@@ -98,7 +104,7 @@ function DayColumn({
               borderColor: color.border,
               color: color.text,
             }}
-            title={blockTitle(segment.occurrence)}
+            title={blockTitle(segment.occurrence, t)}
           >
             {segment.showLabel ? (
               <>
@@ -106,15 +112,17 @@ function DayColumn({
                 <p className="veveno-tt-block__time">
                   {formatTime(segment.occurrence.startTime)}–
                   {formatTime(segment.occurrence.endTime)}
-                  {segment.occurrence.overnight ? ' ·익일' : ''}
+                  {segment.occurrence.overnight ? t('schedule.nextDayDot') : ''}
                 </p>
                 {segment.occurrence.type === 'COVER' ? (
                   <p className="veveno-tt-block__meta">
-                    대체 · {segment.occurrence.relatedNickname}
+                    {t('schedule.coverMeta', {
+                      related: segment.occurrence.relatedNickname ?? '',
+                    })}
                   </p>
                 ) : null}
                 {segment.occurrence.type === 'EXTRA' ? (
-                  <p className="veveno-tt-block__meta">추가</p>
+                  <p className="veveno-tt-block__meta">{t('schedule.extra')}</p>
                 ) : null}
               </>
             ) : null}
@@ -130,6 +138,8 @@ export default function VevenoWeekTimelineView({
   occurrences,
   staffUserIds,
 }: VevenoWeekTimelineViewProps) {
+  const t = useTranslation();
+  const dayLabels = vevenoWeekdayLabels(t);
   const colorMap = useMemo(
     () =>
       buildVevenoStaffColorMap([
@@ -155,8 +165,8 @@ export default function VevenoWeekTimelineView({
   }, [dayKeys, days, selectedKey, todayKey]);
 
   const range = useMemo(
-    () => getVevenoWeekTimetableRange(occurrences),
-    [occurrences],
+    () => getVevenoWeekTimetableRange(occurrences, t('schedule.nextDay')),
+    [occurrences, t],
   );
 
   const selectedDay = days.find((d) => toDateKey(d) === selectedKey) ?? days[0];
@@ -175,7 +185,7 @@ export default function VevenoWeekTimelineView({
               className={`veveno-tt-strip__day${selected ? ' is-selected' : ''}${isToday ? ' is-today' : ''}`}
               onClick={() => setSelectedKey(key)}
             >
-              <span className="veveno-tt-strip__wd">{DAY_LABELS[index]}</span>
+              <span className="veveno-tt-strip__wd">{dayLabels[index]}</span>
               <span className="veveno-tt-strip__num">{day.getDate()}</span>
             </button>
           );
@@ -186,8 +196,11 @@ export default function VevenoWeekTimelineView({
         {selectedDay ? (
           <>
             <p className="veveno-tt-mobile__label">
-              {selectedDay.getMonth() + 1}월 {selectedDay.getDate()}일 (
-              {DAY_LABELS[(selectedDay.getDay() + 6) % 7]})
+              {t('schedule.monthDay', {
+                month: selectedDay.getMonth() + 1,
+                day: selectedDay.getDate(),
+              })}{' '}
+              ({dayLabels[(selectedDay.getDay() + 6) % 7]})
             </p>
             <div className="veveno-tt-scroll">
               <div
@@ -214,6 +227,7 @@ export default function VevenoWeekTimelineView({
                   hourCount={range.hourLabels.length}
                   range={range}
                   colorMap={colorMap}
+                  t={t}
                 />
               </div>
             </div>
@@ -235,7 +249,7 @@ export default function VevenoWeekTimelineView({
                 key={key}
                 className={`veveno-tt-strip__day veveno-tt-strip__day--static${isToday ? ' is-today' : ''}`}
               >
-                <span className="veveno-tt-strip__wd">{DAY_LABELS[index]}</span>
+                <span className="veveno-tt-strip__wd">{dayLabels[index]}</span>
                 <span className="veveno-tt-strip__num">{day.getDate()}</span>
               </div>
             );
@@ -273,6 +287,7 @@ export default function VevenoWeekTimelineView({
                     hourCount={range.hourLabels.length}
                     range={range}
                     colorMap={colorMap}
+                    t={t}
                   />
                 </div>
               );

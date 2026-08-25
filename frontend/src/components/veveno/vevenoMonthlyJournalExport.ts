@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { VevenoCalendarOccurrence, VevenoOccurrenceType } from '../../types/veveno';
+import type { TranslateFn } from '../../features/veveno/i18n/translate';
 
 export interface MonthlyJournalExportInput {
   storeName: string;
@@ -7,6 +8,8 @@ export interface MonthlyJournalExportInput {
   /** 1–12 */
   month: number;
   occurrences: VevenoCalendarOccurrence[];
+  t: TranslateFn;
+  collatorLocale?: string;
 }
 
 interface JournalShift {
@@ -17,6 +20,7 @@ interface JournalShift {
   startTime: string;
   endTime: string;
   overnight: boolean;
+  type: VevenoOccurrenceType;
   typeLabel: string;
   minutes: number;
 }
@@ -90,14 +94,14 @@ export function occurrenceDurationMinutes(
   return end - start;
 }
 
-function typeLabel(type: VevenoOccurrenceType): string | null {
+function typeLabel(type: VevenoOccurrenceType, t: TranslateFn): string | null {
   switch (type) {
     case 'REGULAR':
-      return '정규';
+      return t('journal.regular');
     case 'COVER':
-      return '대타';
+      return t('journal.cover');
     case 'EXTRA':
-      return '추가';
+      return t('journal.extra');
     case 'COVERED_OUT':
       return null;
     default:
@@ -116,11 +120,11 @@ function sanitizeFilePart(name: string): string {
   return trimmed.length > 0 ? trimmed : 'store';
 }
 
-function formatShiftCell(shift: JournalShift): string {
+function formatShiftCell(shift: JournalShift, t: TranslateFn): string {
   const range = shift.overnight
-    ? `${shift.startTime}–${shift.endTime}(익일)`
+    ? `${shift.startTime}–${shift.endTime}${t('journal.nextDay')}`
     : `${shift.startTime}–${shift.endTime}`;
-  if (shift.typeLabel === '정규') {
+  if (shift.type === 'REGULAR') {
     return range;
   }
   return `${range}(${shift.typeLabel})`;
@@ -134,10 +138,12 @@ function buildShifts(
   occurrences: VevenoCalendarOccurrence[],
   year: number,
   month: number,
+  t: TranslateFn,
+  collatorLocale: string,
 ): JournalShift[] {
   const shifts: JournalShift[] = [];
   for (const occ of occurrences) {
-    const label = typeLabel(occ.type);
+    const label = typeLabel(occ.type, t);
     if (!label) {
       continue;
     }
@@ -161,6 +167,7 @@ function buildShifts(
       startTime: start,
       endTime: end,
       overnight,
+      type: occ.type,
       typeLabel: label,
       minutes: occurrenceDurationMinutes(occ.startTime, occ.endTime, occ.overnight),
     });
@@ -172,7 +179,7 @@ function buildShifts(
     if (a.startTime !== b.startTime) {
       return a.startTime.localeCompare(b.startTime);
     }
-    return a.nickname.localeCompare(b.nickname, 'ko');
+    return a.nickname.localeCompare(b.nickname, collatorLocale);
   });
   return shifts;
 }
@@ -183,6 +190,8 @@ function buildStaffDaySheet(
   year: number,
   month: number,
   storeName: string,
+  t: TranslateFn,
+  collatorLocale: string,
 ): (string | number)[][] {
   const lastDay = daysInMonth(year, month);
   const byUser = new Map<
@@ -211,20 +220,20 @@ function buildStaffDaySheet(
   }
 
   const header: (string | number)[] = [
-    '근무자',
+    t('journal.worker'),
     ...Array.from({ length: lastDay }, (_, i) => i + 1),
-    '총 근무시간',
+    t('journal.totalHours'),
   ];
 
   const body: (string | number)[][] = [
-    ['가게', storeName],
-    ['기간', `${year}년 ${month}월`],
+    [t('journal.shop'), storeName],
+    [t('journal.period'), t('journal.yearMonth', { year, month })],
     [],
     header,
   ];
 
   const sorted = [...byUser.values()].sort((a, b) =>
-    a.nickname.localeCompare(b.nickname, 'ko'),
+    a.nickname.localeCompare(b.nickname, collatorLocale),
   );
 
   for (const entry of sorted) {
@@ -235,14 +244,14 @@ function buildStaffDaySheet(
         dayValues.push('—');
         continue;
       }
-      dayValues.push(dayShifts.map(formatShiftCell).join(' / '));
+      dayValues.push(dayShifts.map((shift) => formatShiftCell(shift, t)).join(' / '));
     }
     body.push([entry.nickname, ...dayValues, formatHours(entry.totalMinutes)]);
   }
 
   if (sorted.length === 0) {
     body.push([
-      '(해당 월 근무 없음)',
+      t('journal.emptyMonth'),
       ...Array.from({ length: lastDay }, () => '—'),
       '0:00',
     ]);
@@ -278,6 +287,8 @@ function buildSummarySheet(
   shifts: JournalShift[],
   year: number,
   month: number,
+  t: TranslateFn,
+  collatorLocale: string,
 ): (string | number)[][] {
   const weeks = buildWeekColumns(year, month);
   const byUser = new Map<
@@ -308,14 +319,14 @@ function buildSummarySheet(
   }
 
   const header: string[] = [
-    '근무자',
-    '기간 총 근무시간',
-    ...weeks.map((w) => `주간 ${w.label}`),
+    t('journal.worker'),
+    t('journal.periodTotal'),
+    ...weeks.map((w) => t('journal.weekCol', { label: w.label })),
   ];
   const body: (string | number)[][] = [header];
 
   const sorted = [...byUser.values()].sort((a, b) =>
-    a.nickname.localeCompare(b.nickname, 'ko'),
+    a.nickname.localeCompare(b.nickname, collatorLocale),
   );
   for (const entry of sorted) {
     body.push([
@@ -325,7 +336,7 @@ function buildSummarySheet(
     ]);
   }
   if (sorted.length === 0) {
-    body.push(['(해당 월 근무 없음)', '0:00', ...weeks.map(() => '0:00')]);
+    body.push([t('journal.emptyMonth'), '0:00', ...weeks.map(() => '0:00')]);
   }
   return body;
 }
@@ -337,25 +348,25 @@ function buildSummarySheet(
  * COVERED_OUT 제외.
  */
 export function downloadMonthlyWorkJournal(input: MonthlyJournalExportInput): void {
-  const { storeName, year, month, occurrences } = input;
-  const shifts = buildShifts(occurrences, year, month);
+  const { storeName, year, month, occurrences, t, collatorLocale = 'ko' } = input;
+  const shifts = buildShifts(occurrences, year, month, t, collatorLocale);
 
-  const journalAoA = buildStaffDaySheet(shifts, year, month, storeName);
-  const summaryAoA = buildSummarySheet(shifts, year, month);
+  const journalAoA = buildStaffDaySheet(shifts, year, month, storeName, t, collatorLocale);
+  const summaryAoA = buildSummarySheet(shifts, year, month, t, collatorLocale);
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(
     workbook,
     XLSX.utils.aoa_to_sheet(journalAoA),
-    '일지',
+    t('journal.sheetJournal'),
   );
   XLSX.utils.book_append_sheet(
     workbook,
     XLSX.utils.aoa_to_sheet(summaryAoA),
-    '직원별 요약',
+    t('journal.sheetSummary'),
   );
 
   const ym = `${year}-${pad2(month)}`;
-  const filename = `Veveno_${sanitizeFilePart(storeName)}_${ym}_근무일지.xlsx`;
+  const filename = `Veveno_${sanitizeFilePart(storeName)}_${ym}_${t('journal.filename')}.xlsx`;
   XLSX.writeFile(workbook, filename);
 }

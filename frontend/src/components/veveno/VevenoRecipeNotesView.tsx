@@ -1,3 +1,4 @@
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { parseNotesToBlocks } from './vevenoNotesList';
 
 interface VevenoRecipeNotesViewProps {
@@ -11,10 +12,11 @@ function bulletMarker(level: number): string {
 }
 
 export function VevenoRecipeNotesView({ notes }: VevenoRecipeNotesViewProps) {
+  const t = useTranslation();
   const blocks = parseNotesToBlocks(notes);
 
   if (blocks.length === 0) {
-    return <p className="veveno-empty">노트가 없습니다.</p>;
+    return <p className="veveno-empty">{t('recipe.empty')}</p>;
   }
 
   return (

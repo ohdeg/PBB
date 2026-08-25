@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Dialog } from '../ui/Dialog';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 interface VevenoModalProps {
   open: boolean;
@@ -16,6 +17,7 @@ export function VevenoModal({
   children,
   closeOnBackdrop = true,
 }: VevenoModalProps) {
+  const t = useTranslation();
   return (
     <Dialog
       open={open}
@@ -35,7 +37,7 @@ export function VevenoModal({
             type="button"
             className="veveno-modal__close"
             onClick={onClose}
-            aria-label="닫기"
+            aria-label={t('common.close')}
           >
             ×
           </button>

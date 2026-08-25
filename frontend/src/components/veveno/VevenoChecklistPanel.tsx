@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { vevenoApi } from '../../api/vevenoApi';
-import { getErrorMessage } from '../../utils/error';
+import { getVevenoErrorMessage } from '../../features/veveno/i18n/error';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
+import { vevenoWeekdayLabels, type TranslateFn } from '../../features/veveno/i18n/translate';
 import type {
   VevenoChecklistAudience,
   VevenoChecklistInput,
@@ -17,22 +19,64 @@ import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
 import { VevenoTimeInput } from './VevenoTimeInput';
 
-const DOWS: { value: number; label: string }[] = [
-  { value: 1, label: '월' },
-  { value: 2, label: '화' },
-  { value: 3, label: '수' },
-  { value: 4, label: '목' },
-  { value: 5, label: '금' },
-  { value: 6, label: '토' },
-  { value: 7, label: '일' },
-];
+function triggerLabel(type: VevenoChecklistTrigger, t: TranslateFn): string {
+  switch (type) {
+    case 'CLOCK':
+      return t('checklists.triggerTime');
+    case 'SHIFT_START':
+      return t('checklists.triggerOpen');
+    case 'SHIFT_END':
+      return t('checklists.triggerClose');
+    case 'MANUAL':
+      return t('checklists.triggerManual');
+    default:
+      return type;
+  }
+}
 
-const TRIGGER_LABEL: Record<VevenoChecklistTrigger, string> = {
-  CLOCK: '시각',
-  SHIFT_START: '오픈',
-  SHIFT_END: '마감',
-  MANUAL: '직접 열기',
-};
+function sampleOpen(t: TranslateFn): VevenoChecklistInput {
+  return {
+    title: t('checklists.sampleOpen'),
+    triggerType: 'SHIFT_START',
+    triggerTime: null,
+    triggerDows: [],
+    audience: 'ON_DUTY',
+    interrupt: true,
+    enabled: true,
+    personal: false,
+    items: [
+      t('checklists.sampleOpen0'),
+      t('checklists.sampleOpen1'),
+      t('checklists.sampleOpen2'),
+      t('checklists.sampleOpen3'),
+      t('checklists.sampleOpen4'),
+      t('checklists.sampleOpen5'),
+      t('checklists.sampleOpen6'),
+      t('checklists.sampleOpen7'),
+    ],
+  };
+}
+
+function sampleClose(t: TranslateFn): VevenoChecklistInput {
+  return {
+    title: t('checklists.sampleClose'),
+    triggerType: 'SHIFT_END',
+    triggerTime: null,
+    triggerDows: [],
+    audience: 'ON_DUTY',
+    interrupt: false,
+    enabled: true,
+    personal: false,
+    items: [
+      t('checklists.sampleClose0'),
+      t('checklists.sampleClose1'),
+      t('checklists.sampleClose2'),
+      t('checklists.sampleClose3'),
+      t('checklists.sampleClose4'),
+      t('checklists.sampleClose5'),
+    ],
+  };
+}
 
 interface FormState {
   title: string;
@@ -56,39 +100,6 @@ const EMPTY_FORM: FormState = {
   enabled: true,
   personal: false,
   items: [''],
-};
-
-const SAMPLE_OPEN: VevenoChecklistInput = {
-  title: '오픈',
-  triggerType: 'SHIFT_START',
-  triggerTime: null,
-  triggerDows: [],
-  audience: 'ON_DUTY',
-  interrupt: true,
-  enabled: true,
-  personal: false,
-  items: [
-    '문·조명',
-    '머신 워밍',
-    '그라인더 퍼지',
-    '우유·시럽',
-    '아이스',
-    '홀 정리',
-    '카운터',
-    '오프닝 캐시',
-  ],
-};
-
-const SAMPLE_CLOSE: VevenoChecklistInput = {
-  title: '마감',
-  triggerType: 'SHIFT_END',
-  triggerTime: null,
-  triggerDows: [],
-  audience: 'ON_DUTY',
-  interrupt: false,
-  enabled: true,
-  personal: false,
-  items: ['머신 백플러시', '우유 비우기', '홀 청소', '쓰레기', '재고 메모', '문·조명'],
 };
 
 function toInput(form: FormState): VevenoChecklistInput {
@@ -152,6 +163,7 @@ export function VevenoChecklistPanel({
   onTodayChange,
   onError,
 }: VevenoChecklistPanelProps) {
+  const t = useTranslation();
   const [templates, setTemplates] = useState<VevenoChecklistTemplate[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -166,9 +178,9 @@ export function VevenoChecklistPanel({
 
   useEffect(() => {
     void loadTemplates().catch((err: unknown) => {
-      onError(getErrorMessage(err, '할 일을 불러오지 못했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failLoadChecklists'), t));
     });
-  }, [loadTemplates, onError]);
+  }, [loadTemplates, onError, t]);
 
   const openCreate = (personal: boolean) => {
     setEditingId(null);
@@ -192,7 +204,7 @@ export function VevenoChecklistPanel({
     event.preventDefault();
     const payload = toInput(form);
     if (!payload.title || payload.items.length === 0) {
-      onError('이름과 항목을 입력해 주세요.');
+      onError(t('checklists.nameItemsRequired'));
       return;
     }
     setSaving(true);
@@ -208,21 +220,21 @@ export function VevenoChecklistPanel({
       const { data } = await vevenoApi.listTodayChecklists(storeId);
       onTodayChange(data);
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '저장에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failSave'), t));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (template: VevenoChecklistTemplate) => {
-    if (!window.confirm(`「${template.title}」을 지울까요?`)) {
+    if (!window.confirm(t('checklists.confirmDelete', { title: template.title }))) {
       return;
     }
     try {
       await vevenoApi.deleteChecklist(template.id);
       await loadTemplates();
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '삭제에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failDelete'), t));
     }
   };
 
@@ -238,7 +250,7 @@ export function VevenoChecklistPanel({
       });
       onTodayChange(data);
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '체크에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failCheck'), t));
     }
   };
 
@@ -248,7 +260,7 @@ export function VevenoChecklistPanel({
       onTodayChange(data);
       setCheckModalId(templateId);
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '목록을 열지 못했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failOpenList'), t));
     }
   };
 
@@ -275,8 +287,8 @@ export function VevenoChecklistPanel({
       <SampleSeedCards
         missingOpen={missingOpen}
         missingClose={missingClose}
-        onOpenOpen={() => openSample(SAMPLE_OPEN)}
-        onOpenClose={() => openSample(SAMPLE_CLOSE)}
+        onOpenOpen={() => openSample(sampleOpen(t))}
+        onOpenClose={() => openSample(sampleClose(t))}
       />
     ) : null;
 
@@ -287,15 +299,15 @@ export function VevenoChecklistPanel({
           <div className="veveno-stack-lg">
             {seedCards}
             <VevenoButton variant="ghost" onClick={() => openCreate(false)}>
-              직접 만들기
+              {t('checklists.createCustom')}
             </VevenoButton>
           </div>
         ) : (
           <VevenoEmptyState
-            title="아직 할 일이 없습니다"
-            body="나만 보는 할 일을 만들어 두세요. 가게 목록은 사장님이 만듭니다."
+            title={t('checklists.emptyTitle')}
+            body={t('checklists.emptyBody')}
             action={
-              <VevenoButton onClick={() => openCreate(true)}>내 할 일 만들기</VevenoButton>
+              <VevenoButton onClick={() => openCreate(true)}>{t('checklists.createMine')}</VevenoButton>
             }
           />
         )}
@@ -318,14 +330,14 @@ export function VevenoChecklistPanel({
       {seedCards}
       {dueToday.length > 0 ? (
         <section className="veveno-stack">
-          <h2 className="veveno-subsection-title">오늘</h2>
+          <h2 className="veveno-subsection-title">{t('checklists.today')}</h2>
           {dueToday.map((list) => (
             <VevenoCard
               key={list.templateId}
               title={`${list.title} · ${list.checkedCount}/${list.totalCount}`}
               action={
                 isTodayComplete(list) ? (
-                  <VevenoBadge variant="success">완료</VevenoBadge>
+                  <VevenoBadge variant="success">{t('checklists.done')}</VevenoBadge>
                 ) : null
               }
             >
@@ -342,15 +354,15 @@ export function VevenoChecklistPanel({
 
       <section className="veveno-stack">
         <div className="veveno-toolbar">
-          <h2 className="veveno-subsection-title">목록</h2>
+          <h2 className="veveno-subsection-title">{t('checklists.lists')}</h2>
           <div className="veveno-toolbar__actions">
             {owned ? (
               <VevenoButton size="sm" onClick={() => openCreate(false)}>
-                가게
+                {t('checklists.store')}
               </VevenoButton>
             ) : null}
             <VevenoButton size="sm" variant="secondary" onClick={() => openCreate(true)}>
-              내 것
+              {t('checklists.mine')}
             </VevenoButton>
           </div>
         </div>
@@ -388,7 +400,7 @@ export function VevenoChecklistPanel({
       />
       <VevenoModal
         open={Boolean(checkModal)}
-        title={checkModal ? checkModal.title : '할 일'}
+        title={checkModal ? checkModal.title : t('checklists.todo')}
         onClose={() => setCheckModalId(null)}
       >
         {checkModal ? (
@@ -415,16 +427,29 @@ function SampleSeedCards({
   onOpenOpen: () => void;
   onOpenClose: () => void;
 }) {
+  const t = useTranslation();
+  const openSample = sampleOpen(t);
+  const closeSample = sampleClose(t);
   return (
     <div className="veveno-stack">
       {missingOpen ? (
-        <VevenoCard title="오픈" onClick={onOpenOpen}>
-          <p className="veveno-shell__meta">오픈 · {SAMPLE_OPEN.items.length}항목</p>
+        <VevenoCard title={t('checklists.sampleOpen')} onClick={onOpenOpen}>
+          <p className="veveno-shell__meta">
+            {t('checklists.sampleMeta', {
+              title: t('checklists.sampleOpen'),
+              count: openSample.items.length,
+            })}
+          </p>
         </VevenoCard>
       ) : null}
       {missingClose ? (
-        <VevenoCard title="마감" onClick={onOpenClose}>
-          <p className="veveno-shell__meta">마감 · {SAMPLE_CLOSE.items.length}항목</p>
+        <VevenoCard title={t('checklists.sampleClose')} onClick={onOpenClose}>
+          <p className="veveno-shell__meta">
+            {t('checklists.sampleMeta', {
+              title: t('checklists.sampleClose'),
+              count: closeSample.items.length,
+            })}
+          </p>
         </VevenoCard>
       ) : null}
     </div>
@@ -444,18 +469,21 @@ function TemplateRow({
   onDelete: (template: VevenoChecklistTemplate) => void;
   onOpenToday: (templateId: string) => void;
 }) {
+  const t = useTranslation();
   return (
     <VevenoCard
-      title={`${template.personal ? '내 것 · ' : ''}${template.title}${template.enabled ? '' : ' (꺼짐)'}`}
-      action={doneToday ? <VevenoBadge variant="success">완료</VevenoBadge> : null}
+      title={`${template.personal ? t('checklists.minePrefix') : ''}${template.title}${
+        template.enabled ? '' : t('checklists.off')
+      }`}
+      action={doneToday ? <VevenoBadge variant="success">{t('checklists.done')}</VevenoBadge> : null}
       onClick={template.canEdit ? () => onEdit(template) : undefined}
     >
       <p className="veveno-shell__meta">
-        {TRIGGER_LABEL[template.triggerType]}
+        {triggerLabel(template.triggerType, t)}
         {template.triggerType === 'CLOCK' && template.triggerTime
           ? ` ${template.triggerTime.slice(0, 5)}`
           : ''}
-        {` · ${template.items.length}항목`}
+        {t('checklists.itemsCount', { count: template.items.length })}
       </p>
       <div className="veveno-toolbar__actions" style={{ marginTop: '0.75rem' }}>
         <VevenoButton
@@ -466,7 +494,7 @@ function TemplateRow({
             onOpenToday(template.id);
           }}
         >
-          열기
+          {t('common.open')}
         </VevenoButton>
         {template.canEdit ? (
           <VevenoButton
@@ -477,7 +505,7 @@ function TemplateRow({
               void onDelete(template);
             }}
           >
-            삭제
+            {t('common.delete')}
           </VevenoButton>
         ) : null}
       </div>
@@ -534,12 +562,18 @@ function ChecklistFormModal({
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  const t = useTranslation();
+  const dayLabels = vevenoWeekdayLabels(t);
   return (
-    <VevenoModal open={open} title={editing ? '할 일 수정' : '할 일 만들기'} onClose={onClose}>
+    <VevenoModal
+      open={open}
+      title={editing ? t('checklists.editTitle') : t('checklists.createTitle')}
+      onClose={onClose}
+    >
       <form className="veveno-form-stack" onSubmit={onSubmit}>
         <VevenoInput
           id="checklist-title"
-          label="이름"
+          label={t('common.name')}
           value={form.title}
           onChange={(event) => onChange({ ...form, title: event.target.value })}
         />
@@ -553,12 +587,12 @@ function ChecklistFormModal({
                   onChange({ ...form, personal: event.target.checked })
                 }
               />
-              나만 보는 목록
+              {t('checklists.personalOnly')}
             </label>
           </div>
         ) : null}
         <label className="veveno-field">
-          <span>언제 열릴까요</span>
+          <span>{t('checklists.whenOpen')}</span>
           <select
             value={form.triggerType}
             onChange={(event) => {
@@ -570,42 +604,45 @@ function ChecklistFormModal({
               });
             }}
           >
-            <option value="CLOCK">매일(또는 요일) 시각</option>
-            <option value="SHIFT_START">오픈</option>
-            <option value="SHIFT_END">마감</option>
-            <option value="MANUAL">직접 열기</option>
+            <option value="CLOCK">{t('checklists.triggerClock')}</option>
+            <option value="SHIFT_START">{t('checklists.triggerOpen')}</option>
+            <option value="SHIFT_END">{t('checklists.triggerClose')}</option>
+            <option value="MANUAL">{t('checklists.triggerManual')}</option>
           </select>
         </label>
         {form.triggerType === 'CLOCK' ? (
           <>
             <VevenoTimeInput
-              label="시각"
+              label={t('checklists.triggerTime')}
               value={form.triggerTime}
               onChange={(value) => onChange({ ...form, triggerTime: value })}
             />
             <div className="veveno-check-row">
-              {DOWS.map((dow) => (
-                <label key={dow.value} className="veveno-check">
+              {dayLabels.map((label, i) => {
+                const value = i + 1;
+                return (
+                <label key={value} className="veveno-check">
                   <input
                     type="checkbox"
-                    checked={form.triggerDows.includes(dow.value)}
+                    checked={form.triggerDows.includes(value)}
                     onChange={(event) => {
                       const next = event.target.checked
-                        ? [...form.triggerDows, dow.value]
-                        : form.triggerDows.filter((value) => value !== dow.value);
+                        ? [...form.triggerDows, value]
+                        : form.triggerDows.filter((dow) => dow !== value);
                       onChange({ ...form, triggerDows: next });
                     }}
                   />
-                  {dow.label}
+                  {label}
                 </label>
-              ))}
+                );
+              })}
             </div>
-            <p className="veveno-shell__meta">요일을 안 고르면 매일입니다.</p>
+            <p className="veveno-shell__meta">{t('checklists.dowHint')}</p>
           </>
         ) : null}
         {owned && !form.personal ? (
           <label className="veveno-field">
-            <span>누가 보나요</span>
+            <span>{t('checklists.whoSees')}</span>
             <select
               value={form.audience}
               onChange={(event) =>
@@ -615,8 +652,8 @@ function ChecklistFormModal({
                 })
               }
             >
-              <option value="ON_DUTY">그날 근무하는 사람</option>
-              <option value="OWNER_ONLY">사장님만</option>
+              <option value="ON_DUTY">{t('checklists.audienceOnDuty')}</option>
+              <option value="OWNER_ONLY">{t('checklists.audienceOwner')}</option>
             </select>
           </label>
         ) : null}
@@ -629,7 +666,7 @@ function ChecklistFormModal({
                 onChange({ ...form, interrupt: event.target.checked })
               }
             />
-            들어오면 바로 열기
+            {t('checklists.interrupt')}
           </label>
         </div>
         <div className="veveno-check-row">
@@ -641,16 +678,16 @@ function ChecklistFormModal({
                 onChange({ ...form, enabled: event.target.checked })
               }
             />
-            사용
+            {t('checklists.enabled')}
           </label>
         </div>
         <div className="veveno-stack">
-          <span className="veveno-field">항목</span>
+          <span className="veveno-field">{t('checklists.items')}</span>
           {form.items.map((item, index) => (
             <VevenoInput
               key={index}
               id={`checklist-item-${index}`}
-              label={`항목 ${index + 1}`}
+              label={t('checklists.itemN', { n: index + 1 })}
               value={item}
               onChange={(event) => {
                 const next = [...form.items];
@@ -664,7 +701,7 @@ function ChecklistFormModal({
           ))}
         </div>
         <VevenoButton type="submit" disabled={saving}>
-          {saving ? '저장 중…' : '저장'}
+          {saving ? t('common.saving') : t('common.save')}
         </VevenoButton>
       </form>
     </VevenoModal>

@@ -15,7 +15,12 @@ import type {
   VevenoScheduleSlotInput,
   VevenoShiftKind,
 } from '../../types/veveno';
-import { getErrorMessage } from '../../utils/error';
+import { getVevenoErrorMessage } from '../../features/veveno/i18n/error';
+import {
+  useTranslation,
+  useVevenoI18n,
+} from '../../features/veveno/i18n/LanguageContext';
+import { vevenoWeekdayLabels, type TranslateFn } from '../../features/veveno/i18n/translate';
 import { VevenoButton } from './VevenoButton';
 import { VevenoCard } from './VevenoCard';
 import { VevenoEmptyState } from './VevenoEmptyState';
@@ -24,8 +29,6 @@ import { VevenoModal } from './VevenoModal';
 import { VevenoTimeInput } from './VevenoTimeInput';
 import { downloadMonthlyWorkJournal } from './vevenoMonthlyJournalExport';
 import VevenoWeekTimelineView from './VevenoWeekTimelineView';
-
-const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 type ViewMode = 'week' | 'month';
 
@@ -128,20 +131,20 @@ function monthVisibleOccurrences(
   return items.filter((occ) => occ.type !== 'COVERED_OUT');
 }
 
-function monthChipLabel(occ: VevenoCalendarOccurrence): string {
+function monthChipLabel(occ: VevenoCalendarOccurrence, t: TranslateFn): string {
   const time = `${formatTime(occ.startTime)}–${formatTime(occ.endTime)}${
-    occ.overnight ? ' (익일)' : ''
+    occ.overnight ? t('schedule.nextDayParen') : ''
   }`;
   if (occ.type === 'EXTRA') {
-    return `${occ.nickname} 추가 ${time}`;
+    return t('schedule.extraChip', { nickname: occ.nickname, time });
   }
   return `${occ.nickname} ${time}`;
 }
 
 const MONTH_PREVIEW_COUNT = 4;
 
-function shiftKindLabel(kind: VevenoShiftKind): string {
-  return kind === 'EXTRA' ? '추가' : '대체';
+function shiftKindLabel(kind: VevenoShiftKind, t: TranslateFn): string {
+  return kind === 'EXTRA' ? t('schedule.extra') : t('schedule.cover');
 }
 
 interface ScheduleSlotState {
@@ -158,18 +161,22 @@ function emptySlot(): ScheduleSlotState {
   };
 }
 
-function coverStatusLabel(status: string, kind: VevenoShiftKind = 'COVER'): string {
+function coverStatusLabel(
+  status: string,
+  kind: VevenoShiftKind = 'COVER',
+  t: TranslateFn,
+): string {
   switch (status) {
     case 'PENDING_OWNER':
-      return kind === 'EXTRA' ? '업주 승인 대기' : '업주 대타자 지정 대기';
+      return kind === 'EXTRA' ? t('schedule.pendingOwnerExtra') : t('schedule.pendingOwnerCover');
     case 'PENDING_COVER':
-      return kind === 'EXTRA' ? '추가 근무자 수락 대기' : '대타자 수락 대기';
+      return kind === 'EXTRA' ? t('schedule.pendingExtraAccept') : t('schedule.pendingCoverAccept');
     case 'APPROVED':
-      return '승인됨';
+      return t('schedule.approved');
     case 'REJECTED':
-      return '거절됨';
+      return t('schedule.rejected');
     case 'CANCELLED':
-      return '취소됨';
+      return t('schedule.cancelled');
     default:
       return status;
   }
@@ -183,6 +190,9 @@ export function VevenoSchedulePanel({
   onError,
   onGoSettings,
 }: VevenoSchedulePanelProps) {
+  const t = useTranslation();
+  const { dateLocale } = useVevenoI18n();
+  const dayLabels = vevenoWeekdayLabels(t);
   const authUserId = useAuthStore((s) => s.userId);
   const userId = isVevenoDemoStoreId(storeId)
     ? owned
@@ -269,11 +279,11 @@ export function VevenoSchedulePanel({
       setPendingCovers(pendingRes.data);
       setStaff(staffRes.data);
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '스케줄을 불러오지 못했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failLoadSchedule'), t));
     } finally {
       setLoading(false);
     }
-  }, [onError, range.from, range.to, storeId]);
+  }, [onError, range.from, range.to, storeId, t]);
 
   useEffect(() => {
     void load();
@@ -311,10 +321,10 @@ export function VevenoSchedulePanel({
           return next;
         });
       } catch (err: unknown) {
-        onError(getErrorMessage(err, '정규 근무를 불러오지 못했습니다.'));
+        onError(getVevenoErrorMessage(err, t('errors.failLoadRegular'), t));
       }
     })();
-  }, [editUserId, onError, owned, storeId]);
+  }, [editUserId, onError, owned, storeId, t]);
 
   useEffect(() => {
     if (owned) {
@@ -349,14 +359,14 @@ export function VevenoSchedulePanel({
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          onError(getErrorMessage(err, '정규 근무를 불러오지 못했습니다.'));
+          onError(getVevenoErrorMessage(err, t('errors.failLoadRegular'), t));
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [onError, owned, staff.length, storeId, subscribed]);
+  }, [onError, owned, staff.length, storeId, subscribed, t]);
 
   useEffect(() => {
     if (coverForm.shiftKind === 'EXTRA') {
@@ -395,7 +405,7 @@ export function VevenoSchedulePanel({
         }
         return { ...prev, startTime: '09:00', endTime: '18:00' };
       });
-      setCoverScheduleHint('해당 요일 정규 근무가 없습니다. 시간을 직접 입력해 주세요.');
+      setCoverScheduleHint(t('schedule.noRegularThatDay'));
     } else {
       setCoverScheduleHint('');
     }
@@ -404,6 +414,7 @@ export function VevenoSchedulePanel({
     coverForm.workDate,
     coverForm.shiftKind,
     coverSchedules,
+    t,
   ]);
 
   /** 후보 직원이 해당 구간에 정규 근무 또는 승인된 대타가 있어 지정 불가한지 */
@@ -495,9 +506,12 @@ export function VevenoSchedulePanel({
     return {
       days,
       leadingEmpty: (from.getDay() + 6) % 7,
-      label: `${from.getFullYear()}년 ${from.getMonth() + 1}월`,
+      label: t('schedule.yearMonth', {
+        year: from.getFullYear(),
+        month: from.getMonth() + 1,
+      }),
     };
-  }, [pickerAnchor]);
+  }, [pickerAnchor, t]);
 
   const handleSaveSchedule = async (
     mode: VevenoScheduleReplaceMode,
@@ -507,7 +521,7 @@ export function VevenoSchedulePanel({
       return;
     }
     if ((mode === 'FROM_DATE' || mode === 'ONCE') && !effectiveFrom) {
-      onError('적용 날짜를 선택해 주세요.');
+      onError(t('schedule.pickApplyDate'));
       return;
     }
     const payload: VevenoScheduleSlotInput[] = [];
@@ -533,7 +547,7 @@ export function VevenoSchedulePanel({
       setCoverSchedules(data);
       await load();
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '근무 저장에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failSaveSchedule'), t));
     } finally {
       setSavingSchedule(false);
     }
@@ -549,7 +563,7 @@ export function VevenoSchedulePanel({
   const applyBulkTimesToSelectedDays = () => {
     const selected = Object.entries(slots).filter(([, slot]) => slot.enabled);
     if (selected.length === 0) {
-      onError('시간을 적용할 요일을 먼저 선택해 주세요.');
+      onError(t('schedule.pickDaysFirst'));
       return;
     }
     setSlots((prev) => {
@@ -576,7 +590,7 @@ export function VevenoSchedulePanel({
       || (!isExtra && !coverForm.originalUserId)
       || (owned && !coverForm.coverUserId)
     ) {
-      onError(isExtra ? '추가 근무자와 날짜를 확인해 주세요.' : '대상·날짜를 확인해 주세요.');
+      onError(isExtra ? t('schedule.extraNeedStaffDate') : t('schedule.coverNeedTargetDate'));
       return;
     }
     setSubmittingCover(true);
@@ -598,7 +612,7 @@ export function VevenoSchedulePanel({
       });
       await load();
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '근무 변경 신청에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failCoverRequest'), t));
     } finally {
       setSubmittingCover(false);
     }
@@ -628,15 +642,20 @@ export function VevenoSchedulePanel({
         year: from.getFullYear(),
         month: from.getMonth() + 1,
         occurrences: data.occurrences,
+        t,
+        collatorLocale: dateLocale,
       });
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '월간 근무 일지 다운로드에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failJournalExport'), t));
     } finally {
       setExportingJournal(false);
     }
   };
 
-  const journalMonthLabel = `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월`;
+  const journalMonthLabel = t('schedule.yearMonth', {
+    year: anchor.getFullYear(),
+    month: anchor.getMonth() + 1,
+  });
 
   const rangeLabel =
     viewMode === 'week'
@@ -654,17 +673,17 @@ export function VevenoSchedulePanel({
   );
 
   if (owned && loading) {
-    return <p className="veveno-empty">불러오는 중…</p>;
+    return <p className="veveno-empty">{t('common.loading')}</p>;
   }
 
   if (owned && staff.length === 0) {
     return (
       <VevenoEmptyState
-        title="아직 직원이 없습니다"
-        body="가입을 승인하면 근무를 지정할 수 있어요."
+        title={t('schedule.noStaffTitle')}
+        body={t('schedule.noStaffBody')}
         action={
           onGoSettings ? (
-            <VevenoButton onClick={onGoSettings}>직원 승인하러 가기</VevenoButton>
+            <VevenoButton onClick={onGoSettings}>{t('schedule.goApprove')}</VevenoButton>
           ) : undefined
         }
       />
@@ -673,11 +692,11 @@ export function VevenoSchedulePanel({
 
   return (
     <div className="veveno-stack-lg">
-      <VevenoCard title={owned ? '직원 근무 달력' : '내 근무'}>
+      <VevenoCard title={owned ? t('schedule.calendarOwner') : t('schedule.calendarStaff')}>
         <p className="veveno-card-lead">
           {owned
-            ? '매장 전 직원의 근무·대체·추가를 한 화면에서 봅니다. 종료가 시작보다 이르면 자정 넘김입니다.'
-            : '내 근무와 관련된 대체·추가를 주간·월간으로 확인합니다.'}
+            ? t('schedule.calendarLeadOwner')
+            : t('schedule.calendarLeadStaff')}
         </p>
         <div className="veveno-schedule-toolbar">
           <div className="veveno-schedule-toolbar__top">
@@ -687,17 +706,17 @@ export function VevenoSchedulePanel({
                 variant={viewMode === 'week' ? 'primary' : 'secondary'}
                 onClick={() => setViewMode('week')}
               >
-                주간
+                {t('schedule.week')}
               </VevenoButton>
               <VevenoButton
                 size="sm"
                 variant={viewMode === 'month' ? 'primary' : 'secondary'}
                 onClick={() => setViewMode('month')}
               >
-                월간
+                {t('schedule.month')}
               </VevenoButton>
               <VevenoButton size="sm" variant="secondary" onClick={() => setAnchor(new Date())}>
-                오늘
+                {t('common.today')}
               </VevenoButton>
             </div>
             <div className="veveno-schedule-toolbar__export">
@@ -705,12 +724,12 @@ export function VevenoSchedulePanel({
                 size="sm"
                 variant="secondary"
                 loading={exportingJournal}
-                title={`${journalMonthLabel} 예정 근무 일지 · 직원별 시간 요약`}
+                title={t('schedule.downloadTitle', { month: journalMonthLabel })}
                 onClick={() => {
                   void handleExportMonthlyJournal();
                 }}
               >
-                근무표 다운로드
+                {t('schedule.download')}
               </VevenoButton>
             </div>
           </div>
@@ -718,7 +737,7 @@ export function VevenoSchedulePanel({
             <button
               type="button"
               className="veveno-schedule-nav__arrow"
-              aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}
+              aria-label={viewMode === 'week' ? t('schedule.prevWeek') : t('schedule.prevMonth')}
               onClick={() => shiftAnchor(-1)}
             >
               ‹
@@ -727,7 +746,7 @@ export function VevenoSchedulePanel({
             <button
               type="button"
               className="veveno-schedule-nav__arrow"
-              aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}
+              aria-label={viewMode === 'week' ? t('schedule.nextWeek') : t('schedule.nextMonth')}
               onClick={() => shiftAnchor(1)}
             >
               ›
@@ -735,7 +754,7 @@ export function VevenoSchedulePanel({
           </div>
         </div>
         {loading ? (
-          <p className="veveno-empty">불러오는 중…</p>
+          <p className="veveno-empty">{t('common.loading')}</p>
         ) : viewMode === 'week' ? (
           <VevenoWeekTimelineView
             days={range.days}
@@ -744,7 +763,7 @@ export function VevenoSchedulePanel({
           />
         ) : (
           <div className="veveno-schedule-grid veveno-schedule-grid--month">
-            {DAY_LABELS.map((label) => (
+            {dayLabels.map((label) => (
               <div key={`wd-${label}`} className="veveno-schedule-weekday">
                 {label}
               </div>
@@ -785,7 +804,7 @@ export function VevenoSchedulePanel({
                     <span>
                       {day.getMonth() + 1}/{day.getDate()}
                     </span>
-                    {isToday ? <span>오늘</span> : null}
+                    {isToday ? <span>{t('common.today')}</span> : null}
                   </div>
                   <ul className="veveno-schedule-day__list">
                     {visible.length === 0 ? (
@@ -796,7 +815,7 @@ export function VevenoSchedulePanel({
                           key={`${occ.userId}-${occ.type}-${occ.coverId ?? idx}`}
                           className={`veveno-schedule-chip veveno-schedule-chip--${occ.type.toLowerCase()}`}
                         >
-                          {monthChipLabel(occ)}
+                          {monthChipLabel(occ, t)}
                         </li>
                       ))
                     )}
@@ -807,7 +826,7 @@ export function VevenoSchedulePanel({
                   {peeking && visible.length > 0 ? (
                     <div className="veveno-schedule-day__popover" role="dialog">
                       <p className="veveno-schedule-day__popover-title">
-                        {day.getMonth() + 1}/{day.getDate()} · {visible.length}명
+                        {t('schedule.monthDayPeople', { month: day.getMonth() + 1, day: day.getDate(), count: visible.length })}
                       </p>
                       <ul className="veveno-schedule-day__popover-list">
                         {visible.map((occ, idx) => (
@@ -815,7 +834,7 @@ export function VevenoSchedulePanel({
                             key={`peek-${occ.userId}-${occ.type}-${occ.coverId ?? idx}`}
                             className={`veveno-schedule-chip veveno-schedule-chip--${occ.type.toLowerCase()}`}
                           >
-                            {monthChipLabel(occ)}
+                            {monthChipLabel(occ, t)}
                           </li>
                         ))}
                       </ul>
@@ -830,9 +849,9 @@ export function VevenoSchedulePanel({
 
       <div className="veveno-schedule-panels">
       {owned ? (
-        <VevenoCard title="정규 근무 지정">
+        <VevenoCard title={t('schedule.regularTitle')}>
           {staff.length === 0 ? (
-            <p className="veveno-empty">직원이 없습니다. 가입 승인 후 지정할 수 있습니다.</p>
+            <p className="veveno-empty">{t('schedule.noStaffAssign')}</p>
           ) : (
             <form
               className="veveno-form-stack"
@@ -843,7 +862,7 @@ export function VevenoSchedulePanel({
             >
               <div className="veveno-field">
                 <label className="veveno-field__label" htmlFor="sched-user">
-                  직원
+                  {t('schedule.staff')}
                 </label>
                 <select
                   id="sched-user"
@@ -859,18 +878,18 @@ export function VevenoSchedulePanel({
                 </select>
               </div>
               <div className="veveno-schedule-bulk">
-                <p className="veveno-field__label">선택 요일 일괄 시간</p>
+                <p className="veveno-field__label">{t('schedule.bulkTime')}</p>
                 <div className="veveno-schedule-slot-row veveno-schedule-bulk__row">
                   <VevenoTimeInput
                     value={bulkStartTime}
                     onChange={setBulkStartTime}
-                    aria-label="일괄 시작 시각"
+                    aria-label={t('schedule.bulkStart')}
                   />
                   <span>~</span>
                   <VevenoTimeInput
                     value={bulkEndTime}
                     onChange={setBulkEndTime}
-                    aria-label="일괄 종료 시각"
+                    aria-label={t('schedule.bulkEnd')}
                   />
                   <VevenoButton
                     type="button"
@@ -878,16 +897,15 @@ export function VevenoSchedulePanel({
                     variant="secondary"
                     onClick={applyBulkTimesToSelectedDays}
                   >
-                    선택 요일에 적용
+                    {t('schedule.applySelectedDays')}
                   </VevenoButton>
                 </div>
                 <p className="veveno-field__hint">
-                  체크한 요일에만 위 시간이 들어갑니다. 적용 후에도 요일별로 수정할 수
-                  있습니다.
+                  {t('schedule.bulkHint')}
                 </p>
               </div>
               <div className="veveno-stack">
-                {DAY_LABELS.map((label, i) => {
+                {dayLabels.map((label, i) => {
                   const dow = i + 1;
                   const slot = slots[dow] ?? emptySlot();
                   return (
@@ -911,7 +929,7 @@ export function VevenoSchedulePanel({
                       <VevenoTimeInput
                         value={slot.startTime}
                         disabled={!slot.enabled}
-                        aria-label={`${label} 시작`}
+                        aria-label={t('schedule.dayStart', { day: label })}
                         onChange={(startTime) =>
                           setSlots((prev) => ({
                             ...prev,
@@ -926,7 +944,7 @@ export function VevenoSchedulePanel({
                       <VevenoTimeInput
                         value={slot.endTime}
                         disabled={!slot.enabled}
-                        aria-label={`${label} 종료`}
+                        aria-label={t('schedule.dayEnd', { day: label })}
                         onChange={(endTime) =>
                           setSlots((prev) => ({
                             ...prev,
@@ -942,11 +960,11 @@ export function VevenoSchedulePanel({
                 })}
               </div>
               <p className="veveno-card-lead">
-                종료 시각이 시작보다 이르면 자정 넘김(예: 22:00~06:00)으로 저장됩니다.
+                {t('schedule.overnightHint')}
               </p>
               <div className="veveno-btn-row">
                 <VevenoButton type="submit" loading={savingSchedule}>
-                  오늘부터 변경
+                  {t('schedule.fromToday')}
                 </VevenoButton>
                 <VevenoButton
                   type="button"
@@ -954,7 +972,7 @@ export function VevenoSchedulePanel({
                   loading={savingSchedule}
                   onClick={() => openApplyPicker('FROM_DATE')}
                 >
-                  지정일부터 변경
+                  {t('schedule.fromDate')}
                 </VevenoButton>
                 <VevenoButton
                   type="button"
@@ -962,7 +980,7 @@ export function VevenoSchedulePanel({
                   loading={savingSchedule}
                   onClick={() => openApplyPicker('ONCE')}
                 >
-                  한번만 변경
+                  {t('schedule.once')}
                 </VevenoButton>
               </div>
             </form>
@@ -971,10 +989,10 @@ export function VevenoSchedulePanel({
       ) : null}
 
       {(owned || subscribed) && staff.length > 0 ? (
-        <VevenoCard title="대체·추가 신청">
+        <VevenoCard title={t('schedule.coverExtraTitle')}>
           <form className="veveno-form-stack" onSubmit={(e) => void handleCreateCover(e)}>
             <div className="veveno-field">
-              <span className="veveno-field__label">유형</span>
+              <span className="veveno-field__label">{t('schedule.type')}</span>
               <div className="veveno-btn-row">
                 <VevenoButton
                   type="button"
@@ -984,7 +1002,7 @@ export function VevenoSchedulePanel({
                     setCoverForm((prev) => ({ ...prev, shiftKind: 'COVER' }))
                   }
                 >
-                  대체
+                  {t('schedule.cover')}
                 </VevenoButton>
                 <VevenoButton
                   type="button"
@@ -994,19 +1012,19 @@ export function VevenoSchedulePanel({
                     setCoverForm((prev) => ({ ...prev, shiftKind: 'EXTRA' }))
                   }
                 >
-                  추가
+                  {t('schedule.extra')}
                 </VevenoButton>
               </div>
               <p className="veveno-field__hint">
                 {coverForm.shiftKind === 'COVER'
-                  ? '원래 근무자 구간은 타임테이블에서 빠지고, 지정된 사람이 대신 근무합니다.'
-                  : '정규 근무가 아닌 별도 시간에 추가 근무자를 지정합니다. 요청 직원은 없습니다.'}
+                  ? t('schedule.coverLead')
+                  : t('schedule.extraLead')}
               </p>
             </div>
             {coverForm.shiftKind === 'COVER' && owned ? (
               <div className="veveno-field">
                 <label className="veveno-field__label" htmlFor="cover-original">
-                  원래 근무자
+                  {t('schedule.originalWorker')}
                 </label>
                 <select
                   id="cover-original"
@@ -1029,18 +1047,18 @@ export function VevenoSchedulePanel({
             ) : null}
             {coverForm.shiftKind === 'COVER' && !owned ? (
               <p className="veveno-card-lead">
-                본인 근무의 대체를 신청하면 업주가 대체자를 지정합니다.
+                {t('schedule.staffCoverHint')}
               </p>
             ) : null}
             {coverForm.shiftKind === 'EXTRA' && !owned ? (
               <p className="veveno-card-lead">
-                본인 추가 근무를 신청하면 업주 승인 후 반영됩니다.
+                {t('schedule.staffExtraHint')}
               </p>
             ) : null}
             {owned ? (
               <div className="veveno-field">
                 <label className="veveno-field__label" htmlFor="cover-user">
-                  {coverForm.shiftKind === 'COVER' ? '대체자' : '추가 근무자'}
+                  {coverForm.shiftKind === 'COVER' ? t('schedule.coverPerson') : t('schedule.extraPerson')}
                 </label>
                 <select
                   id="cover-user"
@@ -1050,7 +1068,7 @@ export function VevenoSchedulePanel({
                     setCoverForm((prev) => ({ ...prev, coverUserId: e.target.value }))
                   }
                 >
-                  <option value="">선택</option>
+                  <option value="">{t('common.select')}</option>
                   {availableCoverStaff.map((s) => (
                     <option key={s.userId} value={s.userId}>
                       {s.nickname}
@@ -1059,13 +1077,13 @@ export function VevenoSchedulePanel({
                 </select>
                 {otherStaff.length > 0 && availableCoverStaff.length === 0 ? (
                   <p className="veveno-field__hint">
-                    해당 시간에 지정 가능한 직원이 없습니다.
+                    {t('schedule.noEligible')}
                   </p>
                 ) : null}
               </div>
             ) : null}
             <VevenoInput
-              label="날짜"
+              label={t('schedule.date')}
               type="date"
               value={coverForm.workDate}
               onChange={(e) =>
@@ -1075,7 +1093,7 @@ export function VevenoSchedulePanel({
             <div className="veveno-schedule-slot-row">
               <VevenoTimeInput
                 id="cover-start"
-                label="시작"
+                label={t('common.start')}
                 value={coverForm.startTime}
                 onChange={(startTime) =>
                   setCoverForm((prev) => ({ ...prev, startTime }))
@@ -1083,7 +1101,7 @@ export function VevenoSchedulePanel({
               />
               <VevenoTimeInput
                 id="cover-end"
-                label="종료"
+                label={t('common.end')}
                 value={coverForm.endTime}
                 onChange={(endTime) =>
                   setCoverForm((prev) => ({ ...prev, endTime }))
@@ -1094,22 +1112,22 @@ export function VevenoSchedulePanel({
               <p className="veveno-card-lead">{coverScheduleHint}</p>
             ) : null}
             <VevenoInput
-              label="메모 (선택)"
+              label={t('schedule.memo')}
               value={coverForm.note}
               onChange={(e) => setCoverForm((prev) => ({ ...prev, note: e.target.value }))}
             />
             <VevenoButton type="submit" loading={submittingCover}>
               {owned
-                ? `${shiftKindLabel(coverForm.shiftKind)} 지정 (수락 대기)`
-                : `${shiftKindLabel(coverForm.shiftKind)} 신청`}
+                ? t('schedule.assignPending', { kind: shiftKindLabel(coverForm.shiftKind, t) })
+                : t('schedule.requestKind', { kind: shiftKindLabel(coverForm.shiftKind, t) })}
             </VevenoButton>
           </form>
         </VevenoCard>
       ) : null}
 
-      <VevenoCard title="대체·추가 관리" className="veveno-schedule-panels__span">
+      <VevenoCard title={t('schedule.manageTitle')} className="veveno-schedule-panels__span">
         {pendingCovers.length === 0 ? (
-          <p className="veveno-empty">대기·승인된 대체·추가가 없습니다.</p>
+          <p className="veveno-empty">{t('schedule.manageEmpty')}</p>
         ) : (
           <div className="veveno-stack">
             {pendingCovers.map((cover) => {
@@ -1134,8 +1152,8 @@ export function VevenoSchedulePanel({
                   || cover.status === 'APPROVED');
               const title =
                 kind === 'EXTRA'
-                  ? `[추가] ${cover.coverNickname || '추가 근무자'}`
-                  : `[대체] ${cover.originalNickname} → ${cover.coverNickname || '대타자 미지정'}`;
+                  ? t('schedule.extraRow', { name: cover.coverNickname || t('schedule.extraFallback') })
+                  : t('schedule.coverRow', { from: cover.originalNickname, to: cover.coverNickname || t('schedule.coverUnassigned') });
               return (
                 <div key={cover.id} className="veveno-search-result">
                   <div>
@@ -1143,8 +1161,8 @@ export function VevenoSchedulePanel({
                     <p className="veveno-store-row__sub">
                       {cover.workDate} {formatTime(cover.startTime)}–
                       {formatTime(cover.endTime)}
-                      {cover.overnight ? ' (익일)' : ''} ·{' '}
-                      {coverStatusLabel(cover.status, kind)}
+                      {cover.overnight ? t('schedule.nextDayParen') : ''} ·{' '}
+                      {coverStatusLabel(cover.status, kind, t)}
                     </p>
                   </div>
                   <div className="veveno-search-result__actions">
@@ -1152,7 +1170,7 @@ export function VevenoSchedulePanel({
                       <>
                         <select
                           className="veveno-field__input"
-                          aria-label={`${cover.originalNickname}의 대체자`}
+                          aria-label={t('schedule.coverSelectAria', { name: cover.originalNickname })}
                           value={coverAssignments[cover.id] ?? ''}
                           onChange={(e) =>
                             setCoverAssignments((prev) => ({
@@ -1161,7 +1179,7 @@ export function VevenoSchedulePanel({
                             }))
                           }
                         >
-                          <option value="">대타자 선택</option>
+                          <option value="">{t('schedule.pickCover')}</option>
                           {staff
                             .filter(
                               (member) =>
@@ -1195,12 +1213,12 @@ export function VevenoSchedulePanel({
                                 });
                                 await load();
                               } catch (err: unknown) {
-                                onError(getErrorMessage(err, '대타자 지정에 실패했습니다.'));
+                                onError(getVevenoErrorMessage(err, t('errors.failAssignCover'), t));
                               }
                             })();
                           }}
                         >
-                          지정
+                          {t('schedule.assign')}
                         </VevenoButton>
                       </>
                     ) : null}
@@ -1213,12 +1231,12 @@ export function VevenoSchedulePanel({
                               await vevenoApi.acceptCover(cover.id);
                               await load();
                             } catch (err: unknown) {
-                              onError(getErrorMessage(err, '승인에 실패했습니다.'));
+                              onError(getVevenoErrorMessage(err, t('errors.failApprove'), t));
                             }
                           })();
                         }}
                       >
-                        승인
+                        {t('common.approve')}
                       </VevenoButton>
                     ) : null}
                     {canAccept ? (
@@ -1230,12 +1248,12 @@ export function VevenoSchedulePanel({
                               await vevenoApi.acceptCover(cover.id);
                               await load();
                             } catch (err: unknown) {
-                              onError(getErrorMessage(err, '수락에 실패했습니다.'));
+                              onError(getVevenoErrorMessage(err, t('errors.failAccept'), t));
                             }
                           })();
                         }}
                       >
-                        수락
+                        {t('schedule.accept')}
                       </VevenoButton>
                     ) : null}
                     {canReject ? (
@@ -1248,12 +1266,12 @@ export function VevenoSchedulePanel({
                               await vevenoApi.rejectCover(cover.id);
                               await load();
                             } catch (err: unknown) {
-                              onError(getErrorMessage(err, '거절에 실패했습니다.'));
+                              onError(getVevenoErrorMessage(err, t('errors.failReject'), t));
                             }
                           })();
                         }}
                       >
-                        거절
+                        {t('common.reject')}
                       </VevenoButton>
                     ) : null}
                     {canCancel ? (
@@ -1266,8 +1284,8 @@ export function VevenoSchedulePanel({
                             isApproved
                             && !window.confirm(
                               kind === 'EXTRA'
-                                ? '승인된 추가 근무를 취소할까요?\n달력에서 해당 근무가 사라집니다.'
-                                : '승인된 대체를 취소할까요?\n원래 근무가 다시 표시됩니다.',
+                                ? t('schedule.confirmCancelExtra')
+                                : t('schedule.confirmCancelCover'),
                             )
                           ) {
                             return;
@@ -1277,12 +1295,12 @@ export function VevenoSchedulePanel({
                               await vevenoApi.cancelCover(cover.id);
                               await load();
                             } catch (err: unknown) {
-                              onError(getErrorMessage(err, '취소에 실패했습니다.'));
+                              onError(getVevenoErrorMessage(err, t('errors.failCancel'), t));
                             }
                           })();
                         }}
                       >
-                        취소
+                        {t('common.cancel')}
                       </VevenoButton>
                     ) : null}
                   </div>
@@ -1295,7 +1313,7 @@ export function VevenoSchedulePanel({
       </div>
       <VevenoModal
         open={applyPickerMode !== null}
-        title={applyPickerMode === 'ONCE' ? '한번만 적용할 날' : '지정일부터 적용'}
+        title={applyPickerMode === 'ONCE' ? t('schedule.pickerOnce') : t('schedule.pickerFrom')}
         onClose={() => {
           if (!savingSchedule) {
             setApplyPickerMode(null);
@@ -1305,14 +1323,14 @@ export function VevenoSchedulePanel({
       >
         <p className="veveno-modal__lead">
           {applyPickerMode === 'ONCE'
-            ? '고른 하루만 바뀌고, 다음 같은 요일은 지금 주간 근무를 따릅니다.'
-            : '고른 날부터 주간 근무가 새 시간으로 적용됩니다. 그 전 날짜는 이전 시간입니다.'}
+            ? t('schedule.pickerOnceLead')
+            : t('schedule.pickerFromLead')}
         </p>
         <div className="veveno-schedule-nav">
           <button
             type="button"
             className="veveno-schedule-nav__arrow"
-            aria-label="이전 달"
+            aria-label={t('schedule.prevMonth')}
             onClick={() =>
               setPickerAnchor(
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
@@ -1325,7 +1343,7 @@ export function VevenoSchedulePanel({
           <button
             type="button"
             className="veveno-schedule-nav__arrow"
-            aria-label="다음 달"
+            aria-label={t('schedule.nextMonth')}
             onClick={() =>
               setPickerAnchor(
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
@@ -1336,7 +1354,7 @@ export function VevenoSchedulePanel({
           </button>
         </div>
         <div className="veveno-date-picker">
-          {DAY_LABELS.map((label) => (
+          {dayLabels.map((label) => (
             <div key={`pick-wd-${label}`} className="veveno-date-picker__weekday">
               {label}
             </div>
@@ -1369,7 +1387,7 @@ export function VevenoSchedulePanel({
             disabled={savingSchedule}
             onClick={() => setApplyPickerMode(null)}
           >
-            취소
+            {t('common.cancel')}
           </VevenoButton>
           <VevenoButton
             type="button"
@@ -1381,7 +1399,7 @@ export function VevenoSchedulePanel({
               }
             }}
           >
-            {applyPickerMode === 'ONCE' ? '이 날만 적용' : '이 날부터 적용'}
+            {applyPickerMode === 'ONCE' ? t('schedule.applyOnce') : t('schedule.applyFrom')}
           </VevenoButton>
         </div>
       </VevenoModal>

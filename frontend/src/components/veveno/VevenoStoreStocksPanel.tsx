@@ -4,7 +4,9 @@ import axios from 'axios';
 import { vevenoApi } from '../../api/vevenoApi';
 import type { VevenoStock, VevenoStockCategory, VevenoStockLog } from '../../types/veveno';
 import { VEVENO_STOCK_UNITS } from '../../types/veveno';
-import { getErrorMessage } from '../../utils/error';
+import { getVevenoErrorMessage } from '../../features/veveno/i18n/error';
+import { useTranslation, useVevenoI18n } from '../../features/veveno/i18n/LanguageContext';
+import type { TranslateFn } from '../../features/veveno/i18n/translate';
 import { VevenoActionMenu } from './VevenoActionMenu';
 import { VevenoBadge } from './VevenoBadge';
 import { VevenoButton } from './VevenoButton';
@@ -19,8 +21,29 @@ function stockNeedsRestock(stock: VevenoStock): boolean {
   return stock.lowStock || stock.soonLow;
 }
 
-function stockQtyLabel(stockNum: number, unit: string): string {
-  return `${stockNum}${unit || '개'}`;
+function unitLabel(unit: string, t: TranslateFn): string {
+  switch (unit) {
+    case '개':
+      return t('units.piece');
+    case '팩':
+      return t('units.pack');
+    case '박스':
+      return t('units.box');
+    case 'g':
+      return t('units.g');
+    case 'kg':
+      return t('units.kg');
+    case 'ml':
+      return t('units.ml');
+    case 'L':
+      return t('units.L');
+    default:
+      return unit;
+  }
+}
+
+function stockQtyLabel(stockNum: number, unit: string, t: TranslateFn): string {
+  return `${stockNum}${unitLabel(unit || '개', t)}`;
 }
 
 function isHttpUrl(url: string | null): url is string {
@@ -45,12 +68,12 @@ function resolveFormUnit(unitKey: string, customUnit: string): string | null {
   return unitKey || '개';
 }
 
-function formatStockLogAt(iso: string): string {
+function formatStockLogAt(iso: string, dateLocale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
     return '';
   }
-  return date.toLocaleString('ko-KR', {
+  return date.toLocaleString(dateLocale, {
     month: 'numeric',
     day: 'numeric',
     hour: '2-digit',
@@ -58,8 +81,8 @@ function formatStockLogAt(iso: string): string {
   });
 }
 
-function formatDaysOfStock(days: number): string {
-  return days <= 0 ? '약 1일 미만' : `약 ${days}일분`;
+function formatDaysOfStock(days: number, t: TranslateFn): string {
+  return days <= 0 ? t('stocks.lessThanDay') : t('stocks.daysLeft', { days });
 }
 
 interface StockRowTarget {
@@ -109,6 +132,8 @@ export function VevenoStoreStocksPanel({
   setStockCategories,
   onError,
 }: VevenoStoreStocksPanelProps) {
+  const t = useTranslation();
+  const { dateLocale } = useVevenoI18n();
   const [stockListView, setStockListView] = useState<StockListView>('all');
   const [stockCreateOpen, setStockCreateOpen] = useState(false);
   const [categoryEditMode, setCategoryEditMode] = useState(false);
@@ -211,7 +236,7 @@ export function VevenoStoreStocksPanel({
       setCategoryName('');
       setSelectedCategoryId(data.id);
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '카테고리 추가에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failAddCategory'), t));
     }
   };
 
@@ -230,7 +255,7 @@ export function VevenoStoreStocksPanel({
         prev.map((cat) => (cat.id === data.id ? { ...cat, ...data } : cat)),
       );
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '카테고리 수정에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failUpdateCategory'), t));
     }
   };
 
@@ -238,7 +263,7 @@ export function VevenoStoreStocksPanel({
     if (!selectedCategoryId || !canMutateStock) {
       return;
     }
-    if (!window.confirm('카테고리와 하위 재고를 삭제할까요?')) {
+    if (!window.confirm(t('stocks.confirmDeleteCategory'))) {
       return;
     }
     onError('');
@@ -248,7 +273,7 @@ export function VevenoStoreStocksPanel({
       setSelectedCategoryId(null);
       setCategoryName('');
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '카테고리 삭제에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failDeleteCategory'), t));
     }
   };
 
@@ -260,16 +285,16 @@ export function VevenoStoreStocksPanel({
 
     const isCustom = stockForm.categoryKey === '__custom__';
     if (!stockForm.categoryKey) {
-      onError('카테고리를 선택해 주세요.');
+      onError(t('stocks.pickCategoryRequired'));
       return;
     }
     if (isCustom && !stockForm.customCategoryName.trim()) {
-      onError('카테고리 이름을 입력해 주세요.');
+      onError(t('stocks.categoryNameRequired'));
       return;
     }
     const unit = resolveFormUnit(stockForm.unitKey, stockForm.customUnit);
     if (!unit) {
-      onError('단위를 입력해 주세요.');
+      onError(t('stocks.unitRequired'));
       return;
     }
 
@@ -294,7 +319,7 @@ export function VevenoStoreStocksPanel({
       } else {
         categoryId = Number(stockForm.categoryKey);
         if (!Number.isFinite(categoryId) || categoryId <= 0) {
-          onError('카테고리를 선택해 주세요.');
+          onError(t('stocks.pickCategoryRequired'));
           return;
         }
       }
@@ -330,7 +355,7 @@ export function VevenoStoreStocksPanel({
       });
       setStockCreateOpen(false);
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '재고 추가에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failAddStock'), t));
     } finally {
       setCreatingStock(false);
     }
@@ -371,14 +396,15 @@ export function VevenoStoreStocksPanel({
           /* refetch 실패해도 충돌 메시지는 표시 */
         }
         onError(
-          getErrorMessage(
+          getVevenoErrorMessage(
             err,
-            '다른 사용자가 재고를 수정했습니다. 다시 불러온 뒤 수정하세요.',
+            t('errors.STOCK_STALE'),
+            t,
           ),
         );
         return false;
       }
-      onError(getErrorMessage(err, '재고 수정에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failUpdateStock'), t));
       return false;
     } finally {
       updatingStockIdRef.current = null;
@@ -439,7 +465,7 @@ export function VevenoStoreStocksPanel({
         setStockLogs(data);
       })
       .catch((err: unknown) => {
-        onError(getErrorMessage(err, '이력을 불러오지 못했습니다.'));
+        onError(getVevenoErrorMessage(err, t('errors.failLoadLogs'), t));
       })
       .finally(() => {
         setLoadingLogs(false);
@@ -453,7 +479,7 @@ export function VevenoStoreStocksPanel({
     }
     const unit = resolveFormUnit(editForm.unitKey, editForm.customUnit);
     if (!unit) {
-      onError('단위를 입력해 주세요.');
+      onError(t('stocks.unitRequired'));
       return;
     }
     const qty = Math.max(0, Math.floor(Number(editForm.stockNum)));
@@ -493,7 +519,7 @@ export function VevenoStoreStocksPanel({
     if (deletingStock) {
       return;
     }
-    if (!window.confirm(`「${stock.stockName}」을(를) 삭제할까요?`)) {
+    if (!window.confirm(t('stocks.confirmDeleteStock', { name: stock.stockName }))) {
       return;
     }
     setDeletingStock(true);
@@ -510,7 +536,7 @@ export function VevenoStoreStocksPanel({
         setEditTarget(null);
       }
     } catch (err: unknown) {
-      onError(getErrorMessage(err, '재고 삭제에 실패했습니다.'));
+      onError(getVevenoErrorMessage(err, t('errors.failDeleteStock'), t));
     } finally {
       setDeletingStock(false);
     }
@@ -523,15 +549,15 @@ export function VevenoStoreStocksPanel({
         <>
           {!canMutateStock ? (
             <p className="veveno-duty-banner">
-              근무 시간이 아니라 재고를 수정할 수 없습니다. 조회만 가능합니다.
+              {t('stocks.offDutyNotice')}
             </p>
           ) : null}
           <VevenoEmptyState
-            title="아직 재고가 없습니다"
+            title={t('stocks.emptyTitle')}
             body={
               canMutateStock
-                ? '원두·우유처럼 쓰는 것부터 적어두면 부족할 때 바로 보입니다.'
-                : '아직 등록된 재고가 없습니다.'
+                ? t('stocks.emptyBodyOwner')
+                : t('stocks.emptyBodyStaff')
             }
             action={
               canMutateStock ? (
@@ -545,7 +571,7 @@ export function VevenoStoreStocksPanel({
                     setStockCreateOpen(true);
                   }}
                 >
-                  재고 추가
+                  {t('stocks.add')}
                 </VevenoButton>
               ) : undefined
             }
@@ -555,14 +581,14 @@ export function VevenoStoreStocksPanel({
       <div className="veveno-stack-lg">
         {!canMutateStock ? (
           <p className="veveno-duty-banner">
-            근무 시간이 아니라 재고를 수정할 수 없습니다. 조회만 가능합니다.
+            {t('stocks.offDutyNotice')}
           </p>
         ) : null}
 
         <div
           className="veveno-tools-seg veveno-stock-view-seg"
           role="tablist"
-          aria-label="재고 보기"
+          aria-label={t('stocks.viewAria')}
         >
           <button
             type="button"
@@ -571,7 +597,7 @@ export function VevenoStoreStocksPanel({
             aria-selected={stockListView === 'all'}
             onClick={() => switchStockListView('all')}
           >
-            전체
+            {t('stocks.all')}
           </button>
           <button
             type="button"
@@ -580,7 +606,7 @@ export function VevenoStoreStocksPanel({
             aria-selected={stockListView === 'low'}
             onClick={() => switchStockListView('low')}
           >
-            부족
+            {t('stocks.low')}
             {lowStockCount > 0 ? (
               <span className="veveno-stock-view-seg__count">{lowStockCount}</span>
             ) : null}
@@ -590,10 +616,10 @@ export function VevenoStoreStocksPanel({
         <div className="veveno-toolbar veveno-toolbar--stock">
           <VevenoInput
             id="stock-tab-search"
-            label="검색"
+            label={t('common.search')}
             value={stockSearch}
             onChange={(e) => setStockSearch(e.target.value)}
-            placeholder="카테고리·재고 이름 검색"
+            placeholder={t('stocks.searchPh')}
           />
           {canMutateStock ? (
             <div className="veveno-toolbar__actions">
@@ -612,7 +638,7 @@ export function VevenoStoreStocksPanel({
                     });
                   }}
                 >
-                  {categoryEditMode ? '카테고리 편집 종료' : '카테고리 편집'}
+                  {categoryEditMode ? t('stocks.editCategoryDone') : t('stocks.editCategory')}
                 </VevenoButton>
               ) : null}
               <VevenoButton
@@ -622,7 +648,7 @@ export function VevenoStoreStocksPanel({
                   setStockCreateOpen(true);
                 }}
               >
-                + 재고 추가
+                {t('stocks.addPlus')}
               </VevenoButton>
             </div>
           ) : null}
@@ -630,11 +656,11 @@ export function VevenoStoreStocksPanel({
 
         {canMutateStock && categoryEditMode && stockListView === 'all' ? (
           <div className="veveno-stock-edit-grid">
-            <VevenoCard title="카테고리">
+            <VevenoCard title={t('stocks.categories')}>
               {stockCategories.length === 0 ? (
-                <p className="veveno-empty">등록된 카테고리가 없습니다.</p>
+                <p className="veveno-empty">{t('stocks.noCategories')}</p>
               ) : filteredStockCategories.length === 0 ? (
-                <p className="veveno-empty">검색 결과가 없습니다.</p>
+                <p className="veveno-empty">{t('stocks.searchNone')}</p>
               ) : (
                 <div className="veveno-stack">
                   {filteredStockCategories.map((cat) => {
@@ -656,7 +682,7 @@ export function VevenoStoreStocksPanel({
                         <div className="veveno-store-row__main">
                           <p className="veveno-store-row__name">{cat.categoryName}</p>
                           <p className="veveno-store-row__sub">
-                            재고 {cat.stocks.length}개
+                            {t('stocks.stockCount', { count: cat.stocks.length })}
                           </p>
                         </div>
                       </button>
@@ -666,7 +692,7 @@ export function VevenoStoreStocksPanel({
               )}
             </VevenoCard>
             <VevenoCard
-              title="카테고리 편집"
+              title={t('stocks.editCategory')}
               action={
                 <VevenoButton
                   size="sm"
@@ -676,7 +702,7 @@ export function VevenoStoreStocksPanel({
                     setCategoryName('');
                   }}
                 >
-                  새로 작성
+                  {t('stocks.createNew')}
                 </VevenoButton>
               }
             >
@@ -687,15 +713,15 @@ export function VevenoStoreStocksPanel({
                 }
               >
                 <VevenoInput
-                  label="이름"
+                  label={t('stocks.categoryName')}
                   id="category-name"
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
-                  placeholder="카테고리 이름 (예: 원두)"
+                  placeholder={t('stocks.categoryNamePh')}
                 />
                 <div className="veveno-btn-row">
                   <VevenoButton type="submit">
-                    {selectedCategoryId ? '저장/수정' : '카테고리 추가'}
+                    {selectedCategoryId ? t('common.saveEdit') : t('stocks.addCategory')}
                   </VevenoButton>
                   {selectedCategoryId ? (
                     <VevenoButton
@@ -704,7 +730,7 @@ export function VevenoStoreStocksPanel({
                         void handleDeleteCategory();
                       }}
                     >
-                      삭제
+                      {t('common.delete')}
                     </VevenoButton>
                   ) : null}
                 </div>
@@ -714,7 +740,7 @@ export function VevenoStoreStocksPanel({
         ) : null}
 
         <VevenoCard
-          title={stockListView === 'low' ? '부족 목록' : '재고 목록'}
+          title={stockListView === 'low' ? t('stocks.lowList') : t('stocks.stockList')}
           action={
             canMutateStock ? (
               <VevenoButton
@@ -722,24 +748,24 @@ export function VevenoStoreStocksPanel({
                 variant={stockListEditMode ? 'secondary' : 'ghost'}
                 onClick={() => setStockListEditMode((prev) => !prev)}
               >
-                {stockListEditMode ? '편집 종료' : '편집'}
+                {stockListEditMode ? t('common.editDone') : t('stocks.editMode')}
               </VevenoButton>
             ) : undefined
           }
         >
           {stockCategories.length === 0 ? (
-            <p className="veveno-empty">표시할 재고가 없습니다.</p>
+            <p className="veveno-empty">{t('stocks.noneToShow')}</p>
           ) : stockListView === 'low' && lowStockCount === 0 ? (
-            <p className="veveno-empty">부족한 재고가 없습니다.</p>
+            <p className="veveno-empty">{t('stocks.noneLow')}</p>
           ) : filteredStockCategories.length === 0 ? (
-            <p className="veveno-empty">검색 결과가 없습니다.</p>
+            <p className="veveno-empty">{t('stocks.searchNone')}</p>
           ) : (
             <div className="veveno-stack-lg">
               {filteredStockCategories.map((cat) => (
                 <div key={cat.id} className="veveno-stock-block-inline">
                   <h3 className="veveno-subsection-title">{cat.categoryName}</h3>
                   {cat.stocks.length === 0 ? (
-                    <p className="veveno-empty">항목이 없습니다.</p>
+                    <p className="veveno-empty">{t('stocks.noItems')}</p>
                   ) : (
                     <div className="veveno-stack">
                       {cat.stocks.map((stock) => (
@@ -757,22 +783,22 @@ export function VevenoStoreStocksPanel({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  발주
+                                  {t('stocks.order')}
                                 </a>
                               ) : null}
                             </div>
                             <p className="veveno-store-row__sub">
-                              경고선 {stock.stockMinNum ?? 0}
+                              {t('stocks.warnLine', { count: stock.stockMinNum ?? 0 })}
                               {stock.daysOfStock != null
-                                ? ` · ${formatDaysOfStock(stock.daysOfStock)}`
+                                ? ` · ${formatDaysOfStock(stock.daysOfStock, t)}`
                                 : ''}
                             </p>
                           </div>
                           <div className="veveno-stock-row__qty">
                             {stock.lowStock ? (
-                              <VevenoBadge variant="danger">부족</VevenoBadge>
+                              <VevenoBadge variant="danger">{t('stocks.low')}</VevenoBadge>
                             ) : stock.soonLow ? (
-                              <VevenoBadge variant="warning">곧 부족 · 재고 확인</VevenoBadge>
+                              <VevenoBadge variant="warning">{t('stocks.soonLow')}</VevenoBadge>
                             ) : null}
                             {canMutateStock ? (
                               <>
@@ -797,10 +823,13 @@ export function VevenoStoreStocksPanel({
                                   type="button"
                                   className="veveno-stock-num veveno-stock-num--action"
                                   disabled={updatingStockId === stock.id}
-                                  aria-label={`${stock.stockName} 입고, 현재 ${stockQtyLabel(stock.stockNum, stock.unit)}`}
+                                  aria-label={t('stocks.inboundAria', {
+                                    name: stock.stockName,
+                                    qty: stockQtyLabel(stock.stockNum, stock.unit, t),
+                                  })}
                                   onClick={() => openInbound(cat.id, stock)}
                                 >
-                                  {stockQtyLabel(stock.stockNum, stock.unit)}
+                                  {stockQtyLabel(stock.stockNum, stock.unit, t)}
                                 </button>
                                 <VevenoButton
                                   size="sm"
@@ -822,18 +851,18 @@ export function VevenoStoreStocksPanel({
                               </>
                             ) : (
                               <span className="veveno-stock-num">
-                                {stockQtyLabel(stock.stockNum, stock.unit)}
+                                {stockQtyLabel(stock.stockNum, stock.unit, t)}
                               </span>
                             )}
                             {canMutateStock && stockListEditMode ? (
                               <VevenoActionMenu
                                 actions={[
                                   {
-                                    label: '편집',
+                                    label: t('stocks.editMode'),
                                     onSelect: () => openEdit(cat.id, stock),
                                   },
                                   {
-                                    label: '삭제',
+                                    label: t('common.delete'),
                                     danger: true,
                                     disabled: deletingStock,
                                     onSelect: () => {
@@ -859,7 +888,7 @@ export function VevenoStoreStocksPanel({
 
       <VevenoModal
         open={stockCreateOpen}
-        title="재고 등록"
+        title={t('stocks.register')}
         onClose={() => {
           if (!creatingStock) {
             setStockCreateOpen(false);
@@ -870,7 +899,7 @@ export function VevenoStoreStocksPanel({
         <form className="veveno-form-stack" onSubmit={handleCreateStock}>
           <div className="veveno-field">
             <label className="veveno-field__label" htmlFor="stock-category">
-              카테고리
+              {t('menus.category')}
             </label>
             <select
               id="stock-category"
@@ -886,18 +915,18 @@ export function VevenoStoreStocksPanel({
               }
               disabled={creatingStock}
             >
-              <option value="">카테고리 선택</option>
+              <option value="">{t('stocks.pickCategory')}</option>
               {stockCategories.map((cat) => (
                 <option key={cat.id} value={String(cat.id)}>
                   {cat.categoryName}
                 </option>
               ))}
-              <option value="__custom__">직접 입력</option>
+              <option value="__custom__">{t('units.custom')}</option>
             </select>
           </div>
           {stockForm.categoryKey === '__custom__' ? (
             <VevenoInput
-              label="카테고리 이름"
+              label={t('stocks.categoryNameField')}
               value={stockForm.customCategoryName}
               onChange={(e) =>
                 setStockForm((prev) => ({
@@ -905,21 +934,21 @@ export function VevenoStoreStocksPanel({
                   customCategoryName: e.target.value,
                 }))
               }
-              placeholder="새 카테고리 이름"
+              placeholder={t('menus.newCategoryPh')}
               disabled={creatingStock}
             />
           ) : null}
           <VevenoInput
-            label="재고 이름"
+            label={t('stocks.stockName')}
             value={stockForm.stockName}
             onChange={(e) =>
               setStockForm((prev) => ({ ...prev, stockName: e.target.value }))
             }
-            placeholder="재고 이름"
+            placeholder={t('stocks.stockName')}
             disabled={creatingStock}
           />
           <VevenoInput
-            label="수량"
+            label={t('stocks.qty')}
             type="number"
             min={0}
             value={stockForm.stockNum}
@@ -933,7 +962,7 @@ export function VevenoStoreStocksPanel({
           />
           <div className="veveno-field">
             <label className="veveno-field__label" htmlFor="stock-unit">
-              단위
+              {t('stocks.unit')}
             </label>
             <select
               id="stock-unit"
@@ -950,27 +979,27 @@ export function VevenoStoreStocksPanel({
             >
               {VEVENO_STOCK_UNITS.map((unit) => (
                 <option key={unit} value={unit}>
-                  {unit}
+                  {unitLabel(unit, t)}
                 </option>
               ))}
-              <option value={UNIT_CUSTOM}>직접 입력</option>
+              <option value={UNIT_CUSTOM}>{t('units.custom')}</option>
             </select>
           </div>
           {stockForm.unitKey === UNIT_CUSTOM ? (
             <VevenoInput
-              label="단위 이름"
+              label={t('stocks.unitName')}
               value={stockForm.customUnit}
               onChange={(e) =>
                 setStockForm((prev) => ({ ...prev, customUnit: e.target.value }))
               }
-              placeholder="예: 봉지"
+              placeholder={t('stocks.unitNamePh')}
               maxLength={16}
               disabled={creatingStock}
             />
           ) : null}
           {owned ? (
             <VevenoInput
-              label="발주 링크"
+              label={t('stocks.orderUrl')}
               type="url"
               value={stockForm.orderUrl}
               onChange={(e) =>
@@ -981,7 +1010,7 @@ export function VevenoStoreStocksPanel({
             />
           ) : null}
           <VevenoInput
-            label="경고 수량"
+            label={t('stocks.warnQty')}
             type="number"
             min={0}
             value={stockForm.stockMinNum}
@@ -994,7 +1023,7 @@ export function VevenoStoreStocksPanel({
             disabled={creatingStock}
           />
           <p className="veveno-card-lead">
-            「직접 입력」은 같은 이름이 없으면 카테고리를 만든 뒤 재고를 추가합니다.
+            {t('stocks.customCategoryHint')}
           </p>
           <div className="veveno-modal__actions">
             <VevenoButton
@@ -1002,10 +1031,10 @@ export function VevenoStoreStocksPanel({
               disabled={creatingStock}
               onClick={() => setStockCreateOpen(false)}
             >
-              취소
+              {t('common.cancel')}
             </VevenoButton>
             <VevenoButton type="submit" loading={creatingStock}>
-              추가
+              {t('common.add')}
             </VevenoButton>
           </div>
         </form>
@@ -1013,7 +1042,7 @@ export function VevenoStoreStocksPanel({
 
       <VevenoModal
         open={inboundTarget != null}
-        title="입고"
+        title={t('stocks.inbound')}
         onClose={() => {
           if (updatingStockId == null) {
             setInboundTarget(null);
@@ -1024,18 +1053,20 @@ export function VevenoStoreStocksPanel({
         {inboundTarget ? (
           <form className="veveno-form-stack" onSubmit={(e) => void handleInbound(e)}>
             <p className="veveno-card-lead">
-              {inboundTarget.stock.stockName} · 현재{' '}
-              {stockQtyLabel(inboundTarget.stock.stockNum, inboundTarget.stock.unit)}에 더합니다.
+              {t('stocks.inboundLead', {
+                name: inboundTarget.stock.stockName,
+                qty: stockQtyLabel(inboundTarget.stock.stockNum, inboundTarget.stock.unit, t),
+              })}
             </p>
             <VevenoInput
-              label="입고 수량"
+              label={t('stocks.inboundQty')}
               type="number"
               min={1}
               step={1}
               inputMode="numeric"
               value={inboundQty}
               onChange={(e) => setInboundQty(e.target.value)}
-              placeholder="예: 12"
+              placeholder={t('stocks.inboundQtyPh')}
               disabled={updatingStockId === inboundTarget.stock.id}
             />
             <div className="veveno-modal__actions">
@@ -1044,14 +1075,14 @@ export function VevenoStoreStocksPanel({
                 disabled={updatingStockId === inboundTarget.stock.id}
                 onClick={() => setInboundTarget(null)}
               >
-                취소
+                {t('common.cancel')}
               </VevenoButton>
               <VevenoButton
                 type="submit"
                 loading={updatingStockId === inboundTarget.stock.id}
                 disabled={Math.floor(Number(inboundQty)) < 1}
               >
-                입고
+                {t('stocks.inbound')}
               </VevenoButton>
             </div>
           </form>
@@ -1060,7 +1091,7 @@ export function VevenoStoreStocksPanel({
 
       <VevenoModal
         open={editTarget != null}
-        title="재고 편집"
+        title={t('stocks.edit')}
         onClose={() => {
           if (!savingEdit) {
             setEditTarget(null);
@@ -1072,7 +1103,7 @@ export function VevenoStoreStocksPanel({
           <form className="veveno-form-stack" onSubmit={(e) => void handleSaveStock(e)}>
             <div className="veveno-field">
               <label className="veveno-field__label" htmlFor="edit-stock-category">
-                카테고리
+                {t('menus.category')}
               </label>
               <select
                 id="edit-stock-category"
@@ -1094,7 +1125,7 @@ export function VevenoStoreStocksPanel({
               </select>
             </div>
             <VevenoInput
-              label="재고 이름"
+              label={t('stocks.stockName')}
               value={editForm.stockName}
               onChange={(e) =>
                 setEditForm((prev) => ({ ...prev, stockName: e.target.value }))
@@ -1102,7 +1133,7 @@ export function VevenoStoreStocksPanel({
               disabled={savingEdit}
             />
             <VevenoInput
-              label="수량"
+              label={t('stocks.qty')}
               type="number"
               min={0}
               value={editForm.stockNum}
@@ -1116,7 +1147,7 @@ export function VevenoStoreStocksPanel({
             />
             <div className="veveno-field">
               <label className="veveno-field__label" htmlFor="edit-stock-unit">
-                단위
+                {t('stocks.unit')}
               </label>
               <select
                 id="edit-stock-unit"
@@ -1133,27 +1164,27 @@ export function VevenoStoreStocksPanel({
               >
                 {VEVENO_STOCK_UNITS.map((unit) => (
                   <option key={unit} value={unit}>
-                    {unit}
+                    {unitLabel(unit, t)}
                   </option>
                 ))}
-                <option value={UNIT_CUSTOM}>직접 입력</option>
+                <option value={UNIT_CUSTOM}>{t('units.custom')}</option>
               </select>
             </div>
             {editForm.unitKey === UNIT_CUSTOM ? (
               <VevenoInput
-                label="단위 이름"
+                label={t('stocks.unitName')}
                 value={editForm.customUnit}
                 onChange={(e) =>
                   setEditForm((prev) => ({ ...prev, customUnit: e.target.value }))
                 }
-                placeholder="예: 봉지"
+                placeholder={t('stocks.unitNamePh')}
                 maxLength={16}
                 disabled={savingEdit}
               />
             ) : null}
             {owned ? (
               <VevenoInput
-                label="발주 링크"
+                label={t('stocks.orderUrl')}
                 type="url"
                 value={editForm.orderUrl}
                 onChange={(e) =>
@@ -1164,7 +1195,7 @@ export function VevenoStoreStocksPanel({
               />
             ) : null}
             <VevenoInput
-              label="경고 수량"
+              label={t('stocks.warnQty')}
               type="number"
               min={0}
               value={editForm.stockMinNum}
@@ -1177,17 +1208,21 @@ export function VevenoStoreStocksPanel({
               disabled={savingEdit}
             />
             <div className="veveno-stock-logs">
-              <p className="veveno-field__label">이력</p>
+              <p className="veveno-field__label">{t('stocks.history')}</p>
               {loadingLogs ? (
-                <p className="veveno-empty">불러오는 중…</p>
+                <p className="veveno-empty">{t('common.loading')}</p>
               ) : stockLogs.length === 0 ? (
-                <p className="veveno-empty">수량 변경 이력이 없습니다.</p>
+                <p className="veveno-empty">{t('stocks.noHistory')}</p>
               ) : (
                 <ul className="veveno-stock-logs__list">
                   {stockLogs.map((log) => (
                     <li key={log.id}>
-                      {log.nickname || '알 수 없음'} · {log.fromNum}→{log.toNum}
-                      {log.createdAt ? ` · ${formatStockLogAt(log.createdAt)}` : ''}
+                      {t('stocks.historyLine', {
+                        nickname: log.nickname || t('common.unknown'),
+                        from: log.fromNum,
+                        to: log.toNum,
+                      })}
+                      {log.createdAt ? ` · ${formatStockLogAt(log.createdAt, dateLocale)}` : ''}
                     </li>
                   ))}
                 </ul>
@@ -1199,10 +1234,10 @@ export function VevenoStoreStocksPanel({
                 disabled={savingEdit}
                 onClick={() => setEditTarget(null)}
               >
-                취소
+                {t('common.cancel')}
               </VevenoButton>
               <VevenoButton type="submit" loading={savingEdit}>
-                저장
+                {t('common.save')}
               </VevenoButton>
             </div>
           </form>

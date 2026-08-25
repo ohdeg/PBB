@@ -83,16 +83,20 @@ function expandWorkSpans(occurrences: VevenoCalendarOccurrence[]): TimedItem[] {
   return items;
 }
 
-function formatHourLabel(hour: number): string {
+function formatHourLabel(hour: number, nextDayLabel: string): string {
   if (hour < 24) {
     return `${String(hour).padStart(2, '0')}:00`;
   }
-  return `익일 ${String(hour - 24).padStart(2, '0')}:00`;
+  return `${nextDayLabel} ${String(hour - 24).padStart(2, '0')}:00`;
 }
 
-function buildRange(startHour: number, endHour: number): VevenoTimetableRange {
+function buildRange(
+  startHour: number,
+  endHour: number,
+  nextDayLabel = '익일',
+): VevenoTimetableRange {
   const hourLabels = Array.from({ length: endHour - startHour }, (_, index) =>
-    formatHourLabel(startHour + index),
+    formatHourLabel(startHour + index, nextDayLabel),
   );
   return {
     startHour,
@@ -141,6 +145,7 @@ export function buildVevenoStaffColorMap(userIds: string[]): Map<string, VevenoS
 /** 주간 표시 시간 범위 (근무/대타 기준, 기본 08–22) */
 export function getVevenoWeekTimetableRange(
   occurrences: VevenoCalendarOccurrence[],
+  nextDayLabel = '익일',
 ): VevenoTimetableRange {
   let minStart = Infinity;
   let maxEnd = -Infinity;
@@ -156,7 +161,7 @@ export function getVevenoWeekTimetableRange(
   }
 
   if (!Number.isFinite(minStart) || !Number.isFinite(maxEnd)) {
-    return buildRange(8, 22);
+    return buildRange(8, 22, nextDayLabel);
   }
 
   const startHour = Math.max(0, Math.floor(minStart / 60));
@@ -164,7 +169,7 @@ export function getVevenoWeekTimetableRange(
   if (endHour <= startHour) {
     endHour = Math.min(30, startHour + 1);
   }
-  return buildRange(startHour, endHour);
+  return buildRange(startHour, endHour, nextDayLabel);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { VevenoConcentrationCalculator } from './VevenoConcentrationCalculator';
 import { VevenoTimers } from './VevenoTimers';
 import { VevenoUnitConverter } from './VevenoUnitConverter';
@@ -10,11 +11,12 @@ interface VevenoToolsPanelProps {
 }
 
 export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
+  const t = useTranslation();
   const [section, setSection] = useState<ToolsSection>('units');
 
   return (
     <div className="veveno-tools">
-      <div className="veveno-tools-seg veveno-tools-seg--main" role="tablist" aria-label="도구">
+      <div className="veveno-tools-seg veveno-tools-seg--main" role="tablist" aria-label={t('tools.aria')}>
         <button
           type="button"
           role="tab"
@@ -22,7 +24,7 @@ export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
           aria-selected={section === 'units'}
           onClick={() => setSection('units')}
         >
-          단위 변환
+          {t('tools.units')}
         </button>
         <button
           type="button"
@@ -31,7 +33,7 @@ export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
           aria-selected={section === 'concentration'}
           onClick={() => setSection('concentration')}
         >
-          농도
+          {t('tools.concentration')}
         </button>
         <button
           type="button"
@@ -40,7 +42,7 @@ export function VevenoToolsPanel({ storeId }: VevenoToolsPanelProps) {
           aria-selected={section === 'timers'}
           onClick={() => setSection('timers')}
         >
-          타이머
+          {t('tools.timers')}
         </button>
       </div>
 

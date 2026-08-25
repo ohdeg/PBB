@@ -132,7 +132,7 @@ export function SrankoClosetPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const { items, reload: reloadItems } = useSrankoItems();
   const { prefs, savePrefs } = useSrankoPrefs();
-  const { saveItem, removeItem, saveLook, tryOn, uploadImage, deleteUpload, predictItem } =
+  const { saveItem, removeItem, saveLook, tryOn, uploadImage, deleteUpload, predictItem, rembgItem } =
     useSrankoMutations();
 
   const [slotFilter, setSlotFilter] = useState<SlotFilter>('ALL');
@@ -169,8 +169,13 @@ export function SrankoClosetPage() {
     useState<SrankoWornGarmentSlot>('TOP');
   const [garmentExtractionApplied, setGarmentExtractionApplied] = useState(false);
   const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
+  /** Product-photo rembg after classify-first: idle | pending | ready | error */
+  const [rembgStatus, setRembgStatus] = useState<'idle' | 'pending' | 'ready' | 'error'>(
+    'idle',
+  );
   const localPreviewRef = useRef<string | null>(null);
   const classifiedPreviewRef = useRef<string | null>(null);
+  const rembgGenerationRef = useRef(0);
 
   const [sexDraft, setSexDraft] = useState<'M' | 'F'>('M');
   const [consent, setConsent] = useState(false);
@@ -514,6 +519,11 @@ export function SrankoClosetPage() {
     setGarmentExtractionApplied(false);
   };
 
+  const bumpRembgGeneration = () => {
+    rembgGenerationRef.current += 1;
+    setRembgStatus('idle');
+  };
+
   const setClassifiedPreviewFromBase64 = (base64: string) => {
     clearClassifiedPreview();
     const binary = atob(base64);
@@ -550,6 +560,7 @@ export function SrankoClosetPage() {
     setTargetGarmentSlot('TOP');
     setGarmentExtractionApplied(false);
     setExtractionWarning(null);
+    bumpRembgGeneration();
     setItemMeasureDraft({});
     setItemLengthUnits({});
     setItemShoeUnits({});
@@ -689,6 +700,7 @@ export function SrankoClosetPage() {
     }
     clearLocalPreview();
     clearClassifiedPreview();
+    bumpRembgGeneration();
     setError('');
     setExtractionWarning(null);
     setAddStep('photo');
@@ -696,9 +708,11 @@ export function SrankoClosetPage() {
     setBusy(true);
     try {
       const resized = await resizeImageForUpload(file);
+      const classifyOnly = !extractWornGarment;
       const predicted = await predictItem(resized, {
         extractWornGarment,
         targetSlot: extractWornGarment ? targetGarmentSlot : undefined,
+        skipBackgroundRemoval: classifyOnly,
       });
       setExtractionWarning(predicted.extractionWarning);
       if (extractWornGarment && !predicted.garmentExtractionApplied) {
@@ -712,10 +726,13 @@ export function SrankoClosetPage() {
         return;
       }
       if (
-        !predicted.imagePngBase64 ||
         (!extractWornGarment && !predicted.slot) ||
         !predicted.categoryCode
       ) {
+        setError('분류 결과가 올바르지 않습니다.');
+        return;
+      }
+      if (extractWornGarment && !predicted.imagePngBase64) {
         setError('분류 결과가 올바르지 않습니다.');
         return;
       }
@@ -735,8 +752,6 @@ export function SrankoClosetPage() {
             predicted.warmth <= 5
           ? predicted.warmth
           : 3;
-      setClassifiedPreviewFromBase64(predicted.imagePngBase64);
-      setGarmentExtractionApplied(predicted.garmentExtractionApplied);
       setSlot(nextSlot);
       setCategoryCode(nextCategory);
       setWarmth(nextWarmth);
@@ -745,10 +760,45 @@ export function SrankoClosetPage() {
       setItemLengthUnits({});
       setItemShoeUnits({});
       setItemWeightUnits({});
-      clearLocalPreview();
       setAddStep('details');
+
+      if (extractWornGarment && predicted.imagePngBase64) {
+        setClassifiedPreviewFromBase64(predicted.imagePngBase64);
+        setGarmentExtractionApplied(predicted.garmentExtractionApplied);
+        clearLocalPreview();
+        setRembgStatus('ready');
+        return;
+      }
+
+      // Product photo: enter details immediately; rembg fills PNG in background.
+      setLocalPreview(resized);
+      setRembgStatus('pending');
+      const gen = rembgGenerationRef.current + 1;
+      rembgGenerationRef.current = gen;
+      void rembgItem(resized)
+        .then((result) => {
+          if (rembgGenerationRef.current !== gen) {
+            return;
+          }
+          setClassifiedPreviewFromBase64(result.imagePngBase64);
+          clearLocalPreview();
+          setRembgStatus('ready');
+          setError('');
+        })
+        .catch((err: unknown) => {
+          if (rembgGenerationRef.current !== gen) {
+            return;
+          }
+          setRembgStatus('error');
+          setError(
+            err instanceof Error
+              ? err.message
+              : '배경 제거에 실패했습니다. 사진을 다시 올려 주세요.',
+          );
+        });
     } catch (e: unknown) {
       clearClassifiedPreview();
+      bumpRembgGeneration();
       setError(e instanceof Error ? e.message : '옷 분류에 실패했습니다.');
     } finally {
       setBusy(false);
@@ -758,6 +808,7 @@ export function SrankoClosetPage() {
   const backToPhotoStep = () => {
     clearLocalPreview();
     clearClassifiedPreview();
+    bumpRembgGeneration();
     setGarmentExtractionApplied(false);
     setExtractionWarning(null);
     setAddStep('photo');
@@ -802,7 +853,17 @@ export function SrankoClosetPage() {
       return;
     }
     if (!pendingPngBase64 && !existingImageUrl) {
-      setError('옷 사진을 올려 주세요.');
+      setError(
+        rembgStatus === 'pending'
+          ? '배경 제거가 끝날 때까지 기다려 주세요.'
+          : rembgStatus === 'error'
+            ? '배경 제거에 실패했습니다. 사진을 다시 올려 주세요.'
+            : '옷 사진을 올려 주세요.',
+      );
+      return;
+    }
+    if (rembgStatus === 'pending') {
+      setError('배경 제거가 끝날 때까지 기다려 주세요.');
       return;
     }
     if (
@@ -1520,7 +1581,7 @@ export function SrankoClosetPage() {
                     <span>
                       {extractWornGarment
                         ? '착용 사진에서 옷 추출·분류 중… 잠시만 기다려 주세요.'
-                        : '분류·배경제거 중… 잠시만 기다려 주세요.'}
+                        : '분류 중… 배경제거는 다음 화면에서 이어집니다.'}
                     </span>
                   </p>
                 ) : null}
@@ -1539,6 +1600,7 @@ export function SrankoClosetPage() {
                       if (editingItemId && existingImageUrl) {
                         clearLocalPreview();
                         clearClassifiedPreview();
+                        bumpRembgGeneration();
                         setGarmentExtractionApplied(false);
                         setExtractionWarning(null);
                         setError('');
@@ -1554,12 +1616,29 @@ export function SrankoClosetPage() {
               </div>
             ) : (
               <div key="add-step-details" className="sranko-add-panel">
-                {classifiedPreviewUrl || existingImageUrl ? (
-                  <img
-                    className="sranko-preview"
-                    src={classifiedPreviewUrl ?? existingImageUrl ?? undefined}
-                    alt={editingItemId ? '아이템 사진' : '분류된 옷'}
-                  />
+                {classifiedPreviewUrl || localPreviewUrl || existingImageUrl ? (
+                  <>
+                    <img
+                      className="sranko-preview"
+                      src={
+                        classifiedPreviewUrl ??
+                        localPreviewUrl ??
+                        existingImageUrl ??
+                        undefined
+                      }
+                      alt={editingItemId ? '아이템 사진' : '분류된 옷'}
+                    />
+                    {rembgStatus === 'pending' ? (
+                      <p className="sranko-muted" role="status">
+                        배경 제거 중… 이름·분류는 먼저 수정할 수 있어요.
+                      </p>
+                    ) : null}
+                    {rembgStatus === 'error' ? (
+                      <p className="sranko-error">
+                        배경 제거에 실패했습니다. 「사진 다시」로 다시 시도해 주세요.
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
                 {extractionWarning ? (
                   <p className="sranko-warning" role="status">
@@ -1737,6 +1816,8 @@ export function SrankoClosetPage() {
                     className="sranko-btn sranko-btn--primary"
                     disabled={
                       busy ||
+                      rembgStatus === 'pending' ||
+                      rembgStatus === 'error' ||
                       (!pendingPngBase64 && !existingImageUrl) ||
                       (Boolean(pendingPngBase64) &&
                         extractWornGarment &&
@@ -1744,7 +1825,13 @@ export function SrankoClosetPage() {
                     }
                     onClick={() => void submitAdd()}
                   >
-                    {busy ? '저장 중…' : editingItemId ? '수정 저장' : '저장'}
+                    {busy
+                      ? '저장 중…'
+                      : rembgStatus === 'pending'
+                        ? '배경 제거 중…'
+                        : editingItemId
+                          ? '수정 저장'
+                          : '저장'}
                   </button>
                 </div>
               </div>

@@ -91,7 +91,7 @@ public class BrewTimerPresetService {
         if (!BrewTimerPreset.SCOPE_PERSONAL.equals(preset.getScope())
                 || preset.getUserId() == null
                 || !preset.getUserId().equals(user.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "본인 프리셋만 수정할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "PRESET_EDIT_OWN_ONLY", "본인 프리셋만 수정할 수 있습니다.");
         }
         preset.update(normalizeName(request.name()), serializeSteps(request.steps()));
         return toResponse(preset);
@@ -111,7 +111,7 @@ public class BrewTimerPresetService {
         if (!BrewTimerPreset.SCOPE_STORE.equals(preset.getScope())
                 || preset.getStoreId() == null
                 || !preset.getStoreId().equals(storeId)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "이 가게의 프리셋이 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "PRESET_WRONG_STORE", "이 가게의 프리셋이 아닙니다.");
         }
         preset.update(normalizeName(request.name()), serializeSteps(request.steps()));
         return toResponse(preset);
@@ -124,7 +124,7 @@ public class BrewTimerPresetService {
         if (!BrewTimerPreset.SCOPE_PERSONAL.equals(preset.getScope())
                 || preset.getUserId() == null
                 || !preset.getUserId().equals(user.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "본인 프리셋만 삭제할 수 있습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "PRESET_DELETE_OWN_ONLY", "본인 프리셋만 삭제할 수 있습니다.");
         }
         presetRepository.delete(preset);
     }
@@ -138,7 +138,7 @@ public class BrewTimerPresetService {
         if (!BrewTimerPreset.SCOPE_STORE.equals(preset.getScope())
                 || preset.getStoreId() == null
                 || !preset.getStoreId().equals(storeId)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "이 가게의 프리셋이 아닙니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "PRESET_WRONG_STORE", "이 가게의 프리셋이 아닙니다.");
         }
         presetRepository.delete(preset);
     }
@@ -165,12 +165,12 @@ public class BrewTimerPresetService {
                 ))
                 .toList();
         if (normalized.isEmpty()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "단계가 필요합니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "PRESET_STEPS_REQUIRED", "단계가 필요합니다.");
         }
         try {
             return objectMapper.writeValueAsString(normalized);
         } catch (JacksonException e) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "단계 직렬화에 실패했습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "PRESET_STEPS_SERIALIZE", "단계 직렬화에 실패했습니다.");
         }
     }
 
@@ -189,17 +189,17 @@ public class BrewTimerPresetService {
 
     private User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "로그인이 필요합니다."));
     }
 
     private BrewStore requireStore(UUID storeId) {
         return storeRepository.findById(storeId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "가게를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "STORE_NOT_FOUND", "가게를 찾을 수 없습니다."));
     }
 
     private BrewTimerPreset requirePreset(UUID presetId) {
         return presetRepository.findById(presetId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "PRESET_NOT_FOUND", "프리셋을 찾을 수 없습니다."));
     }
 
     private void assertMember(BrewStore store, UUID userId) {
@@ -209,6 +209,6 @@ public class BrewTimerPresetService {
         if (subscriptionRepository.existsBySubscriberUserIdAndStoreId(userId, store.getId())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "가게 구성원만 이용할 수 있습니다.");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "MEMBERS_ONLY", "가게 구성원만 이용할 수 있습니다.");
     }
 }

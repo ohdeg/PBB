@@ -23,7 +23,8 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Health: `GET http://127.0.0.1:8000/ml/health`  
-Predict: `POST http://127.0.0.1:8000/ml/predict` (multipart `file`, optional `extractWornGarment`, `targetSlot`)  
+Predict: `POST http://127.0.0.1:8000/ml/predict` (multipart `file`, optional `extractWornGarment`, `targetSlot`, `skipBackgroundRemoval`)
+Rembg-only: `POST http://127.0.0.1:8000/ml/rembg` (multipart `file`)
 Fit-warp: `POST http://127.0.0.1:8000/ml/fit-warp` (multipart `vto`, optional `person`, form `slot`/`scaleX`/`scaleY`)
 
 ### Production (Docker Compose)

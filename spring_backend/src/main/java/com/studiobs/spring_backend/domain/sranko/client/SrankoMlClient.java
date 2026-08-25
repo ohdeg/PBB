@@ -44,7 +44,7 @@ public class SrankoMlClient {
     }
 
     public FastApiPredictResult predict(byte[] imageBytes, String filename, String contentType) {
-        return predict(imageBytes, filename, contentType, false, null);
+        return predict(imageBytes, filename, contentType, false, null, false);
     }
 
     public FastApiPredictResult predict(
@@ -53,6 +53,17 @@ public class SrankoMlClient {
             String contentType,
             boolean extractWornGarment,
             String targetSlot
+    ) {
+        return predict(imageBytes, filename, contentType, extractWornGarment, targetSlot, false);
+    }
+
+    public FastApiPredictResult predict(
+            byte[] imageBytes,
+            String filename,
+            String contentType,
+            boolean extractWornGarment,
+            String targetSlot,
+            boolean skipBackgroundRemoval
     ) {
         requireEnabled();
 
@@ -70,7 +81,8 @@ public class SrankoMlClient {
                     partType,
                     imageBytes,
                     extractWornGarment,
-                    targetSlot
+                    targetSlot,
+                    skipBackgroundRemoval
             );
         } catch (IOException ex) {
             throw new BusinessException(HttpStatus.BAD_GATEWAY, "ML 요청 본문을 만들 수 없습니다.");
@@ -109,6 +121,60 @@ public class SrankoMlClient {
         } catch (IOException ex) {
             log.warn("[SrankoMl] predict failed: {}", ex.getMessage());
             throw mlIoException(ex, "옷 분류");
+        }
+    }
+
+    public FastApiRembgResult rembg(byte[] imageBytes, String filename, String contentType) {
+        requireEnabled();
+        if (imageBytes == null || imageBytes.length == 0) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지 파일이 비어 있습니다.");
+        }
+
+        String safeName = filename != null && !filename.isBlank() ? filename : "upload.jpg";
+        String partType = contentType != null && contentType.startsWith("image/")
+                ? contentType
+                : "image/jpeg";
+        String boundary = "----SrankoRembg" + UUID.randomUUID().toString().replace("-", "");
+
+        byte[] multipartBody;
+        try {
+            multipartBody = buildSingleFileMultipart(boundary, "file", safeName, partType, imageBytes);
+        } catch (IOException ex) {
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "배경제거 요청 본문을 만들 수 없습니다.");
+        }
+
+        URI uri = mlUri("/ml/rembg");
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(120))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int code = response.statusCode();
+            String body = response.body() != null ? response.body() : "";
+            if (code >= 400) {
+                log.warn("[SrankoMl] rembg HTTP {}: {}", code, body);
+                throw new BusinessException(
+                        HttpStatus.BAD_GATEWAY,
+                        "배경제거 서비스 오류(" + code + "): " + truncate(body, 300)
+                );
+            }
+            FastApiRembgResult result = objectMapper.readValue(body, FastApiRembgResult.class);
+            if (result == null || result.imagePngBase64() == null || result.imagePngBase64().isBlank()) {
+                throw new BusinessException(HttpStatus.BAD_GATEWAY, "배경제거 결과가 비어 있습니다.");
+            }
+            return result;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "배경제거 서비스 호출이 중단되었습니다.");
+        } catch (IOException ex) {
+            log.warn("[SrankoMl] rembg failed: {}", ex.getMessage());
+            throw mlIoException(ex, "배경제거");
         }
     }
 
@@ -221,7 +287,8 @@ public class SrankoMlClient {
             String contentType,
             byte[] fileBytes,
             boolean extractWornGarment,
-            String targetSlot
+            String targetSlot,
+            boolean skipBackgroundRemoval
     ) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeFilePart(out, boundary, "file", filename, contentType, fileBytes);
@@ -236,6 +303,26 @@ public class SrankoMlClient {
             out.write("\r\n".getBytes(StandardCharsets.UTF_8));
             writeTextPart(out, boundary, "targetSlot", targetSlot);
         }
+        out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        writeTextPart(
+                out,
+                boundary,
+                "skipBackgroundRemoval",
+                Boolean.toString(skipBackgroundRemoval)
+        );
+        out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        return out.toByteArray();
+    }
+
+    private static byte[] buildSingleFileMultipart(
+            String boundary,
+            String fieldName,
+            String filename,
+            String contentType,
+            byte[] fileBytes
+    ) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeFilePart(out, boundary, fieldName, filename, contentType, fileBytes);
         out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         return out.toByteArray();
     }
@@ -326,6 +413,13 @@ public class SrankoMlClient {
             }
             return Base64.getDecoder().decode(imagePngBase64);
         }
+    }
+
+    public record FastApiRembgResult(
+            String imagePngBase64,
+            int width,
+            int height
+    ) {
     }
 
     public record FastApiFitWarpResult(

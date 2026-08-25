@@ -8,6 +8,7 @@ import {
   stepHour,
   withPeriod,
 } from './vevenoTime';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 interface VevenoTimeInputProps {
   id?: string;
@@ -28,6 +29,7 @@ export function VevenoTimeInput({
   className = '',
   'aria-label': ariaLabel,
 }: VevenoTimeInputProps) {
+  const t = useTranslation();
   const { h24, minute } = parseHHmm(value);
   const hour = hour12FromH24(h24);
   const pm = isPm(h24);
@@ -51,13 +53,13 @@ export function VevenoTimeInput({
     <div className={`veveno-time ${className}`.trim()}>
       <select
         className="veveno-field__input veveno-time__period"
-        aria-label={groupLabel ? `${groupLabel} 오전 오후` : '오전 오후'}
+        aria-label={groupLabel ? `${groupLabel} ${t('time.ampm')}` : t('time.ampm')}
         disabled={disabled}
         value={pm ? 'pm' : 'am'}
         onChange={(e) => setTime(withPeriod(h24, e.target.value === 'pm'), minute)}
       >
-        <option value="am">오전</option>
-        <option value="pm">오후</option>
+        <option value="am">{t('time.am')}</option>
+        <option value="pm">{t('time.pm')}</option>
       </select>
       <input
         id={id}
@@ -68,7 +70,7 @@ export function VevenoTimeInput({
         step={1}
         inputMode="numeric"
         disabled={disabled}
-        aria-label={groupLabel ? `${groupLabel} 시` : '시'}
+        aria-label={groupLabel ? `${groupLabel} ${t('time.hour')}` : t('time.hour')}
         value={hour}
         onKeyDown={onHourKeyDown}
         onChange={(e) => {
@@ -100,7 +102,7 @@ export function VevenoTimeInput({
         max={59}
         inputMode="numeric"
         disabled={disabled}
-        aria-label={groupLabel ? `${groupLabel} 분` : '분'}
+        aria-label={groupLabel ? `${groupLabel} ${t('time.minute')}` : t('time.minute')}
         value={String(minute).padStart(2, '0')}
         onChange={(e) => {
           const next = Number(e.target.value);

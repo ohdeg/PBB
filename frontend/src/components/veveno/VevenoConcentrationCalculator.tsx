@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { VevenoInput } from './VevenoInput';
 
 type ConcMode = 'dilute' | 'mix' | 'percent';
@@ -23,6 +24,7 @@ function formatNumber(n: number): string {
 }
 
 export function VevenoConcentrationCalculator() {
+  const t = useTranslation();
   const [mode, setMode] = useState<ConcMode>('dilute');
 
   // dilute: C1 V1 → C2
@@ -50,16 +52,16 @@ export function VevenoConcentrationCalculator() {
       if (targetC <= 0 || targetC > startC) {
         return [
           {
-            label: '안내',
-            value: '목표 농도는 시작 농도보다 낮고 0보다 커야 합니다.',
+            label: t('concentration.hint'),
+            value: t('concentration.diluteHint'),
           },
         ];
       }
       const finalV = (startC * startV) / targetC;
       const addV = finalV - startV;
       return [
-        { label: '최종 부피 (ml)', value: formatNumber(finalV) },
-        { label: '추가할 용매 (ml)', value: formatNumber(addV) },
+        { label: t('concentration.finalV'), value: formatNumber(finalV) },
+        { label: t('concentration.addSolvent'), value: formatNumber(addV) },
       ];
     }
 
@@ -74,8 +76,8 @@ export function VevenoConcentrationCalculator() {
       if (totalV <= 0) return null;
       const finalC = (aC * aV + bC * bV) / totalV;
       return [
-        { label: '혼합 후 농도 (%)', value: formatNumber(finalC) },
-        { label: '혼합 후 부피 (ml)', value: formatNumber(totalV) },
+        { label: t('concentration.mixC'), value: formatNumber(finalC) },
+        { label: t('concentration.mixV'), value: formatNumber(totalV) },
       ];
     }
 
@@ -86,32 +88,30 @@ export function VevenoConcentrationCalculator() {
     if (soluteAmt > solutionAmt) {
       return [
         {
-          label: '안내',
-          value: '용질량은 용액량보다 클 수 없습니다.',
+          label: t('concentration.hint'),
+          value: t('concentration.percentHint'),
         },
       ];
     }
     const pct = (soluteAmt / solutionAmt) * 100;
-    return [{ label: '농도 (%)', value: formatNumber(pct) }];
-  }, [mode, c1, v1, c2, ca, va, cb, vb, solute, solution]);
+    return [{ label: t('concentration.percentResult'), value: formatNumber(pct) }];
+  }, [mode, c1, v1, c2, ca, va, cb, vb, solute, solution, t]);
 
   return (
     <div className="veveno-tools-block">
-      <h3 className="veveno-tools-block__title">농도 계산기</h3>
-      <p className="veveno-tools-block__lead">
-        원액 희석·두 용액 혼합·함량 %를 바로 계산합니다. 농도는 %, 부피는 ml 기준입니다.
-      </p>
+      <h3 className="veveno-tools-block__title">{t('concentration.title')}</h3>
+      <p className="veveno-tools-block__lead">{t('concentration.lead')}</p>
 
       <div
         className="veveno-tools-seg veveno-tools-seg--main"
         role="tablist"
-        aria-label="농도 계산 모드"
+        aria-label={t('concentration.modeAria')}
       >
         {(
           [
-            ['dilute', '희석'],
-            ['mix', '혼합'],
-            ['percent', '함량 %'],
+            ['dilute', t('concentration.dilute')],
+            ['mix', t('concentration.mix')],
+            ['percent', t('concentration.percent')],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -132,21 +132,21 @@ export function VevenoConcentrationCalculator() {
           <>
             <VevenoInput
               id="veveno-conc-c1"
-              label="시작 농도 (%)"
+              label={t('concentration.startC')}
               inputMode="decimal"
               value={c1}
               onChange={(e) => setC1(e.target.value)}
             />
             <VevenoInput
               id="veveno-conc-v1"
-              label="시작 부피 (ml)"
+              label={t('concentration.startV')}
               inputMode="decimal"
               value={v1}
               onChange={(e) => setV1(e.target.value)}
             />
             <VevenoInput
               id="veveno-conc-c2"
-              label="목표 농도 (%)"
+              label={t('concentration.targetC')}
               inputMode="decimal"
               value={c2}
               onChange={(e) => setC2(e.target.value)}
@@ -158,28 +158,28 @@ export function VevenoConcentrationCalculator() {
           <>
             <VevenoInput
               id="veveno-conc-ca"
-              label="용액 A 농도 (%)"
+              label={t('concentration.aC')}
               inputMode="decimal"
               value={ca}
               onChange={(e) => setCa(e.target.value)}
             />
             <VevenoInput
               id="veveno-conc-va"
-              label="용액 A 부피 (ml)"
+              label={t('concentration.aV')}
               inputMode="decimal"
               value={va}
               onChange={(e) => setVa(e.target.value)}
             />
             <VevenoInput
               id="veveno-conc-cb"
-              label="용액 B 농도 (%)"
+              label={t('concentration.bC')}
               inputMode="decimal"
               value={cb}
               onChange={(e) => setCb(e.target.value)}
             />
             <VevenoInput
               id="veveno-conc-vb"
-              label="용액 B 부피 (ml)"
+              label={t('concentration.bV')}
               inputMode="decimal"
               value={vb}
               onChange={(e) => setVb(e.target.value)}
@@ -191,14 +191,14 @@ export function VevenoConcentrationCalculator() {
           <>
             <VevenoInput
               id="veveno-conc-solute"
-              label="용질량"
+              label={t('concentration.solute')}
               inputMode="decimal"
               value={solute}
               onChange={(e) => setSolute(e.target.value)}
             />
             <VevenoInput
               id="veveno-conc-solution"
-              label="용액량 (같은 단위)"
+              label={t('concentration.solution')}
               inputMode="decimal"
               value={solution}
               onChange={(e) => setSolution(e.target.value)}
@@ -210,7 +210,7 @@ export function VevenoConcentrationCalculator() {
       <div className="veveno-unit-result veveno-conc-result" aria-live="polite">
         {results == null ? (
           <>
-            <p className="veveno-unit-result__label">결과</p>
+            <p className="veveno-unit-result__label">{t('concentration.result')}</p>
             <p className="veveno-unit-result__value">—</p>
           </>
         ) : (

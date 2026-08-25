@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 
 export interface VevenoMenuAction {
   label: string;
@@ -8,6 +9,7 @@ export interface VevenoMenuAction {
 }
 
 export function VevenoActionMenu({ actions }: { actions: VevenoMenuAction[] }) {
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -33,7 +35,7 @@ export function VevenoActionMenu({ actions }: { actions: VevenoMenuAction[] }) {
       <button
         type="button"
         className={`veveno-menu__trigger${open ? ' is-open' : ''}`}
-        aria-label="더보기"
+        aria-label={t('common.more')}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}

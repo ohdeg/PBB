@@ -1,99 +1,40 @@
-# PBB — Play beom's BAG
+# PBB
 
-[![CI](https://github.com/ohdeg/PBB/actions/workflows/ci.yml/badge.svg)](https://github.com/ohdeg/PBB/actions/workflows/ci.yml)
+Play beom's BAG
 
-취미 앱을 모아 둔 **PBB** 플랫폼입니다.  
-메인 브랜드는 **PBB (Play beom's BAG)** 이며, 홈에서 카테고리별 취미 앱으로 진입합니다.
+공통 JWT 인증 위에 매장 노트(**Veveno**)를 붙인 웹 서비스입니다.  
+Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 담당합니다.
 
-## Portfolio
+[![CI](https://github.com/ohdeg/PBB/actions/workflows/ci.yml/badge.svg)](https://github.com/ohdeg/PBB/actions/workflows/ci.yml)  
+**Live:** [app.pbbstudio.com](https://app.pbbstudio.com) · API `api.pbbstudio.com`
 
-- **Live:** [app.pbbstudio.com](https://app.pbbstudio.com) · API `api.pbbstudio.com`
-- **형태:** 개인 프로젝트 — 기획, UX 흐름, React/Spring 구현, 테스트, 인프라와 배포 전 과정 담당
-- **문제:** 서로 다른 취미 도구를 매번 별도 앱·계정으로 관리하지 않고, 공통 인증과 일관된 진입 경험 위에서 쓰게 구성
-- **해결:** 하나의 PBB 셸 안에 Veveno·Sranko·6PICK·Dieta·Score Viewer를 도메인별로 분리하고, 계정·권한·R2·운영 인프라를 공유
-- **검증:** JUnit/Mockito, MySQL·Redis Testcontainers, Vitest coverage, Playwright를 GitHub Actions PR 게이트로 연결
-- **운영:** Spring Security 공개/회원/DEV 이중 인가, Actuator health/info, Cloudflare Pages + Tunnel + Docker Compose
+| | |
+|--|--|
+| 인증 | Access는 메모리, Refresh는 HttpOnly 쿠키 + Redis. 401이면 한 번 갱신 후 재요청. 남용은 429 |
+| 정합성 | Veveno 재고는 JPA `@Version`. 동시 수정은 덮어쓰지 않고 **409** |
+| 검증 | GitHub Actions — JUnit, Testcontainers, Vitest, Playwright |
 
-대표적으로 **Veveno**는 소규모 매장의 메뉴·재고(낙관적 락·사용량 일수)·할 일·직원 근무(오늘부터/지정일/한번만)·대타/추가 근무·매장 도구를 다루고, UI는 한/영/일(`ko`/`en`/`ja`)입니다. **Sranko**는 옷장·가상 입어보기(Vertex Gemini)·룩·커뮤니티와 FastAPI 분류/배경제거를 한 흐름으로 묶고, 상품 사진은 분류 후 `rembg`만 따로 돌립니다.
+같은 계정으로 Score Viewer · Sranko · 6PICK · Dieta도 붙였습니다. 채용에서 볼 핵심은 위 세 줄과 [문제 해결 사례](#문제-해결-사례)입니다.
 
 ### 미리보기
 
 | 홈 | Veveno |
 |:--:|:--:|
 | ![홈](docs/screenshots/home.png) | ![Veveno](docs/screenshots/veveno.png) |
-| **슈란코** | **Score Viewer** |
-| ![슈란코](docs/screenshots/sranko.png) | ![Score Viewer](docs/screenshots/score-viewer.png) |
-| **6PICK** | **Dieta** |
-| ![6PICK](docs/screenshots/6pick.png) | ![Dieta](docs/screenshots/dieta.png) |
-| **로그인** | **회원가입** |
-| ![로그인](docs/screenshots/login.png) | ![회원가입](docs/screenshots/signup.png) |
 
-```text
-Browser
-  ├─ Cloudflare Pages ─ React / Vite (app.*)
-  └─ Cloudflare Tunnel ─ Spring Boot (api.*)
-                           ├─ MySQL 8
-                           ├─ Redis 7
-                           ├─ R2 (S3 API)
-                           └─ FastAPI (Sranko ML, 내부망만)
-```
-
-## 현재 앱
-
-홈 `#apps` 순서는 `HOBBY_APPS` 고정입니다 (Veveno → Sranko → Score Viewer → 6PICK → Dieta). `featured-app` API는 DEV 설정용이고 홈 그리드를 바꾸지 않습니다.
-
-| 앱 | 경로 | 설명 |
-|----|------|------|
-| Veveno | `/hobbies/veveno` | 가게 노트. 랜딩 공개 · 허브 `/hub` · 실가게 `/stores/:id`(로그인, 메뉴·재고·할 일·근무·도구) · 로컬 체험 `/stores/demo` · UI 한/영/일 |
-| Sranko | `/hobbies/sranko` | 디지털 옷장 · 상품 사진 rembg · 핏 체크 · Gemini 입어보기 · 룩 · 커뮤니티 |
-| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
-| 6PICK | `/hobbies/6pick` | 로또 번호 생성·세금 계산·회차 관리 (당첨번호 자동 동기화) |
-| Dieta | `/hobbies/dieta` | 체중·섭취·활동량 주간 코칭 |
-
-하위 호환 리다이렉트: `/hobbies/lotto` → 6PICK · `/hobbies/brew-note` → Veveno · `/hobbies/ipbt`·`analyze-baseball`·`pbb`·`/analysis` → 홈
-
-공통 기능: 회원가입(약관 동의) · 로그인 · 이메일 찾기 · 비밀번호 재설정 · JWT · 프로필 · 테마(기본 다크, `localStorage pbb-theme === 'light'`일 때만 라이트) · 회원 등급(FREE/DEV) · 회원 탈퇴 · 점검/오류/404 화면  
-좁은 화면(<960px)에서는 헤더 닉네임이 설정(`/profile`)·로그아웃 메뉴가 됩니다. 데스크톱 내비 취미 탭은 뷰포트 중앙입니다.
+로그인·다른 앱 화면은 [아래](#미리보기-나머지)에 있습니다.
 
 ## 기술 스택
 
 | 영역 | 기술 |
 |------|------|
-| Frontend | Vite, React, TypeScript, Zustand, Axios, React Router, OpenSheetMusicDisplay, JSZip |
-| Main Backend | Java 25, Spring Boot, Spring Security, Actuator, JPA, Redis, Mail, Scheduling, R2(S3 API) |
-| ML Backend | Python, FastAPI, rembg/u2net, 분류 모델(`use.pth`) — Sranko 전용, Spring이 프록시 |
-| AI (외부) | Vertex Gemini 이미지(try-on), Dieta용 Gemini API(별도 키) |
-| Infra | MySQL 8, Redis 7, Docker Compose, Cloudflare Pages / Tunnel / R2 |
-| Quality | JUnit 5, Mockito, Testcontainers, Vitest, Playwright, GitHub Actions, JaCoCo |
+| Frontend | React, TypeScript, Vite, Zustand, Axios, React Router |
+| Backend | Java, Spring Boot, Spring Security, JPA, Redis, Actuator |
+| Data | MySQL 8, Redis 7 |
+| Infra | Docker Compose, Cloudflare Pages / Tunnel / R2 |
+| Quality | JUnit 5, Mockito, Testcontainers, Vitest, Playwright, GitHub Actions |
 
-## 구조
-
-```text
-PBB/
-├── frontend/                 # Vite + React
-├── spring_backend/           # Spring Boot API
-├── fastAPI_backend/          # Sranko ML (predict / rembg / extract / fit-warp)
-├── infra/mysql/              # init.sql · migrate_*.sql · migrations/
-├── docker-compose.yml        # 로컬 MySQL + Redis
-├── docker-compose.prod.yml   # mysql · redis · fastapi · backend · cloudflared
-├── .cursor/rules/            # 팀 Cursor 규칙
-└── docs/                     # 유저 흐름도 (`docs/PBB-유저-흐름도.md`)
-```
-
-```text
-com.studiobs.spring_backend
-├── global/     # config, security, exception, scheduling, R2
-└── domain/
-    ├── auth/     # 회원가입·로그인·JWT·탈퇴·rate limit
-    ├── user/     # User, UserConsent
-    ├── config/   # app_config (추천 앱)
-    ├── brew/     # Veveno (공개 API `/api/v1/veveno` · 호환 `/api/v1/brew`)
-    ├── sranko/   # 옷장·룩·커뮤니티·ML 프록시·Vertex try-on
-    ├── lotto/    # 6PICK + 동행복권 동기화 스케줄러
-    ├── dieta/    # Dieta 프로필·체크인·섭취·레시피
-    ├── dev/      # DEV 관리 (회원 등급·추천 앱·R2)
-    └── mail/
-```
+로컬·운영 JDK는 **25**(Gradle toolchain). Sranko 분류·배경제거(FastAPI)와 Gemini try-on은 Spring이 프록시하고, 메인 API는 Spring입니다.
 
 ## 인증
 
@@ -103,24 +44,6 @@ com.studiobs.spring_backend
 - 비밀번호: BCrypt · 회원 ID: UUID (`CHAR(36)`)
 - 회원가입 동의: `user_consents` (필수: 이용약관 / 개인정보 / 만 14세 · 선택: 마케팅)
 - Rate limit (IP·이메일 각각): 메일 발송·검증·로그인 — 초과 시 HTTP 429
-
-## 주요 API
-
-| Method | Path | 설명 |
-|--------|------|------|
-| POST | `/api/v1/auth/email/request` | 회원가입 이메일 코드 발송 |
-| POST | `/api/v1/auth/email/verify` | 코드 검증 |
-| POST | `/api/v1/auth/signup` | 회원가입 (+ 동의 목록) |
-| POST | `/api/v1/auth/login` | 로그인 |
-| POST | `/api/v1/auth/refresh` | Access Token 재발급 |
-| POST | `/api/v1/auth/logout` | 로그아웃 |
-| DELETE | `/api/v1/auth/account` | 회원 탈퇴 |
-| GET | `/api/v1/config/featured-app` | DEV 추천 앱 (공개 조회 가능, 홈 순서는 `HOBBY_APPS`) |
-| PUT | `/api/v1/dev/featured-app` | 추천 앱 설정 (DEV) |
-| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·할 일·근무·공지 등 |
-| — | `/api/v1/sranko/**` | Sranko prefs·옷장·룩·포스트·업로드·weather·ML(`predict` / `rembg`) |
-| — | `/api/v1/lotto/**` | 6PICK 회차·picks (DEV 회차 관리 포함) |
-| — | `/api/v1/dieta/**` | Dieta 온보딩·체크인·섭취·레시피 |
 
 ---
 
@@ -295,6 +218,84 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 
 ---
 
+## 현재 앱
+
+| 앱 | 경로 | 설명 |
+|----|------|------|
+| Veveno | `/hobbies/veveno` | 가게 노트. 허브 `/hub` · 실가게 `/stores/:id`(로그인) · 로컬 체험 `/stores/demo` · UI 한/영/일 |
+| Sranko | `/hobbies/sranko` | 디지털 옷장 · 상품 사진 rembg · Gemini 입어보기 · 룩 · 커뮤니티 |
+| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
+| 6PICK | `/hobbies/6pick` | 로또 번호 생성·세금 계산·회차 동기화 |
+| Dieta | `/hobbies/dieta` | 체중·섭취·활동량 주간 코칭 |
+
+구 경로: `/hobbies/lotto` → 6PICK, `/hobbies/brew-note` → Veveno.
+
+공통: 회원가입(약관) · 로그인 · JWT · 프로필 · 기본 다크 테마 · 회원 탈퇴.
+
+### 미리보기 나머지
+
+| 슈란코 | Score Viewer |
+|:--:|:--:|
+| ![슈란코](docs/screenshots/sranko.png) | ![Score Viewer](docs/screenshots/score-viewer.png) |
+| **6PICK** | **Dieta** |
+| ![6PICK](docs/screenshots/6pick.png) | ![Dieta](docs/screenshots/dieta.png) |
+| **로그인** | **회원가입** |
+| ![로그인](docs/screenshots/login.png) | ![회원가입](docs/screenshots/signup.png) |
+
+## 구조
+
+```text
+Browser
+  ├─ Cloudflare Pages ─ React / Vite (app.*)
+  └─ Cloudflare Tunnel ─ Spring Boot (api.*)
+                           ├─ MySQL 8
+                           ├─ Redis 7
+                           ├─ R2 (S3 API)
+                           └─ FastAPI (Sranko ML, 내부망만)
+```
+
+```text
+PBB/
+├── frontend/                 # Vite + React
+├── spring_backend/           # Spring Boot API
+├── fastAPI_backend/          # Sranko ML (predict / rembg / extract / fit-warp)
+├── infra/mysql/              # init.sql · migrate_*.sql · migrations/
+├── docker-compose.yml        # 로컬 MySQL + Redis
+├── docker-compose.prod.yml   # mysql · redis · fastapi · backend · cloudflared
+└── docs/                     # 유저 흐름도 (`docs/PBB-유저-흐름도.md`)
+```
+
+```text
+com.studiobs.spring_backend
+├── global/     # config, security, exception, scheduling, R2
+└── domain/
+    ├── auth/     # 회원가입·로그인·JWT·탈퇴·rate limit
+    ├── user/     # User, UserConsent
+    ├── config/   # app_config
+    ├── brew/     # Veveno (`/api/v1/veveno` · 호환 `/api/v1/brew`)
+    ├── sranko/   # 옷장·룩·커뮤니티·ML 프록시·Vertex try-on
+    ├── lotto/    # 6PICK + 동행복권 동기화 스케줄러
+    ├── dieta/    # Dieta 프로필·체크인·섭취·레시피
+    ├── dev/      # DEV 관리
+    └── mail/
+```
+
+## 주요 API
+
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/api/v1/auth/email/request` | 회원가입 이메일 코드 발송 |
+| POST | `/api/v1/auth/email/verify` | 코드 검증 |
+| POST | `/api/v1/auth/signup` | 회원가입 (+ 동의 목록) |
+| POST | `/api/v1/auth/login` | 로그인 |
+| POST | `/api/v1/auth/refresh` | Access Token 재발급 |
+| POST | `/api/v1/auth/logout` | 로그아웃 |
+| DELETE | `/api/v1/auth/account` | 회원 탈퇴 |
+| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·할 일·근무·공지 등 |
+| — | `/api/v1/sranko/**` | Sranko prefs·옷장·룩·포스트·업로드·weather·ML |
+| — | `/api/v1/lotto/**` | 6PICK 회차·picks |
+| — | `/api/v1/dieta/**` | Dieta 온보딩·체크인·섭취·레시피 |
+
 ## 로컬 실행
 
 ### 1. 인프라
@@ -403,4 +404,4 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 SPA 라우팅: `frontend/public/_redirects` (`/* /index.html 200`)
 
-운영 시크릿(`.env` / `.env.prod`, `secrets/`, `*.pem`, 모델 가중치)과 로컬 오버라이드(`docker-compose.override.yml`)는 git에 올리지 않습니다. 예시는 `.env.prod.example`, `spring_backend/.env.example`을 참고하세요. 팀 Cursor 규칙(`.cursor/rules/`)과 MCP URL(`.cursor/mcp.json`)은 커밋합니다.
+운영 시크릿(`.env` / `.env.prod`, `secrets/`, `*.pem`, 모델 가중치)과 로컬 오버라이드(`docker-compose.override.yml`)는 git에 올리지 않습니다. 예시는 `.env.prod.example`, `spring_backend/.env.example`을 참고하세요.

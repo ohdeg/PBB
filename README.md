@@ -182,6 +182,12 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 6. **운영에서 “CORS 오류”로 보이는 502.**  
    브라우저 콘솔은 Origin not allowed + 502를 같이 찍었다. OPTIONS preflight는 백엔드가 살아 있으면 CORS가 정상이었고, **본요청이 Tunnel/업스트림에서 502**이면 HTML에 `Access-Control-Allow-Origin`이 없어 CORS처럼 보였다. try-on은 Vertex 120초·Cloudflare ~100초 제한과도 겹친다. 로그를 따라가며 (1) R2 endpoint를 커스텀 도메인이 아닌 `*.r2.cloudflarestorage.com`으로 고치고 Account ID 자릿수를 맞추고, (2) `GOOGLE_APPLICATION_CREDENTIALS` JSON을 컨테이너에 **마운트**, (3) 서비스 계정에 Vertex AI User·API·결제·프로젝트 ID 일치를 확인하는 순으로 원인을 갈랐다. 권한을 개인 Gmail이 아니라 **`…iam.gserviceaccount.com`**에 줘야 한다는 점도 여기서 재확인했다.
 
+7. **옷장 날씨.**  
+   현재 날씨 + 로컬 시각 기준 12시간 예보를 칩(위치·저장 장소·검색)마다 라이브 호출하면 외부 API 지연·쿼터가 바로 커진다. 위도·경도를 그대로 키로 쓰면 GPS 흔들림에 캐시가 빗나간다. **Redis `sranko:forecast:{lat}:{lon}`**, 좌표는 소수 둘째 자리로 반올림, **TTL 30분**. 미스일 때만 예보 API(`days=2`, 자정 넘김)를 치고 JSON을 저장한다. 위치 거부 시에는 `tempC`만으로 합성 응답을 만들고 외부 호출은 하지 않는다.
+
+8. **분류 모델 학습.**  
+   시중 가중치를 그대로 쓰면 한국어 옷장 12클래스(긴팔·반팔·민소매·셔츠·후드 / 데님·면바지·반바지·슬랙스 / 외투 / 신발 / 옷아님)와 맞지 않는다. 공개 패션 상품 이미지(대분류·소분류·품목 메타)와 직접 촬영분을 카테고리 폴더로 모아 `ImageFolder`로 읽었다. ImageNet 사전학습 **ResNet18**의 `fc`만 12클래스에 맞추고, 224×224·ImageNet mean/std, CrossEntropy, batch 64, Adam으로 미세조정해 `use.pth`를 저장했다. PBB FastAPI는 그 가중치로 추론만 한다. 택소노미가 달라도 데이터가 부족하면 바로 재학습하지 않고 **매핑 계층**을 두었고, 사용자가 확정한 slot / categoryCode / warmth는 R2 이미지와 함께 **향후 GT**로 남긴다.
+
 #### 해결 (현재)
 
 - FE(JWT) → Spring `/api/v1/sranko/**` → FastAPI(분류·rembg·추출·fit-warp) / Vertex Gemini(try-on). 키·모델은 서버만.
@@ -189,6 +195,8 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 - try-on: 마네킹 + (body Δ 또는 `fitByItemId`) + 아이템 절대 치수 프롬프트. 결과 R2 `tryon/` + TTL, 「내 룩에 저장」 시 `looks/`로 승격.
 - 옷장 다중 선택 → 「룩 입어보기」 → `POST /looks` `source=TRY_ON`.
 - 룩 hydrate는 `item_ids_json` + 배치 IN. 커뮤니티는 picker / 본인 R2 URL만.
+- 옷장 날씨: Redis `sranko:forecast:` + 좌표 2자리 반올림 + TTL 30분. 히트면 JSON 재사용, 미스면 외부 예보. 위치 거부 시 `tempC` 합성.
+- 분류: 레거시에서 학습한 ResNet18 12클래스 `use.pth`를 FastAPI가 서빙. 출력은 `labels.py`가 슬롯·소분류·따뜻함으로 매핑. 사용자 확정값은 재학습 GT.
 - prod compose: `fastapi` 서비스 + `SRANKO_ML_BASE_URL=http://fastapi:8000`. Vertex는 `SRANKO_VERTEX_*` + ADC(JSON 마운트).
 
 **고민과 선택**
@@ -205,6 +213,11 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 | 브라우저 CORS로만 디버깅 | 상태코드·업스트림 로그·TLS·IAM을 먼저 확인 |
 | R2 공개 URL을 S3 endpoint로 사용 | endpoint는 `r2.cloudflarestorage.com`, 공개 URL은 별도 |
 | IAM을 개인 이메일에만 부여 | 키 JSON의 `client_email`(서비스 계정)에 역할 |
+| 날씨 칩마다 라이브 API | Redis 30분 TTL, 좌표 반올림 키 |
+| GPS 좌표를 캐시 키로 그대로 | 소수 둘째 자리로 묶어 히트 |
+| 위치 거부 시에도 예보 호출 | `tempC` 합성, 외부 API 생략 |
+| 시중 분류 모델 그대로 | 12클래스에 맞게 ResNet18 미세조정 후 `use.pth` |
+| 택소노미가 달라도 바로 재학습 | 매핑 계층 유지, 사용자 확정값을 GT로 적재 |
 
 **배운 점**
 
@@ -215,6 +228,8 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 - **인프라 설정은 “환경변수만 넣으면 됨”이 아니다.** R2는 endpoint와 public base URL의 역할이 다르고, Vertex는 파일 마운트·프로젝트 ID·서비스 계정 이메일·API 활성화·결제가 한 세트다. 약정 할인(CUD) 같은 과금 상품은 권한과 무관하다.
 - **읽기 경로를 유스케이스별로 쪼개야 N+1을 설계 단계에서 막을 수 있다.** “룩 목록”, “룩 상세 상품”, “글쓰기에 썸네일만”은 같은 엔티티라도 API를 나누는 편이 안전했다.
 - **제품에서 겹치는 기능은 보정으로 버티기보다 하나로 합칠 타이밍을 봐야 한다.** 콜라주와 try-on이 같은 문제를 풀고 있을 때, CORS·비율 패치 비용이 엔진 통합보다 커졌다.
+- **자주 안 바뀌는 외부 조회는 Redis TTL이 먼저다.** 날씨는 인증 RT·가입 대기와 같이 “짧은 생명” 구간에만 Redis를 썼고, 캐시 키는 GPS 흔들림까지 포함해 설계해야 히트가 난다.
+- **학습과 서빙은 같은 클래스 계약이어야 한다.** 폴더 라벨·`fc` 출력 수·서비스 택소노미가 어긋나면 가중치만 바꿔도 옷장이 틀린다. 데이터가 부족하면 재학습보다 매핑을 먼저 두고, 사용자 수정값을 GT로 쌓는 편이 안전했다.
 
 ---
 

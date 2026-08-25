@@ -16,7 +16,8 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // Veveno follows navigator.languages; GH runners default to en-US.
+      use: { ...devices['Desktop Chrome'], locale: 'ko-KR' },
     },
   ],
   webServer: process.env.CI

@@ -14,7 +14,7 @@
 - **검증:** JUnit/Mockito, MySQL·Redis Testcontainers, Vitest coverage, Playwright를 GitHub Actions PR 게이트로 연결
 - **운영:** Spring Security 공개/회원/DEV 이중 인가, Actuator health/info, Cloudflare Pages + Tunnel + Docker Compose
 
-대표적으로 **Veveno**는 소규모 매장의 메뉴·재고(낙관적 락·사용량 일수)·직원 근무(오늘부터/지정일/한번만)·대타/추가 근무·매장 도구를 다루고, **Sranko**는 옷장·가상 입어보기(Vertex Gemini)·룩·커뮤니티와 FastAPI 분류/배경제거를 한 흐름으로 묶습니다.
+대표적으로 **Veveno**는 소규모 매장의 메뉴·재고(낙관적 락·사용량 일수)·할 일·직원 근무(오늘부터/지정일/한번만)·대타/추가 근무·매장 도구를 다루고, UI는 한/영/일(`ko`/`en`/`ja`)입니다. **Sranko**는 옷장·가상 입어보기(Vertex Gemini)·룩·커뮤니티와 FastAPI 분류/배경제거를 한 흐름으로 묶고, 상품 사진은 분류 후 `rembg`만 따로 돌립니다.
 
 ### 미리보기
 
@@ -40,18 +40,20 @@ Browser
 
 ## 현재 앱
 
+홈 `#apps` 순서는 `HOBBY_APPS` 고정입니다 (Veveno → Sranko → Score Viewer → 6PICK → Dieta). `featured-app` API는 DEV 설정용이고 홈 그리드를 바꾸지 않습니다.
+
 | 앱 | 경로 | 설명 |
 |----|------|------|
-| Veveno | `/hobbies/veveno` | 가게 노트. 랜딩 공개 · 허브 `/hub` · 가게 `/stores/:id` (로그인 필수, 메뉴·재고·근무·도구) |
-| Sranko | `/hobbies/sranko` | 디지털 옷장 · 핏 체크 · Gemini 입어보기 · 룩 · 커뮤니티 |
+| Veveno | `/hobbies/veveno` | 가게 노트. 랜딩 공개 · 허브 `/hub` · 실가게 `/stores/:id`(로그인, 메뉴·재고·할 일·근무·도구) · 로컬 체험 `/stores/demo` · UI 한/영/일 |
+| Sranko | `/hobbies/sranko` | 디지털 옷장 · 상품 사진 rembg · 핏 체크 · Gemini 입어보기 · 룩 · 커뮤니티 |
+| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 | 6PICK | `/hobbies/6pick` | 로또 번호 생성·세금 계산·회차 관리 (당첨번호 자동 동기화) |
 | Dieta | `/hobbies/dieta` | 체중·섭취·활동량 주간 코칭 |
-| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 
 하위 호환 리다이렉트: `/hobbies/lotto` → 6PICK · `/hobbies/brew-note` → Veveno · `/hobbies/ipbt`·`analyze-baseball`·`pbb`·`/analysis` → 홈
 
-공통 기능: 회원가입(약관 동의) · 로그인 · 이메일 찾기 · 비밀번호 재설정 · JWT · 프로필 · 라이트/다크 테마(`localStorage`) · 회원 등급(FREE/DEV) · 회원 탈퇴 · 점검/오류/404 화면  
-좁은 화면(<960px)에서는 헤더 닉네임이 설정(`/profile`)·로그아웃 메뉴가 됩니다.
+공통 기능: 회원가입(약관 동의) · 로그인 · 이메일 찾기 · 비밀번호 재설정 · JWT · 프로필 · 테마(기본 다크, `localStorage pbb-theme === 'light'`일 때만 라이트) · 회원 등급(FREE/DEV) · 회원 탈퇴 · 점검/오류/404 화면  
+좁은 화면(<960px)에서는 헤더 닉네임이 설정(`/profile`)·로그아웃 메뉴가 됩니다. 데스크톱 내비 취미 탭은 뷰포트 중앙입니다.
 
 ## 기술 스택
 
@@ -70,7 +72,7 @@ Browser
 PBB/
 ├── frontend/                 # Vite + React
 ├── spring_backend/           # Spring Boot API
-├── fastAPI_backend/          # Sranko ML (predict / extract / fit-warp)
+├── fastAPI_backend/          # Sranko ML (predict / rembg / extract / fit-warp)
 ├── infra/mysql/              # init.sql · migrate_*.sql · migrations/
 ├── docker-compose.yml        # 로컬 MySQL + Redis
 ├── docker-compose.prod.yml   # mysql · redis · fastapi · backend · cloudflared
@@ -113,10 +115,10 @@ com.studiobs.spring_backend
 | POST | `/api/v1/auth/refresh` | Access Token 재발급 |
 | POST | `/api/v1/auth/logout` | 로그아웃 |
 | DELETE | `/api/v1/auth/account` | 회원 탈퇴 |
-| GET | `/api/v1/config/featured-app` | 홈 추천 앱 목록 (공개) |
+| GET | `/api/v1/config/featured-app` | DEV 추천 앱 (공개 조회 가능, 홈 순서는 `HOBBY_APPS`) |
 | PUT | `/api/v1/dev/featured-app` | 추천 앱 설정 (DEV) |
-| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·근무·공지 등 |
-| — | `/api/v1/sranko/**` | Sranko prefs·옷장·룩·포스트·업로드·weather·ML |
+| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·할 일·근무·공지 등 |
+| — | `/api/v1/sranko/**` | Sranko prefs·옷장·룩·포스트·업로드·weather·ML(`predict` / `rembg`) |
 | — | `/api/v1/lotto/**` | 6PICK 회차·picks (DEV 회차 관리 포함) |
 | — | `/api/v1/dieta/**` | Dieta 온보딩·체크인·섭취·레시피 |
 
@@ -183,6 +185,9 @@ com.studiobs.spring_backend
 - 정규 근무 교체: **오늘부터** / **지정일부터**(`effective_from` 버전) / **한번만**(그날 override). 지정일 전 주는 이전 시간을 유지.
 - 재고 **사용량 일수 안내**(가게 설정, 기본 끔): 감소분을 일별 기록해 「약 N일분」·경고선 임박을 표시.
 - 도구 탭(프론트): 단위 변환 · 농도 계산 · 타이머(프리셋만 서버).
+- 할 일(체크리스트): 템플릿·오늘 런. 업주가 만들고 직원이 체크.
+- 로컬 체험 `/stores/demo`: 로그인 없이 `localStorage`. 사장/직원 토글, 직원 보기에서는 메뉴 편집·발주 URL 숨김.
+- UI 한/영/일: 첫 방문은 브라우저 언어, 칩·설정에서 고른 뒤에만 `veveno:lang` 저장. 가게·메뉴·재고 이름은 번역하지 않음. API 오류는 `code`로 프론트가 번역.
 
 **고민과 선택**
 
@@ -256,7 +261,8 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 
 #### 해결 (현재)
 
-- FE(JWT) → Spring `/api/v1/sranko/**` → FastAPI(분류·추출·fit-warp) / Vertex Gemini(try-on). 키·모델은 서버만.
+- FE(JWT) → Spring `/api/v1/sranko/**` → FastAPI(분류·rembg·추출·fit-warp) / Vertex Gemini(try-on). 키·모델은 서버만.
+- 상품 사진: 분류 직후 상세로 들어가고, `POST /ml/rembg`가 PNG를 백그라운드로 채움. 착용 사진 추출은 기존 `predict` + `extractWornGarment`.
 - try-on: 마네킹 + (body Δ 또는 `fitByItemId`) + 아이템 절대 치수 프롬프트. 결과 R2 `tryon/` + TTL, 「내 룩에 저장」 시 `looks/`로 승격.
 - 옷장 다중 선택 → 「룩 입어보기」 → `POST /looks` `source=TRY_ON`.
 - 룩 hydrate는 `item_ids_json` + 배치 IN. 커뮤니티는 picker / 본인 R2 URL만.

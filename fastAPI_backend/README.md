@@ -50,5 +50,5 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 Fit-warp uses a **garment-only** mask (absdiff + skin exclusion + optional rembg silhouette protect) so slim scales do not shrink the whole body. Env `SRANKO_FIT_WARP_REMBG=0` disables rembg (faster; skin/absdiff only). With rembg on (default): first call may load u2net (1–4s); later ~0.3–1.5s/image.
 
-Spring proxies predict as `POST /api/v1/sranko/ml/predict` (`sranko.ml.base-url`).
+Spring proxies predict as `POST /api/v1/sranko/ml/predict` and rembg as `POST /api/v1/sranko/ml/rembg` (`sranko.ml.base-url`).
 Try-on calls fit-warp internally after Vertex VTO Stage1.

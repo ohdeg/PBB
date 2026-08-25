@@ -26,9 +26,6 @@ function logoutLandingPath(pathname: string): string {
   if (pathname.startsWith('/hobbies/veveno')) {
     return '/hobbies/veveno';
   }
-  if (pathname.startsWith('/hobbies/dieta')) {
-    return '/hobbies/dieta';
-  }
   if (pathname.startsWith('/hobbies/sranko')) {
     return '/hobbies/sranko';
   }
@@ -49,7 +46,8 @@ export function AppShell() {
   const [accountOpen, setAccountOpen] = useState(false);
 
   const loginReturnPath = readReturnPath(location.state);
-  const navHobbies = getNavHobbies();
+  const isDev = useAuthStore((state) => state.userClass === 'dev');
+  const navHobbies = getNavHobbies(isDev);
   const isHome = location.pathname === '/';
   const isSranko = location.pathname.startsWith('/hobbies/sranko');
 

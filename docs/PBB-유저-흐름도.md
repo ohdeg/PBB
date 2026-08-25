@@ -6,8 +6,9 @@ FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9
 > FigJam은 Design처럼 페이지가 없어 **기능별 섹션**으로 분리해 두었습니다.  
 > 좌측 레이어/섹션 목록에서 `0.~8.` · Score Viewer · **13. Dieta** · **14. 슈란코** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
-> 취미 앱(6PICK·Score Viewer 랜딩/본체)과 **Veveno·Dieta·슈란코·6PICK·Score Viewer 소개 랜딩**은 **비로그인 진입 가능**.
-> Veveno **허브·실가게**·슈란코 **옷장·룩**·**프로필**·Dieta **홈 이후**는 Access Token 필요 (없으면 `/login` 리다이렉트).
+> 취미 앱(Score Viewer 랜딩/본체)과 **Veveno·슈란코·Score Viewer 소개 랜딩**은 **비로그인 진입 가능**.
+> **6PICK·Dieta**는 DEV 회원만 홈·탭·URL 진입. 그 외는 `/`로 보냄.
+> Veveno **허브·실가게**·슈란코 **옷장·룩**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
 > Veveno **로컬 체험** `/hobbies/veveno/stores/demo`만 비로그인 가능(이 기기 `localStorage`, 서버 호출 없음).
 
 ---
@@ -22,8 +23,8 @@ flowchart LR
     ready --> home[홈]
 
     home --> brew[Veveno]
-    home --> lotto[6PICK]
     home --> score[Score Viewer]
+    home --> sranko[Sranko]
     home --> authCheck{로그인 상태?}
     authCheck -->|"비로그인"| loginEntry[로그인 / 회원가입]
     authCheck -->|"로그인"| profileEntry[프로필 / 로그아웃]
@@ -174,7 +175,7 @@ flowchart LR
 - **상단 탭**: 흰 글로벌 내비에 공개 취미 앱 링크 + 계정(로그인/가입. 960px 이상은 닉네임/로그아웃, 미만은 닉네임 메뉴에서 설정/로그아웃). 960px 미만은 햄버거 드로어.
 - **히어로**: 고정 브랜드 카피 + CTA「취미 둘러보기」(`#apps` 앵커)·「가입하기». 앱 자동 로테이션 없음.
 - **marquee**: 검정 스트립에 공개 앱 이름.
-- **color-block**: 앱별 파스텔 블록.「시작하기」→ `startPath`(Veveno hub / Dieta home / 슈란코 closet / 6PICK play / Score library).「소개 보기」→ `path`(랜딩; Veveno·Dieta·6PICK·Score 자동 스킵 없음). featured `appIds`가 있으면 그 순서로 앞쪽 배치, 없으면 최근 업데이트순. 상단 2개는 풀폭, 나머지는 2열.
+- **color-block**: 앱별 파스텔 블록. 공개는 Veveno / Sranko / Score Viewer. 6PICK·Dieta는 DEV만.「시작하기」→ `startPath`.「소개 보기」→ `path`.
 
 ---
 
@@ -395,6 +396,8 @@ flowchart LR
 
 ## 9. 6PICK
 
+DEV 전용. 비DEV·비로그인은 `/hobbies/6pick`·`/play`에서 홈(`/`)으로 보냄.
+
 Firebase 로또 앱(6PICK)을 MySQL로 이식. PBB 기존 로그인 유지(Google OAuth 없음).  
 **소개 랜딩** `/hobbies/6pick` → **시작하기**로 `/hobbies/6pick/play` 진입. play 진입 시 **6PICK 스플래시**(로고) 후 본 화면.  
 당첨 번호 **자동 동기화 구현**: 매주 **토요일 21:00~23:50 KST 10분 간격** 스케줄러가 동행복권에서 최신 회차를 가져와 저장(성공 시 다음 틱 자동 no-op). DEV 수동 등록/엑셀도 병행.
@@ -494,7 +497,9 @@ flowchart LR
 
 ## 13. Dieta
 
-체중·리듬 기준 주간 코칭. 로그인 필수(랜딩은 비로그인도 볼 수 있음).  
+DEV 전용. 비DEV·비로그인은 `/hobbies/dieta/**`에서 홈(`/`)으로 보냄.
+
+체중·리듬 기준 주간 코칭. 본체는 로그인 필수.  
 하단 네비: **홈 · 섭취 · 활동 · 설정** (`/progress`는 홈으로 리다이렉트).
 
 ### 13-0. 진입 · 온보딩
@@ -749,13 +754,13 @@ flowchart LR
 | `/hobbies/veveno/hub` | Veveno 허브 | **필수** |
 | `/hobbies/veveno/stores/demo` | Veveno 로컬 체험 (사장/직원 토글) | 불필요 |
 | `/hobbies/veveno/stores/:storeId` | 실가게(메뉴·재고·할 일·근무·도구·설정·공지) | **필수** (`demo` 제외) |
-| `/hobbies/6pick` | 6PICK 소개 랜딩 | 선택 |
-| `/hobbies/6pick/play` | 6PICK (로또 번호·세금·회차 DEV) | 선택(히스토리 저장은 로그인) |
-| `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | — |
+| `/hobbies/6pick` | 6PICK 소개 랜딩 | **DEV** |
+| `/hobbies/6pick/play` | 6PICK (로또 번호·세금·회차) | **DEV** |
+| `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | **DEV** |
 | `/hobbies/score-viewer` | Score Viewer 소개 랜딩 | 선택 |
 | `/hobbies/score-viewer/library` | 악보 보관함 | 선택 |
 | `/hobbies/score-viewer/:id` | 악보 연습 뷰어 | 선택 |
-| `/hobbies/dieta` | Dieta 랜딩 | 선택 |
+| `/hobbies/dieta` | Dieta 랜딩 | **DEV** |
 | `/hobbies/dieta/onboarding` | Dieta 온보딩 | **필수** |
 | `/hobbies/dieta/home` | Dieta 홈 | **필수** |
 | `/hobbies/dieta/meals` | Dieta 섭취 (등록 음식 모달) | **필수** |

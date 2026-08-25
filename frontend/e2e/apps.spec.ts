@@ -8,14 +8,14 @@ test('veveno landing shows brand copy', async ({ page }) => {
   ).toBeVisible()
 })
 
-test('sixpick landing shows brand', async ({ page }) => {
+test('sixpick is hidden without DEV', async ({ page }) => {
   await page.goto('/hobbies/6pick')
-  await expect(page.getByRole('heading', { name: '6PICK', level: 1 })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
 })
 
-test('lotto shell loads after splash', async ({ page }) => {
-  await page.goto('/hobbies/6pick/play')
-  await expect(page.getByRole('main')).toBeVisible({ timeout: 20_000 })
+test('dieta is hidden without DEV', async ({ page }) => {
+  await page.goto('/hobbies/dieta')
+  await expect(page).toHaveURL(/\/$/)
 })
 
 test('score viewer landing shows brand', async ({ page }) => {

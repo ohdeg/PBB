@@ -9,6 +9,7 @@ import { SplashScreen } from './components/SplashScreen';
 import { StatusView } from './components/StatusView';
 import { PageSeo } from './hooks/usePageSeo';
 import { useAppStatusStore } from './stores/appStatusStore';
+import { useAuthStore } from './stores/authStore';
 import { ErrorPage } from './pages/ErrorPage';
 import { MaintenancePage } from './pages/MaintenancePage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -157,6 +158,14 @@ function VevenoI18nLayout() {
   );
 }
 
+function DevOnlyLayout() {
+  const isDev = useAuthStore((state) => state.userClass === 'dev');
+  if (!isDev) {
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}
+
 export default function App() {
   // 최초 진입 경로만 본다 (홈→Veveno 이동 시 boot 로직을 다시 돌리지 않음)
   const skipBootSplash = useRef(
@@ -235,6 +244,7 @@ export default function App() {
                 path="/hobbies/brew-note/stores/:storeId"
                 element={<LegacyVevenoStoreRedirect />}
               />
+              <Route element={<DevOnlyLayout />}>
               <Route path="/hobbies/6pick" element={<SixPickLandingPage />} />
               <Route path="/hobbies/6pick/play" element={<LottoPage />} />
               <Route
@@ -245,9 +255,6 @@ export default function App() {
                 path="/hobbies/lotto/*"
                 element={<Navigate to="/hobbies/6pick" replace />}
               />
-              <Route path="/hobbies/score-viewer" element={<ScoreViewerLandingPage />} />
-              <Route path="/hobbies/score-viewer/library" element={<ScoreLibraryPage />} />
-              <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route path="/hobbies/dieta" element={<DietaLandingPage />} />
               <Route path="/hobbies/dieta/onboarding" element={<DietaOnboardingPage />} />
               <Route element={<DietaLayout />}>
@@ -265,6 +272,10 @@ export default function App() {
                 <Route path="/hobbies/dieta/check-in" element={<DietaCheckInPage />} />
                 <Route path="/hobbies/dieta/settings" element={<DietaSettingsPage />} />
               </Route>
+              </Route>
+              <Route path="/hobbies/score-viewer" element={<ScoreViewerLandingPage />} />
+              <Route path="/hobbies/score-viewer/library" element={<ScoreLibraryPage />} />
+              <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
               <Route path="/hobbies/sranko" element={<SrankoLandingPage />} />
               <Route element={<SrankoLayout />}>
                 <Route path="/hobbies/sranko/closet" element={<SrankoClosetPage />} />

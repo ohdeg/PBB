@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { HobbyProductShot } from '../components/HobbyProductShot';
 import {
-  HOBBY_APPS,
+  getNavHobbies,
   type HobbyApp,
   type HobbyBlockTone,
 } from '../data/hobbies';
@@ -9,7 +9,8 @@ import { useAuthStore } from '../stores/authStore';
 
 export function HomePage() {
   const accessToken = useAuthStore((state) => state.accessToken);
-  const gridApps = HOBBY_APPS.filter((app) => app.available);
+  const isDev = useAuthStore((state) => state.userClass === 'dev');
+  const gridApps = getNavHobbies(isDev);
 
   return (
     <main className="figma-home">
@@ -17,7 +18,7 @@ export function HomePage() {
         <p className="figma-eyebrow">Play beom&apos;s BAG</p>
         <h1 className="figma-hero__title">무엇을 시작할까요?</h1>
         <p className="figma-hero__lead">
-          가게 관리부터 악보, 체중, 옷장까지.
+          가게 관리부터 악보, 옷장까지.
         </p>
         <p>
           원하는 앱을 고르면 내 일상과 바로 연결됩니다.

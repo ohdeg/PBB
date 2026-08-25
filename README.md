@@ -14,7 +14,7 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 | 정합성 | Veveno 재고는 JPA `@Version`. 동시 수정은 덮어쓰지 않고 **409** |
 | 검증 | GitHub Actions — JUnit, Testcontainers, Vitest, Playwright |
 
-같은 계정으로 Score Viewer · Sranko · 6PICK · Dieta도 붙였습니다. 채용에서 볼 핵심은 위 세 줄과 [문제 해결 사례](#문제-해결-사례)입니다.
+같은 계정으로 Score Viewer · Sranko도 붙였습니다. 채용에서 볼 핵심은 위 세 줄과 [문제 해결 사례](#문제-해결-사례)입니다.
 
 ### 미리보기
 
@@ -136,11 +136,11 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 
 ---
 
-### 3. 6PICK 당첨 번호 자동 동기화
+### 3. 외부 회차 자동 동기화 (DEV 전용 앱)
 
-회차를 DEV가 수동·엑셀로만 넣으면 매주 누락되기 쉬웠습니다.
+공개 홈에는 없고, DEV만 들어가는 앱의 회차를 수동·엑셀로만 넣으면 매주 누락되기 쉬웠습니다.
 
-**해결:** 동행복권 클라이언트 + 토요일 밤 스케줄러. Redis `lotto:sync:lock`으로 중복 실행을 막고, 이미 최신 회차면 no-op. 자동·수동·엑셀이 같은 저장 경로를 쓰며, 엑셀 빈 칸은 기존 값을 덮지 않게 병합합니다.
+**해결:** 외부 회차 조회 + 토요일 밤 스케줄러. Redis 락으로 중복 실행을 막고, 이미 최신이면 no-op. 자동·수동·엑셀이 같은 저장 경로를 쓰며, 엑셀 빈 칸은 기존 값을 덮지 않게 병합합니다.
 
 **배운 점:** 스케줄은 주기뿐 아니라 중복 실행·외부 실패·멱등성까지 같이 설계한다.
 
@@ -153,7 +153,7 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 #### 고민한 점
 
 - Vertex `virtual-try-on-001` vs Gemini 이미지: 다벌·풀룩·악세서리 UX와 맞는가.
-- Dieta Gemini API 키와 Vertex ADC(서비스 계정)는 과금·설정이 다르다. 로컬만 되고 운영만 깨지기 쉽다.
+- 다른 기능의 Gemini API 키와 Vertex ADC(서비스 계정)는 과금·설정이 다르다. 로컬만 되고 운영만 깨지기 쉽다.
 - 핏을 UI 배지로만 보여줄지, 착용 이미지 프롬프트에 심을지.
 - 둘레 Δ만으로 소매·기장을 판단하면 반팔·반바지가 항상 “매우 타이트”로 나온다.
 - 내 사진 try-on은 단벌은 괜찮지만 다벌에서 얼굴·체형이 바뀐다.
@@ -196,7 +196,7 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 | 고민 | 선택 |
 |------|------|
 | Vertex VTO vs Gemini 이미지 | 풀룩·다벌은 Gemini; Spring이 게이트웨이 |
-| Dieta API 키 vs Vertex ADC | 경로·플래그·타임아웃·오류 로그를 분리 |
+| 다른 Gemini API 키 vs Vertex ADC | 경로·플래그·타임아웃·오류 로그를 분리 |
 | 핏 배지 UI vs 착용 이미지 | 미리보기 폐기, Δ·치수를 try-on 조건으로 |
 | 둘레 Δ만으로 기장 판단 | 소매·하의는 카테고리 기대 비율로 재해석 |
 | 내 사진 고수 vs 마네킹 | 성별 마네킹 베이스 + 다벌 다단·몸통 캐시 |
@@ -225,10 +225,10 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 | Veveno | `/hobbies/veveno` | 가게 노트. 허브 `/hub` · 실가게 `/stores/:id`(로그인) · 로컬 체험 `/stores/demo` · UI 한/영/일 |
 | Sranko | `/hobbies/sranko` | 디지털 옷장 · 상품 사진 rembg · Gemini 입어보기 · 룩 · 커뮤니티 |
 | Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
-| 6PICK | `/hobbies/6pick` | 로또 번호 생성·세금 계산·회차 동기화 |
-| Dieta | `/hobbies/dieta` | 체중·섭취·활동량 주간 코칭 |
 
-구 경로: `/hobbies/lotto` → 6PICK, `/hobbies/brew-note` → Veveno.
+그 외 앱은 DEV 로그인 후에만 홈·탭·URL로 열립니다.
+
+구 경로: `/hobbies/brew-note` → Veveno.
 
 공통: 회원가입(약관) · 로그인 · JWT · 프로필 · 기본 다크 테마 · 회원 탈퇴.
 
@@ -237,8 +237,6 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 | 슈란코 | Score Viewer |
 |:--:|:--:|
 | ![슈란코](docs/screenshots/sranko.png) | ![Score Viewer](docs/screenshots/score-viewer.png) |
-| **6PICK** | **Dieta** |
-| ![6PICK](docs/screenshots/6pick.png) | ![Dieta](docs/screenshots/dieta.png) |
 | **로그인** | **회원가입** |
 | ![로그인](docs/screenshots/login.png) | ![회원가입](docs/screenshots/signup.png) |
 
@@ -274,8 +272,8 @@ com.studiobs.spring_backend
     ├── config/   # app_config
     ├── brew/     # Veveno (`/api/v1/veveno` · 호환 `/api/v1/brew`)
     ├── sranko/   # 옷장·룩·커뮤니티·ML 프록시·Vertex try-on
-    ├── lotto/    # 6PICK + 동행복권 동기화 스케줄러
-    ├── dieta/    # Dieta 프로필·체크인·섭취·레시피
+    ├── lotto/    # DEV 전용 앱 + 회차 동기화 스케줄러
+    ├── dieta/    # DEV 전용 앱
     ├── dev/      # DEV 관리
     └── mail/
 ```
@@ -293,8 +291,8 @@ com.studiobs.spring_backend
 | DELETE | `/api/v1/auth/account` | 회원 탈퇴 |
 | — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·할 일·근무·공지 등 |
 | — | `/api/v1/sranko/**` | Sranko prefs·옷장·룩·포스트·업로드·weather·ML |
-| — | `/api/v1/lotto/**` | 6PICK 회차·picks |
-| — | `/api/v1/dieta/**` | Dieta 온보딩·체크인·섭취·레시피 |
+| — | `/api/v1/lotto/**` | DEV 전용 앱 회차·picks |
+| — | `/api/v1/dieta/**` | DEV 전용 앱 |
 
 ## 로컬 실행
 

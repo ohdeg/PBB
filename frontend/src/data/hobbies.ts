@@ -29,6 +29,8 @@ export interface HobbyApp {
   addedAt: string;
   /** 최근 업데이트일 (ISO date) — 홈 featured 폴백 정렬 */
   updatedAt: string;
+  /** true면 DEV 회원 홈·탭·라우트만 */
+  devOnly?: boolean;
 }
 
 export const HOBBY_CATEGORIES = ['라이프', '음악'] as const;
@@ -100,6 +102,7 @@ export const HOBBY_APPS: HobbyApp[] = [
     productImageDark: '/hobbies/6pick-product-dark.png?v=angle',
     addedAt: '2026-05-20',
     updatedAt: '2026-07-28',
+    devOnly: true,
   },
   {
     id: 'dieta',
@@ -116,6 +119,7 @@ export const HOBBY_APPS: HobbyApp[] = [
     productImageDark: '/hobbies/dieta-product-dark.png?v=angle',
     addedAt: '2026-07-01',
     updatedAt: '2026-08-08',
+    devOnly: true,
   },
 ];
 
@@ -137,12 +141,15 @@ export function sortHobbiesByRecency(apps: HobbyApp[]): HobbyApp[] {
   return [...apps].sort((a, b) => hobbyRecencyMs(b) - hobbyRecencyMs(a));
 }
 
+export function isHobbyVisible(app: HobbyApp, isDev: boolean): boolean {
+  return app.available && Boolean(app.path) && (!app.devOnly || isDev);
+}
+
 /** 최근 업데이트/추가순 공개 앱 */
 export function getRecentHobbies(limit = 5): HobbyApp[] {
-  return sortHobbiesByRecency(HOBBY_APPS.filter((app) => app.available)).slice(
-    0,
-    limit,
-  );
+  return sortHobbiesByRecency(
+    HOBBY_APPS.filter((app) => app.available && !app.devOnly),
+  ).slice(0, limit);
 }
 
 export function getFeaturedHobby(): HobbyApp {
@@ -159,7 +166,7 @@ export function getHobbiesByCategory(category: string): HobbyApp[] {
   return HOBBY_APPS.filter((app) => app.category === category);
 }
 
-/** 상단 탭용 — 공개 가능한 취미만 */
-export function getNavHobbies(): HobbyApp[] {
-  return HOBBY_APPS.filter((app) => app.available && Boolean(app.path));
+/** 상단 탭·홈 그리드 — DEV만 `devOnly` 앱 포함 */
+export function getNavHobbies(isDev = false): HobbyApp[] {
+  return HOBBY_APPS.filter((app) => isHobbyVisible(app, isDev));
 }

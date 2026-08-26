@@ -684,7 +684,7 @@ flowchart LR
 ```
 
 - 성공 시 확인 모달을 닫고 **결과 모달**을 연다(확인 모달 인라인 결과 없음). 「다시」는 결과만 지우고 같은 아이템 확인 모달로 복귀(자동 재실행 없음).
-- **R2 tryon TTL**: `POST /ml/try-on`(및 `uploads?kind=tryon`) 결과를 `…/tryon/…`에 올리고 Redis ZSET으로 **1시간** 후 스케줄 삭제(`sranko.try-on.ephemeral-ttl`). 「내 룩에 저장」(`POST /looks`) 시 해당 유저 tryon URL이면 **looks/로 복사·TTL 취소·tryon 삭제** 후 DB에는 looks URL 저장.
+- **R2 tryon TTL**: `POST /ml/try-on`(및 `uploads?kind=tryon`) 결과를 `…/tryon/…`에 올리고 Redis ZSET으로 **1시간** 후 스케줄 삭제(`sranko.try-on.ephemeral-ttl`). **동일 옷·핏 조건** 재요청 시 Redis 결과 URL 캐시(`sranko.try-on.result-cache-enabled`, TTL=동일 1h)로 Gemini 생략하고 **R2·캐시 TTL을 다시 1시간으로 연장(슬라이딩)**. 「내 룩에 저장」(`POST /looks`) 시 해당 유저 tryon URL이면 **looks/로 복사·TTL 취소·결과 캐시 무효·tryon 삭제** 후 DB에는 looks URL 저장.
 - **룩 아이템 hydrate**: `item_ids_json` 유지 · 목록/생성/상세 응답에 `items[]`(이름·슬롯·브랜드·productUrl·썸네일). Look↔Item JPA 연관 없음 · ID 모아 `findByUserIdAndIdIn` **1쿼리** (N+1 방지). 삭제된 아이템은 `missing: true`.
 - **룩 상세**: 목록 카드 → **룩 상세 모달**에서 구성 상품 · 상품 클릭 → **상품 상세 모달**. `GET /looks/{id}`는 단건 조회용으로 유지.
 - `GET /api/v1/sranko/fit-check?itemId=` · prefs body + 아이템 치수 → `{ fit, muchTooSmall, skipStage2, parts[] }` (primary delta ≤ −4 cm → `muchTooSmall`). `parts[]`: 부위별 `{ key, bodyCm, garmentCm, deltaCm, band }` · 어깨·가슴·허리 등 둘레는 raw Δ · **소매(`armLength`)·하의 기장(`totalLength`↔legLength)은 categoryCode 기준 기대 비율**로 Δ 재계산(반팔·반바지가 항상 매우 타이트로 나오지 않음; 구간 안이면 Δ=0). 전체 입어보기 `analyze`는 소매 길이를 primary에서 제외. TOP/OUTER 어깨·가슴·소매·총장(↔torsoLength), BOTTOM 허리·엉덩이·허벅지·기장, DRESS 어깨·가슴·소매·허리·엉덩이 · SHOES는 빈 배열.

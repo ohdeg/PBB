@@ -63,6 +63,27 @@ public class SrankoTryOnEphemeralService {
         }
     }
 
+    /** True when object is still scheduled and expiry is in the future. */
+    public boolean isLive(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            return false;
+        }
+        if (!tryOnProperties.ephemeralCleanupEnabled()) {
+            // Cleanup off → objects are not TTL-tracked; treat as live if caller has URL.
+            return true;
+        }
+        try {
+            Double score = stringRedisTemplate.opsForZSet().score(EXPIRY_ZSET, objectKey);
+            if (score == null) {
+                return false;
+            }
+            return score > Instant.now().toEpochMilli();
+        } catch (Exception ex) {
+            log.warn("[SrankoTryOnEphemeral] isLive failed: {}", ex.getMessage());
+            return false;
+        }
+    }
+
     /** Delete R2 objects whose expiry score ≤ now. Returns number deleted. */
     public int purgeExpired() {
         if (!tryOnProperties.ephemeralCleanupEnabled()) {

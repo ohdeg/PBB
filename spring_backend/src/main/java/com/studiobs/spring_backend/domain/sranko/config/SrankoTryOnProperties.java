@@ -14,6 +14,11 @@ public record SrankoTryOnProperties(
         /** How long try-on R2 objects live before scheduled deletion (default 1h). */
         @DefaultValue("1h") Duration ephemeralTtl,
         /** When false, Redis expiry index + scheduled R2 purge are no-ops. */
-        @DefaultValue("true") boolean ephemeralCleanupEnabled
+        @DefaultValue("true") boolean ephemeralCleanupEnabled,
+        /**
+         * When true, identical try-on requests reuse the final R2 URL for {@link #ephemeralTtl()}
+         * (skips Gemini). Independent of body-stage JPEG cache.
+         */
+        @DefaultValue("true") boolean resultCacheEnabled
 ) {
 }

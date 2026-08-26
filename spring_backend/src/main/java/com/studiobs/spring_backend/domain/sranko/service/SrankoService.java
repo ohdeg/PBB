@@ -142,6 +142,7 @@ public class SrankoService {
     private final SrankoWeatherCacheService weatherCacheService;
     private final SrankoTryOnBodyCacheService tryOnBodyCacheService;
     private final SrankoTryOnEphemeralService tryOnEphemeralService;
+    private final SrankoTryOnResultCacheService tryOnResultCacheService;
     private final SrankoPlaceCatalogService placeCatalogService;
     private final WeatherApiClient weatherApiClient;
     private final R2StorageService r2StorageService;
@@ -790,6 +791,47 @@ public class SrankoService {
 
         SrankoFitAnalyzer.Fit overallFit = SrankoFitAnalyzer.aggregateFit(fitsPerGarment);
         boolean stub = !liveConfigured;
+
+        List<String> garmentTokens = garments.stream()
+                .map(g -> (g.id() != null ? g.id().toString() : "url") + "@" + g.imageUrl())
+                .toList();
+        List<String> fitWires = fitsPerGarment.stream()
+                .map(SrankoFitAnalyzer.Fit::wireValue)
+                .toList();
+        String resultCacheKey = SrankoTryOnResultCacheService.buildKey(
+                user.getId(),
+                prefs.resolvedSex(),
+                vertexProperties.tryOnModel(),
+                Boolean.TRUE.equals(body.skipFit()),
+                bodyMeasurements,
+                body.fitByItemId(),
+                fitWires,
+                garmentTokens
+        );
+        Optional<String> cachedUrl = tryOnResultCacheService.get(resultCacheKey);
+        if (cachedUrl.isPresent()) {
+            Optional<String> cachedKey = r2StorageService.keyFromPublicUrl(cachedUrl.get());
+            if (cachedKey.isPresent() && tryOnEphemeralService.isLive(cachedKey.get())) {
+                // Sliding TTL: each re-view extends R2 expiry + result-cache Redis TTL.
+                tryOnEphemeralService.schedule(cachedKey.get());
+                tryOnResultCacheService.put(resultCacheKey, cachedUrl.get());
+                log.info(
+                        "[SrankoTryOn] result cache hit url={} skipGemini=true ttlRefreshed=true",
+                        truncateForLog(cachedUrl.get(), 80)
+                );
+                return new SrankoTryOnResponse(
+                        cachedUrl.get(),
+                        stub,
+                        fit,
+                        muchTooSmall,
+                        null,
+                        true
+                );
+            }
+            log.info("[SrankoTryOn] result cache stale — regenerating");
+            tryOnResultCacheService.delete(resultCacheKey);
+        }
+
         byte[] jpegBytes;
         if (SrankoTryOnBatches.shouldMultiPass(garments.size())) {
             jpegBytes = runMultiPassTryOn(
@@ -849,6 +891,7 @@ public class SrankoService {
                 + ".jpg";
         String url = r2StorageService.putObject(objectKey, jpegBytes, "image/jpeg");
         tryOnEphemeralService.schedule(objectKey);
+        tryOnResultCacheService.put(resultCacheKey, url);
         log.info(
                 "[SrankoTryOn] r2 done keySuffix={} url={} geminiApplied={} ephemeralScheduled={}",
                 objectKey.length() > 24 ? objectKey.substring(objectKey.length() - 24) : objectKey,
@@ -1524,6 +1567,7 @@ public class SrankoService {
                 + ".jpg";
         String lookUrl = r2StorageService.putObject(lookKey, bytes, "image/jpeg");
         tryOnEphemeralService.cancel(key);
+        tryOnResultCacheService.invalidateByUrl(imageUrl);
         r2StorageService.deleteByKey(key);
         log.info(
                 "[SrankoLook] promoted tryon→looks keySuffix={}",

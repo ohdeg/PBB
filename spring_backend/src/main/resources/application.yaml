@@ -60,11 +60,12 @@ sranko:
   weather:
     api-key: ${WEATHERAPI_KEY:}
     base-url: ${WEATHERAPI_BASE_URL:https://api.weatherapi.com}
-  try-on:
+    try-on:
     body-cache-enabled: ${SRANKO_TRYON_BODY_CACHE_ENABLED:true}
     ephemeral-ttl: ${SRANKO_TRYON_EPHEMERAL_TTL:1h}
     ephemeral-cleanup-enabled: ${SRANKO_TRYON_EPHEMERAL_CLEANUP_ENABLED:true}
     ephemeral-cleanup-interval-ms: ${SRANKO_TRYON_EPHEMERAL_CLEANUP_INTERVAL_MS:60000}
+    result-cache-enabled: ${SRANKO_TRYON_RESULT_CACHE_ENABLED:true}
 
 app:
   cors:

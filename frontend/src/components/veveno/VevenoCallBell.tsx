@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { vevenoApi } from '../../api/vevenoApi';
 import {
+  callBellSpoken,
   callBellSpeech,
   clampCallBellPitch,
   clampCallBellRate,
@@ -66,7 +67,7 @@ export function VevenoCallBell({ storeId, phrase, rate, pitch, onSaved }: Veveno
 
   const call = () => {
     setError('');
-    const line = callBellSpeech(slot, draft);
+    const line = callBellSpoken(slot, draft, locale);
     if (!line) {
       setError(t('callbell.needNumber'));
       return;

@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.brew.controller;
 
 import com.studiobs.spring_backend.domain.auth.support.AccessTokenResolver;
 import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
+import com.studiobs.spring_backend.domain.brew.dto.CallBellPhraseRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CalendarResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ChecklistCheckRequest;
 import com.studiobs.spring_backend.domain.brew.dto.ChecklistRequest;
@@ -134,6 +135,19 @@ public class BrewController {
             @Valid @RequestBody UpdateStoreRequest body
     ) {
         return brewService.updateStore(accessTokenResolver.requireEmail(request), storeId, body);
+    }
+
+    @PutMapping("/stores/{storeId}/call-bell")
+    public StoreResponse updateCallBellPhrase(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @Valid @RequestBody CallBellPhraseRequest body
+    ) {
+        return brewService.updateCallBellPhrase(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                body
+        );
     }
 
     @DeleteMapping("/stores/{storeId}")

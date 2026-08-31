@@ -2527,7 +2527,7 @@ html:not([data-theme='dark']) .global-nav__logo {
 
 .veveno-tools-seg {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 0.35rem;
   padding: 0.3rem;
   border-radius: 0.55rem;
@@ -2536,7 +2536,7 @@ html:not([data-theme='dark']) .global-nav__logo {
 }
 
 .veveno-tools-seg--main {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .veveno-tools-seg--main button {
@@ -2630,6 +2630,35 @@ html:not([data-theme='dark']) .global-nav__logo {
 
 .veveno-conc-result {
   gap: 0.75rem;
+}
+
+.veveno-callbell-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
+.veveno-callbell-call .veveno-field {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.veveno-callbell-preview {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--veveno-ink-soft);
+  line-height: 1.45;
+}
+
+.veveno-callbell-phrase {
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.veveno-callbell-range input[type='range'] {
+  width: 100%;
+  accent-color: var(--veveno-accent);
 }
 
 .veveno-conc-result__row {

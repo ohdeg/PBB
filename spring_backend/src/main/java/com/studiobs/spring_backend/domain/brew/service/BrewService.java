@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.brew.service;
 
 import com.studiobs.spring_backend.domain.brew.dto.ApproveJoinRequest;
 import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
+import com.studiobs.spring_backend.domain.brew.dto.CallBellPhraseRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
 import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
@@ -26,6 +27,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewInviteCodes;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
+import com.studiobs.spring_backend.domain.brew.support.CallBellSettings;
 import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
@@ -225,6 +227,17 @@ public class BrewService {
                 false,
                 brewScheduleService.isCurrentlyOnDuty(storeId, user.getId()),
                 null);
+    }
+
+    @Transactional
+    public StoreResponse updateCallBellPhrase(String email, UUID storeId, CallBellPhraseRequest request) {
+        User user = requireUser(email);
+        BrewStore store = requireStore(storeId);
+        assertMember(store, user.getId());
+        store.updateCallBellPhrase(
+                CallBellSettings.fromRequest(request.phrase(), request.rate(), request.pitch())
+                        .toStorage());
+        return toStoreResponse(storeRepository.save(store), user.getId());
     }
 
     @Transactional
@@ -552,6 +565,7 @@ public class BrewService {
         if (PosAccess.isPos()) {
             PosAccess.requireBoundStore(store.getId());
             PosAccess.Snapshot pos = PosAccess.require();
+            CallBellSettings bell = CallBellSettings.parse(store.getCallBellPhrase());
             return new StoreResponse(
                     store.getId(),
                     store.getOwnerUserId(),
@@ -564,6 +578,9 @@ public class BrewService {
                     true,
                     store.isStockEditOffDuty(),
                     store.isStockUsageHint(),
+                    bell.phrase(),
+                    bell.rate(),
+                    bell.pitch(),
                     null,
                     store.getCreatedAt(),
                     store.getUpdatedAt());

@@ -103,7 +103,7 @@ export function VevenoConcentrationCalculator() {
       <p className="veveno-tools-block__lead">{t('concentration.lead')}</p>
 
       <div
-        className="veveno-tools-seg veveno-tools-seg--main"
+        className="veveno-tools-seg"
         role="tablist"
         aria-label={t('concentration.modeAria')}
       >

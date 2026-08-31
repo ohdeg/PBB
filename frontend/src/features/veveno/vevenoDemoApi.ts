@@ -72,6 +72,9 @@ interface DemoState {
     isPublic: boolean
     stockEditOffDuty: boolean
     stockUsageHint: boolean
+    callBellPhrase: string | null
+    callBellRate: number | null
+    callBellPitch: number | null
     inviteCode: string
     createdAt: string
     updatedAt: string
@@ -127,6 +130,9 @@ function seedState(): DemoState {
       isPublic: false,
       stockEditOffDuty: false,
       stockUsageHint: true,
+      callBellPhrase: null,
+      callBellRate: null,
+      callBellPitch: null,
       inviteCode: 'DEMOCODE',
       createdAt: CREATED,
       updatedAt: CREATED,
@@ -445,6 +451,9 @@ function loadState(): DemoState {
     if (raw) {
       const parsed = JSON.parse(raw) as DemoState
       if (parsed?.store && parsed.menus && Array.isArray(parsed.joins)) {
+        parsed.store.callBellPhrase = parsed.store.callBellPhrase ?? null
+        parsed.store.callBellRate = parsed.store.callBellRate ?? null
+        parsed.store.callBellPitch = parsed.store.callBellPitch ?? null
         return parsed
       }
     }
@@ -642,6 +651,9 @@ export function applyDemoRole(role: VevenoDemoRole): VevenoStore {
     onDuty: true,
     stockEditOffDuty: store.stockEditOffDuty,
     stockUsageHint: store.stockUsageHint,
+    callBellPhrase: store.callBellPhrase ?? null,
+    callBellRate: store.callBellRate ?? null,
+    callBellPitch: store.callBellPitch ?? null,
     leaveDate: null,
     createdAt: store.createdAt,
     updatedAt: store.updatedAt,
@@ -694,6 +706,27 @@ export const vevenoDemoApi = {
   ) {
     const s = state()
     s.store = { ...s.store, ...payload, updatedAt: nowIso() }
+    persist()
+    return ok(currentDemoStore())
+  },
+
+  updateCallBellPhrase(
+    _storeId: string,
+    payload: {
+      phrase: string
+      rate: number
+      pitch: number
+    },
+  ) {
+    const s = state()
+    const next = payload.phrase.trim()
+    s.store = {
+      ...s.store,
+      callBellPhrase: next.length === 0 ? null : next,
+      callBellRate: payload.rate,
+      callBellPitch: payload.pitch,
+      updatedAt: nowIso(),
+    }
     persist()
     return ok(currentDemoStore())
   },

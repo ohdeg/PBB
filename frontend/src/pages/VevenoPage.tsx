@@ -221,8 +221,9 @@ export function VevenoPage() {
                   <p className="veveno-shell__hero-brand">Veveno</p>
                   <p className="veveno-hub-guest__badge">{t('hub.guestBadge')}</p>
                   <p className="veveno-shell__meta">{t('hub.guestBody')}</p>
-                  <div className="veveno-hero-cta">
+                  <div className="veveno-hub-guest__cta">
                     <VevenoButton
+                      size="lg"
                       onClick={() => {
                         void navigate('/login', {
                           state: { from: '/hobbies/veveno/hub' },
@@ -232,6 +233,7 @@ export function VevenoPage() {
                       {t('hub.guestLogin')}
                     </VevenoButton>
                     <VevenoButton
+                      size="lg"
                       variant="secondary"
                       onClick={() => {
                         setPosOpen(true);

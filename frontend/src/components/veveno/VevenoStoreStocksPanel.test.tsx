@@ -93,6 +93,7 @@ function Harness({
         owned={owned}
         onDuty={onDuty}
         stockEditOffDuty={stockEditOffDuty}
+        canEditStock
         stockCategories={stockCategories}
         setStockCategories={setStockCategories}
         onError={onError}
@@ -175,6 +176,7 @@ describe('VevenoStoreStocksPanel', () => {
           owned
           onDuty={false}
           stockEditOffDuty={false}
+          canEditStock
           stockCategories={stockCategories}
           setStockCategories={setStockCategories}
           onError={vi.fn()}
@@ -207,6 +209,7 @@ describe('VevenoStoreStocksPanel', () => {
           owned={owned}
           onDuty
           stockEditOffDuty={false}
+          canEditStock
           stockCategories={stockCategories}
           setStockCategories={setStockCategories}
           onError={vi.fn()}

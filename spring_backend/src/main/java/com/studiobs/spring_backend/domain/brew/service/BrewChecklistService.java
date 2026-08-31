@@ -21,6 +21,7 @@ import com.studiobs.spring_backend.domain.brew.support.BrewChecklistOpen;
 import com.studiobs.spring_backend.domain.brew.support.BrewChecklistOpen.ShiftWindow;
 import com.studiobs.spring_backend.domain.brew.support.BrewEffectiveShifts;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
@@ -79,6 +80,7 @@ public class BrewChecklistService {
 
     @Transactional
     public ChecklistTemplateResponse create(String email, UUID storeId, ChecklistRequest request) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
@@ -104,6 +106,7 @@ public class BrewChecklistService {
 
     @Transactional
     public ChecklistTemplateResponse update(String email, UUID templateId, ChecklistRequest request) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         BrewChecklistTemplate template = requireTemplate(templateId);
         BrewStore store = requireStore(template.getStoreId());
@@ -124,6 +127,7 @@ public class BrewChecklistService {
 
     @Transactional
     public void delete(String email, UUID templateId) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         BrewChecklistTemplate template = requireTemplate(templateId);
         BrewStore store = requireStore(template.getStoreId());
@@ -432,6 +436,10 @@ public class BrewChecklistService {
     }
 
     private void assertMember(BrewStore store, UUID userId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(store.getId());
+            return;
+        }
         if (store.getOwnerUserId().equals(userId)) {
             return;
         }

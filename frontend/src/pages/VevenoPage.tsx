@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { vevenoApi } from '../api/vevenoApi';
 import { VevenoBadge } from '../components/veveno/VevenoBadge';
 import { VevenoButton } from '../components/veveno/VevenoButton';
 import { VevenoCard } from '../components/veveno/VevenoCard';
 import { VevenoEmptyState } from '../components/veveno/VevenoEmptyState';
+import { VevenoModal } from '../components/veveno/VevenoModal';
+import { VevenoPosQrPanel } from '../components/veveno/VevenoPosQrPanel';
 import {
   VevenoSplashScreen,
   useVevenoSplash,
@@ -17,6 +19,12 @@ import { hubTodayLine } from '../components/veveno/vevenoHubTodayLine';
 import { VevenoLangSwitch } from '../components/veveno/VevenoLangSwitch';
 import { getVevenoErrorMessage } from '../features/veveno/i18n/error';
 import { useTranslation } from '../features/veveno/i18n/LanguageContext';
+import { getDemoPosSession } from '../features/veveno/pos/demoSession';
+import { VEVENO_DEMO_STORE_ID } from '../features/veveno/vevenoDemo';
+import {
+  clearVevenoPosToken,
+  getVevenoPosToken,
+} from '../features/veveno/pos/session';
 import { useAuthStore } from '../stores/authStore';
 import type { VevenoStore } from '../types/veveno';
 
@@ -24,9 +32,17 @@ type HubPanel = 'none' | 'find' | 'create';
 
 export function VevenoPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const t = useTranslation();
   const accessToken = useAuthStore((state) => state.accessToken);
   const { showSplash, handleSplashFinish } = useVevenoSplash();
+  const wantPos = searchParams.get('pos') === '1';
+  const [posOpen, setPosOpen] = useState(false);
+  const [posRestoring, setPosRestoring] = useState(
+    () =>
+      !accessToken
+      && Boolean(getVevenoPosToken() || getDemoPosSession()),
+  );
   const [myStores, setMyStores] = useState<VevenoStore[]>([]);
   const [subscriptions, setSubscriptions] = useState<VevenoStore[]>([]);
   const [joinQuery, setJoinQuery] = useState('');
@@ -130,11 +146,116 @@ export function VevenoPage() {
     panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [panel]);
 
-  if (!accessToken) {
-    if (useAuthStore.getState().suppressLoginRedirect) {
-      return null;
+  useEffect(() => {
+    if (accessToken) {
+      setPosRestoring(false);
+      return;
     }
-    return <Navigate to="/login" replace state={{ from: '/hobbies/veveno/hub' }} />;
+    if (getDemoPosSession()) {
+      void navigate(`/hobbies/veveno/pos/store/${VEVENO_DEMO_STORE_ID}`, {
+        replace: true,
+      });
+      return;
+    }
+    if (!getVevenoPosToken()) {
+      setPosRestoring(false);
+      return;
+    }
+    let cancelled = false;
+    void vevenoApi
+      .posMe()
+      .then((res) => {
+        if (!cancelled) {
+          void navigate(`/hobbies/veveno/pos/store/${res.data.storeId}`, {
+            replace: true,
+          });
+        }
+      })
+      .catch(() => {
+        clearVevenoPosToken();
+        if (!cancelled) {
+          setPosRestoring(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, navigate]);
+
+  useEffect(() => {
+    if (accessToken && wantPos) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [accessToken, setSearchParams, wantPos]);
+
+  useEffect(() => {
+    if (!accessToken && wantPos && !posRestoring) {
+      setPosOpen(true);
+    }
+  }, [accessToken, wantPos, posRestoring]);
+
+  const closePosModal = () => {
+    setPosOpen(false);
+    if (wantPos) {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
+  if (!accessToken) {
+    return (
+      <>
+        {showSplash ? <VevenoSplashScreen onFinish={handleSplashFinish} /> : null}
+        <main className="veveno-shell">
+          <div className="veveno-shell__inner veveno-shell__inner--hub">
+            <div className="veveno-shell__top">
+              <Link to="/" className="veveno-shell__back">
+                {t('common.backMain')}
+              </Link>
+              <VevenoLangSwitch />
+            </div>
+            {posRestoring ? (
+              <div className="veveno-shell__loading">{t('hub.loading')}</div>
+            ) : (
+              <>
+                <header className="veveno-shell__hero veveno-shell__hero--hub">
+                  <p className="veveno-shell__hero-brand">Veveno</p>
+                  <p className="veveno-hub-guest__badge">{t('hub.guestBadge')}</p>
+                  <p className="veveno-shell__meta">{t('hub.guestBody')}</p>
+                  <div className="veveno-hero-cta">
+                    <VevenoButton
+                      onClick={() => {
+                        void navigate('/login', {
+                          state: { from: '/hobbies/veveno/hub' },
+                        });
+                      }}
+                    >
+                      {t('hub.guestLogin')}
+                    </VevenoButton>
+                    <VevenoButton
+                      variant="secondary"
+                      onClick={() => {
+                        setPosOpen(true);
+                      }}
+                    >
+                      {t('hub.openPos')}
+                    </VevenoButton>
+                  </div>
+                </header>
+              </>
+            )}
+          </div>
+        </main>
+        {posOpen && !posRestoring ? (
+          <VevenoModal
+            open
+            title={t('pos.waitingTitle')}
+            onClose={closePosModal}
+          >
+            <VevenoPosQrPanel />
+          </VevenoModal>
+        ) : null}
+      </>
+    );
   }
 
   const openPanel = (next: HubPanel) => {

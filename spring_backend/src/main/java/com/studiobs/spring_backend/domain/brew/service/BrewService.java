@@ -26,6 +26,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewInviteCodes;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
@@ -69,6 +70,7 @@ public class BrewService {
 
     @Transactional(readOnly = true)
     public List<StoreResponse> listMyStores(String email) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         List<BrewStore> stores =
                 storeRepository.findByOwnerUserIdOrderByUpdatedAtDesc(user.getId());
@@ -77,6 +79,7 @@ public class BrewService {
 
     @Transactional(readOnly = true)
     public List<StoreResponse> listPublicStores(String emailOrNull) {
+        PosAccess.forbidManagement();
         UUID viewerId = resolveUserId(emailOrNull);
         List<BrewStore> stores = storeRepository.findByIsPublicTrueOrderByUpdatedAtDesc();
         return toStoreResponsesBatch(stores, viewerId);
@@ -84,6 +87,7 @@ public class BrewService {
 
     @Transactional(readOnly = true)
     public List<StoreResponse> searchStores(String emailOrNull, String query) {
+        PosAccess.forbidManagement();
         String q = query == null ? "" : query.trim();
         if (q.isEmpty()) {
             return List.of();
@@ -102,6 +106,7 @@ public class BrewService {
 
     @Transactional
     public List<StoreResponse> listSubscriptions(String email) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
 
@@ -154,6 +159,7 @@ public class BrewService {
 
     @Transactional
     public StoreResponse createStore(String email, CreateStoreRequest request) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         BrewStore store = storeRepository.save(BrewStore.builder()
                 .ownerUserId(user.getId())
@@ -308,6 +314,7 @@ public class BrewService {
 
     @Transactional
     public void requestJoin(String email, UUID storeId) {
+        PosAccess.forbidManagement();
         User user = requireUser(email);
         BrewStore store = requireStore(storeId);
         if (store.getOwnerUserId().equals(user.getId())) {
@@ -446,6 +453,7 @@ public class BrewService {
     /** 직원이 스스로 퇴사(가게 나가기) — 업주만 지정. */
     @Transactional
     public void unsubscribe(String email, UUID storeId, LeaveDateRequest request) {
+        PosAccess.forbidManagement();
         requireUser(email);
         requireStore(storeId);
         throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_RESIGN_ONLY", "퇴사는 사장님만 지정할 수 있습니다.");
@@ -541,6 +549,25 @@ public class BrewService {
     }
 
     private StoreResponse toStoreResponse(BrewStore store, UUID viewerId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(store.getId());
+            PosAccess.Snapshot pos = PosAccess.require();
+            return new StoreResponse(
+                    store.getId(),
+                    store.getOwnerUserId(),
+                    store.getName(),
+                    store.isPublic(),
+                    null,
+                    false,
+                    true,
+                    pos.canEditStock(),
+                    true,
+                    store.isStockEditOffDuty(),
+                    store.isStockUsageHint(),
+                    null,
+                    store.getCreatedAt(),
+                    store.getUpdatedAt());
+        }
         boolean subscribed = false;
         boolean canEditStock = false;
         boolean onDuty = false;
@@ -634,6 +661,10 @@ public class BrewService {
     }
 
     private void assertCanView(BrewStore store, UUID viewerId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(store.getId());
+            return;
+        }
         if (store.isPublic()) {
             return;
         }
@@ -650,6 +681,10 @@ public class BrewService {
     }
 
     private void assertMember(BrewStore store, UUID userId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(store.getId());
+            return;
+        }
         if (store.getOwnerUserId().equals(userId)) {
             return;
         }
@@ -679,6 +714,7 @@ public class BrewService {
     }
 
     private BrewStore requireOwnedStore(UUID storeId, UUID ownerId) {
+        PosAccess.forbidManagement();
         BrewStore store = requireStore(storeId);
         if (!store.getOwnerUserId().equals(ownerId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");

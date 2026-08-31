@@ -36,6 +36,11 @@ const VevenoStorePage = lazy(() =>
     default: module.VevenoStorePage,
   })),
 );
+const VevenoPosPage = lazy(() =>
+  import('./pages/VevenoPosPage').then((module) => ({
+    default: module.VevenoPosPage,
+  })),
+);
 const LottoPage = lazy(() =>
   import('./pages/LottoPage').then((module) => ({
     default: module.LottoPage,
@@ -139,6 +144,7 @@ function usesAppOwnedSplash(pathname: string): boolean {
   return (
     pathname.startsWith('/hobbies/veveno/hub')
     || pathname.startsWith('/hobbies/veveno/stores')
+    || pathname.startsWith('/hobbies/veveno/pos')
     || pathname.startsWith('/hobbies/brew-note')
     || pathname.startsWith('/hobbies/lotto')
     || pathname.startsWith('/hobbies/6pick/play')
@@ -231,6 +237,11 @@ export default function App() {
               <Route element={<VevenoI18nLayout />}>
                 <Route path="/hobbies/veveno" element={<VevenoLandingPage />} />
                 <Route path="/hobbies/veveno/hub" element={<VevenoPage />} />
+                <Route path="/hobbies/veveno/pos" element={<VevenoPosPage />} />
+                <Route
+                  path="/hobbies/veveno/pos/store/:storeId"
+                  element={<VevenoStorePage />}
+                />
                 <Route
                   path="/hobbies/veveno/stores/:storeId"
                   element={<VevenoStorePage />}

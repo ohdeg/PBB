@@ -117,6 +117,7 @@ interface VevenoStoreStocksPanelProps {
   owned: boolean;
   onDuty: boolean;
   stockEditOffDuty: boolean;
+  canEditStock: boolean;
   stockCategories: VevenoStockCategory[];
   setStockCategories: Dispatch<SetStateAction<VevenoStockCategory[]>>;
   onError: (message: string) => void;
@@ -128,6 +129,7 @@ export function VevenoStoreStocksPanel({
   owned,
   onDuty,
   stockEditOffDuty,
+  canEditStock,
   stockCategories,
   setStockCategories,
   onError,
@@ -171,7 +173,7 @@ export function VevenoStoreStocksPanel({
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingStock, setDeletingStock] = useState(false);
 
-  const canMutateStock = owned || onDuty || stockEditOffDuty;
+  const canMutateStock = canEditStock && (owned || onDuty || stockEditOffDuty);
   const normalizedStockSearch = stockSearch.trim().toLowerCase();
   const lowStockCount = useMemo(
     () =>

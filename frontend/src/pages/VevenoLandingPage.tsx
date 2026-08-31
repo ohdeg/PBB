@@ -4,7 +4,6 @@ import { vevenoApi } from '../api/vevenoApi';
 import { HobbyLandingLayout } from '../components/HobbyLandingLayout';
 import { VevenoLangSwitch } from '../components/veveno/VevenoLangSwitch';
 import { useTranslation } from '../features/veveno/i18n/LanguageContext';
-import { useAuthStore } from '../stores/authStore';
 
 const HUB_PATH = '/hobbies/veveno/hub';
 
@@ -12,7 +11,6 @@ const HUB_PATH = '/hobbies/veveno/hub';
 export function VevenoLandingPage() {
   const navigate = useNavigate();
   const t = useTranslation();
-  const accessToken = useAuthStore((state) => state.accessToken);
   const [usageNote, setUsageNote] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -39,11 +37,7 @@ export function VevenoLandingPage() {
   }, [t]);
 
   const handleStart = () => {
-    if (accessToken) {
-      void navigate(HUB_PATH);
-      return;
-    }
-    void navigate('/login', { state: { from: HUB_PATH } });
+    void navigate(HUB_PATH);
   };
 
   return (

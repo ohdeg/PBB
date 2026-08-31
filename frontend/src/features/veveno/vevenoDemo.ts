@@ -9,8 +9,12 @@ export function isVevenoDemoStoreId(storeId: string): boolean {
 }
 
 export function isVevenoDemoRequest(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const path = window.location.pathname;
   return (
-    typeof window !== 'undefined' &&
-    window.location.pathname.includes(`/hobbies/veveno/stores/${VEVENO_DEMO_STORE_ID}`)
+    path.includes(`/hobbies/veveno/stores/${VEVENO_DEMO_STORE_ID}`)
+    || path.includes(`/hobbies/veveno/pos/store/${VEVENO_DEMO_STORE_ID}`)
   );
 }

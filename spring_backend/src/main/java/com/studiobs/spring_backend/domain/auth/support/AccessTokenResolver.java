@@ -27,9 +27,10 @@ public class AccessTokenResolver {
         }
 
         String token = header.substring("Bearer ".length()).trim();
-        if (token.isEmpty()
-                || !jwtTokenProvider.isValid(token)
-                || !jwtTokenProvider.isAccessToken(token)) {
+        if (token.isEmpty() || !jwtTokenProvider.isValid(token)) {
+            return Optional.empty();
+        }
+        if (!jwtTokenProvider.isAccessToken(token) && !jwtTokenProvider.isPosToken(token)) {
             return Optional.empty();
         }
 

@@ -8,8 +8,8 @@ FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9
 
 > 취미 앱(Score Viewer 랜딩/본체)과 **Veveno·슈란코·Score Viewer 소개 랜딩**은 **비로그인 진입 가능**.
 > **6PICK·Dieta**는 DEV 회원만 홈·탭·URL 진입. 그 외는 `/`로 보냄.
-> Veveno **허브·실가게**·슈란코 **옷장·룩**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
-> Veveno **로컬 체험** `/hobbies/veveno/stores/demo`만 비로그인 가능(이 기기 `localStorage`, 서버 호출 없음).
+> Veveno **실가게**·슈란코 **옷장·룩**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
+> Veveno **허브** `/hobbies/veveno/hub`는 비로그인 가능(「로그인 전」·계산대 QR 모달). **로컬 체험** `/hobbies/veveno/stores/demo`도 비로그인(이 기기 `localStorage`).
 
 ---
 
@@ -193,9 +193,9 @@ FigJam §8~8-3 + Notion DB 스키마 기준.
 ### 8-0. 진입 (공개 랜딩 → 로그인 후 허브 / 로컬 체험)
 
 홈·공유 링크는 공개 소개 랜딩 `/hobbies/veveno`(SEO).  
-랜딩은 로그인·가게 여부와 관계없이 **항상 표시**(홈「소개 보기」용). **가게 열기** → 로그인 또는 허브(`/hub`). **사장님으로 써보기** → 로컬 체험 `/hobbies/veveno/stores/demo`(로그인 없음, 이 기기만 저장).  
+랜딩은 로그인·가게 여부와 관계없이 **항상 표시**(홈「소개 보기」용). **가게 열기** → 허브(`/hub`). 비로그인이면 허브가 「로그인 전」+로그인·「POS 모드 사용」. **사장님으로 써보기** → 로컬 체험 `/hobbies/veveno/stores/demo`(로그인 없음, 이 기기만 저장).  
 체험 가게 배너에서 **사장 | 직원** 토글(같은 데이터, 권한만 바뀜). 직원 보기에서는 메뉴 편집·발주 URL이 숨겨진다. **설정 탭은 언어용으로 열리고**, 업장·직원 설정은 사장님만 본다. 시드 에티오피아는 사용량 예측으로 **곧 부족**(약 2일분). 수량을 충분히 올리면 뱃지가 사라진다. **체험 끝내기**는 시드를 초기화하고 랜딩으로 돌아간다.  
-허브(내 가게·근무 가게·검색)와 **실가게** 상세는 로그인 필수. 헤더: 열람자 본인이 해당 가게 **현재 근무 구간**이면 「근무중」 뱃지(업주·직원 공통, 정규·승인 대타/추가·자정 넘김). `onDuty`는 업주도 스케줄 기준(상시 true 아님). 재고 수정은 업주 상시, 직원은 `canEditStock`+근무 중.  
+허브의 **가게 목록·검색·등록**과 **실가게** 상세는 로그인 필수. 비로그인 허브는 목록 없이 로그인/계산대만. 헤더: 열람자 본인이 해당 가게 **현재 근무 구간**이면 「근무중」 뱃지(업주·직원 공통, 정규·승인 대타/추가·자정 넘김). `onDuty`는 업주도 스케줄 기준(상시 true 아님). 재고 수정은 업주 상시, 직원은 `canEditStock`+근무 중.  
 허브 가게 카드: 오늘 **due**인 오픈·마감만 `오픈 3/8 · 마감 아직`(0=아직, 전부=완료). 근무가 아니면 줄 없음.
 
 **언어** (`ko` / `en` / `ja`, 칩 라벨은 항상 한국어 / English / 日本語): 첫 방문은 `navigator.languages` → `navigator.language`에서 지원 태그를 고르고, 없으면 `ko`. **칩·설정에서 고른 뒤에만** `localStorage` `veveno:lang`에 저장한다(그 전엔 방문마다 브라우저를 따른다). 전환 위치: 랜딩 칩, 허브 상단, 가게 설정(사장·직원·체험 공통). 계정/가게 DB 언어·첫 방문 모달 없음. 날짜 표시는 `ko-KR` / `en-US` / `ja-JP`, 영업일 기준은 Asia/Seoul. 사용자가 적은 가게·메뉴·재고 이름은 번역하지 않는다.
@@ -203,8 +203,7 @@ FigJam §8~8-3 + Notion DB 스키마 기준.
 ```mermaid
 flowchart LR
     home([홈]) --> landing[/hobbies/veveno 랜딩]
-    landing -->|"가게 열기 · 로그인"| hub[허브]
-    landing -->|"가게 열기 · 비로그인"| login([/login])
+    landing -->|"가게 열기"| hub[허브]
     landing --> langChips[언어 칩]
     langChips --> landing
     landing -->|"사장님으로 써보기"| demo[로컬 체험 /stores/demo]
@@ -212,6 +211,8 @@ flowchart LR
     demo --> demoLang[설정 · 언어]
     demoLang --> demo
     demo -->|"체험 끝내기"| landing
+    hub -->|"로그인 전 · 로그인"| login([/login])
+    hub -->|"로그인 전 · 계산대"| posQr[QR 모달]
     login --> hub
     hub --> register[업장 등록]
     hub --> myStores[내 가게]
@@ -384,9 +385,35 @@ flowchart LR
 - API: `GET .../subscribers/{userId}/covers-after-leave?leaveDate=`, `POST .../subscribers/{userId}/resign`, `DELETE .../subscribers/{userId}/leave`
 - `brew_store_subscriptions.work_start_date`: 첫 근무일. 달력·근무 중 판정은 이 날짜부터 (`leave_date`까지)
 
+### 8-3e. POS QR 로그인 (계산대)
+
+WhatsApp Web 방식. **계산대**는 비로그인 허브에서 「POS 모드 사용」으로 QR 모달을 연다(`/pos` 북마크는 `/hub?pos=1`). **그 가게에 로그인한 폰**이 헤더 오른쪽(공지 옆) 스캔으로 찍는다. 로그인된 허브·랜딩·비로그인 스캔 없음. 체험 가게는 헤더 「POS 모드 사용」으로 이 탭이 바로 키오스크가 된다.
+
+```mermaid
+flowchart LR
+    posWait["허브 QR 모달"] --> phoneScan[가게 헤더 스캔]
+    phoneScan --> ownerEnroll{첫 등록?}
+    ownerEnroll -->|"예 · 업주"| whitelist[brew_pos_devices 최대 3]
+    ownerEnroll -->|"예 · 직원"| reject[거절]
+    ownerEnroll -->|"아니오 · 그 가게 구성원"| session[12h POS JWT]
+    whitelist --> session
+    session --> counter["/pos/store/:id 카운터"]
+    counter --> extend[연장 now+12h]
+    counter --> posLogout[이 기기만 로그아웃]
+    reboot[재부팅 12h 안] --> restore[localStorage JWT]
+    restore --> counter
+```
+
+- 미등록 QR에는 storeId 없음. 등록된 POS QR은 그 가게 storeId. 승인은 **지금 들어와 있는 storeId**만 사용.
+- 세션은 Redis 12시간, refresh cookie 없음. 같은 deviceId 재연결은 그 기기 세션만 덮어씀. 화이트리스트 3대까지 동시 세션.
+- POS JWT(`type=pos`)는 메뉴·레시피·공지 조회, 오늘 할 일, 도구, 재고 조회, 세션 `canEditStock`이면 재고 수정(근무 여부 무시). 설정·초대·근무 관리·메뉴 쓰기는 API에서 거절. UI도 설정·근무 탭 숨김.
+- QR 페어 TTL 2분. 계산대는 ~110초마다 새 QR(이전 키는 TTL까지 유지) 후 현재+이전을 폴링.
+
 라우트:
 - `/hobbies/veveno` — 공개 소개 랜딩 (SEO, 자동 스킵 없음)
-- `/hobbies/veveno/hub` — 허브 (로그인 필수)
+- `/hobbies/veveno/hub` — 허브 (비로그인: 로그인 전 · 계산대 QR 모달 / 로그인: 내 가게)
+- `/hobbies/veveno/pos` — `/hub?pos=1`로 보냄 (유효 POS JWT면 카운터)
+- `/hobbies/veveno/pos/store/:storeId` — POS 카운터 (POS JWT)
 - `/hobbies/veveno/stores/demo` — 로컬 체험 (로그인 불필요, `localStorage`, 사장/직원 토글)
 - `/hobbies/veveno/stores/:storeId` — 실가게(메뉴·재고·할 일·근무·도구·설정·공지). 탭은 `?tab=` 로 유지(새로고침 시 유지). `demo`가 아니면 로그인 필수
 - 메뉴 탭 **카테고리(메뉴) 목록**: 일반 클릭은 선택(레시피 조회), **편집** 모드에서 클릭 시 이름 수정·삭제 모달
@@ -751,7 +778,9 @@ flowchart LR
 | `/profile/change-password` | 비밀번호 변경 (로그인) | **필수** |
 | `/hobbies/ipbt` 등 | (폐기 → `/`) | — |
 | `/hobbies/veveno` | Veveno 소개 랜딩 | 불필요 (SEO) |
-| `/hobbies/veveno/hub` | Veveno 허브 | **필수** |
+| `/hobbies/veveno/hub` | Veveno 허브 (게스트=로그인 전·QR 모달) | 목록은 로그인 후 |
+| `/hobbies/veveno/pos` | → `/hub?pos=1` (유효 세션이면 카운터) | 불필요 (페어 후 POS JWT) |
+| `/hobbies/veveno/pos/store/:storeId` | Veveno POS 카운터 | **POS JWT** |
 | `/hobbies/veveno/stores/demo` | Veveno 로컬 체험 (사장/직원 토글) | 불필요 |
 | `/hobbies/veveno/stores/:storeId` | 실가게(메뉴·재고·할 일·근무·도구·설정·공지) | **필수** (`demo` 제외) |
 | `/hobbies/6pick` | 6PICK 소개 랜딩 | **DEV** |

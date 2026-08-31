@@ -1663,6 +1663,95 @@ html:not([data-theme='dark']) .global-nav__logo {
   color: var(--veveno-ink);
 }
 
+.veveno-store-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.veveno-hub-guest__badge {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-wait {
+  max-width: 28rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.veveno-pos-wait__brand {
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-qr {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid var(--veveno-line);
+}
+
+.veveno-pos-qr-remain {
+  margin: -0.75rem 0 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-qr img {
+  display: block;
+  width: min(280px, 70vw);
+  height: auto;
+}
+
+.veveno-pos-scan {
+  overflow: hidden;
+  border-radius: 0.85rem;
+  background: #111;
+  aspect-ratio: 3 / 4;
+}
+
+.veveno-pos-scan__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.veveno-pos-expiry {
+  font-size: 0.78rem;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.veveno-pos-device-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.veveno-pos-device-list__row p {
+  margin: 0;
+}
+
 .veveno-notice-icon-btn {
   position: relative;
   flex-shrink: 0;

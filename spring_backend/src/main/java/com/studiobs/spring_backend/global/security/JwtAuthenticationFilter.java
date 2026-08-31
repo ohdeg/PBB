@@ -1,6 +1,8 @@
 package com.studiobs.spring_backend.global.security;
 
 import com.studiobs.spring_backend.domain.auth.jwt.JwtTokenProvider;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
+import com.studiobs.spring_backend.domain.brew.support.VevenoPosGuard;
 import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,6 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final VevenoPosGuard vevenoPosGuard;
 
     @Override
     protected void doFilterInternal(
@@ -30,18 +33,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String token = resolveBearerToken(request);
-        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            authenticate(token);
+        try {
+            String token = resolveBearerToken(request);
+            if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                authenticate(request, token);
+            }
+            filterChain.doFilter(request, response);
+        } finally {
+            PosAccess.clear();
         }
-        filterChain.doFilter(request, response);
     }
 
-    private void authenticate(String token) {
-        if (!jwtTokenProvider.isValid(token) || !jwtTokenProvider.isAccessToken(token)) {
+    private void authenticate(HttpServletRequest request, String token) {
+        if (!jwtTokenProvider.isValid(token)) {
             return;
         }
+        if (jwtTokenProvider.isAccessToken(token)) {
+            setAuthentication(token);
+            return;
+        }
+        if (jwtTokenProvider.isPosToken(token)
+                && isBrewPath(request)
+                && vevenoPosGuard.bind(token)) {
+            setAuthentication(token);
+        }
+    }
 
+    private void setAuthentication(String token) {
         String email = jwtTokenProvider.getEmail(token);
         UserClass userClass = jwtTokenProvider.getUserClass(token);
         var authority = new SimpleGrantedAuthority("ROLE_" + userClass.name());
@@ -51,6 +69,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 List.of(authority)
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private static boolean isBrewPath(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/api/v1/veveno") || path.startsWith("/api/v1/brew");
     }
 
     private static String resolveBearerToken(HttpServletRequest request) {

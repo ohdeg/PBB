@@ -9,6 +9,7 @@ import com.studiobs.spring_backend.domain.brew.entity.BrewTimerPreset;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewTimerPresetRepository;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
@@ -203,6 +204,10 @@ public class BrewTimerPresetService {
     }
 
     private void assertMember(BrewStore store, UUID userId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(store.getId());
+            return;
+        }
         if (store.getOwnerUserId().equals(userId)) {
             return;
         }

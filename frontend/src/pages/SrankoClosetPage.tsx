@@ -1968,7 +1968,7 @@ export function SrankoClosetPage() {
                     checked={consent === true}
                     onChange={(e) => setConsent(e.target.checked)}
                   />
-                  Vertex AI 가상 피팅(프로토타입) 이용에 동의합니다
+                  AI 가상 피팅(프로토타입) 이용에 동의합니다
                 </label>
                 {error ? <p className="sranko-error">{error}</p> : null}
                 <div className="sranko-modal__actions">

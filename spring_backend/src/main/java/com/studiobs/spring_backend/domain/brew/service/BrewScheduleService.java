@@ -22,6 +22,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewEffectiveShifts;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
@@ -1008,6 +1009,7 @@ public class BrewScheduleService {
     }
 
     private BrewStore requireOwnedStore(UUID storeId, UUID ownerId) {
+        PosAccess.forbidManagement();
         BrewStore store = requireStore(storeId);
         if (!store.getOwnerUserId().equals(ownerId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");
@@ -1016,6 +1018,7 @@ public class BrewScheduleService {
     }
 
     private void assertMember(BrewStore store, UUID userId) {
+        PosAccess.forbidManagement();
         if (store.getOwnerUserId().equals(userId)) {
             return;
         }

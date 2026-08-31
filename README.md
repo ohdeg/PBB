@@ -14,7 +14,7 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 | 정합성 | Veveno 재고는 JPA `@Version`. 동시 수정은 덮어쓰지 않고 **409** |
 | 검증 | GitHub Actions — JUnit, Testcontainers, Vitest, Playwright |
 
-같은 계정으로 Score Viewer · Sranko도 붙였습니다. 채용에서 볼 핵심은 위 세 줄과 [문제 해결 사례](#문제-해결-사례)입니다.
+같은 계정으로 Score Viewer · Sranko도 붙였습니다.
 
 ### 미리보기
 

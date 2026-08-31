@@ -29,6 +29,8 @@ public class AuthRateLimitService {
     private static final String SEND_WINDOW_PREFIX = "rl:auth:send:win:";
     private static final String VERIFY_WINDOW_PREFIX = "rl:auth:verify:win:";
     private static final String LOGIN_WINDOW_PREFIX = "rl:auth:login:win:";
+    private static final String POS_PAIR_WINDOW_PREFIX = "rl:veveno:pos:pair:ip:";
+    private static final int POS_PAIR_WINDOW_LIMIT = 30;
 
     private static final String MSG_COOLDOWN = "1분 뒤에 다시 보내 주세요.";
     private static final String MSG_TOO_MANY = "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
@@ -48,6 +50,10 @@ public class AuthRateLimitService {
     public void checkLogin(String email, String clientIp) {
         assertWindow(LOGIN_WINDOW_PREFIX + "email:" + email, LOGIN_WINDOW_LIMIT);
         assertWindow(LOGIN_WINDOW_PREFIX + "ip:" + sanitize(clientIp), LOGIN_WINDOW_LIMIT);
+    }
+
+    public void checkPosPair(String clientIp) {
+        assertWindow(POS_PAIR_WINDOW_PREFIX + sanitize(clientIp), POS_PAIR_WINDOW_LIMIT);
     }
 
     private void assertSendAllowed(String subjectKey) {

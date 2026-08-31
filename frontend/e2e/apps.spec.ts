@@ -8,6 +8,18 @@ test('veveno landing shows brand copy', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('veveno hub is reachable without login and opens POS QR modal', async ({
+  page,
+}) => {
+  await page.goto('/hobbies/veveno/hub')
+  await expect(page).not.toHaveURL(/\/login/)
+  await expect(page.getByText('로그인 전')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'POS 모드 사용' }).click()
+  await expect(
+    page.getByRole('heading', { name: '휴대폰으로 QR을 찍어 주세요' }),
+  ).toBeVisible()
+})
+
 test('sixpick is hidden without DEV', async ({ page }) => {
   await page.goto('/hobbies/6pick')
   await expect(page).toHaveURL(/\/$/)

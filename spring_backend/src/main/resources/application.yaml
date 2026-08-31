@@ -74,6 +74,7 @@ app:
     secret: ${JWT_SECRET_KEY:dev-only-secret-key-must-be-long-enough-for-hs256-signing!!}
     access-token-expiry: 30m
     refresh-token-expiry: 7d
+    pos-token-expiry: 12h
   cookie:
     refresh-token-name: refreshToken
     secure: ${COOKIE_SECURE:false}

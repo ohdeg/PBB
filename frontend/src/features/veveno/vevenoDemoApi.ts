@@ -30,6 +30,8 @@ import {
   VEVENO_DEMO_STORE_ID,
   type VevenoDemoRole,
 } from './vevenoDemo'
+import { getDemoPosSession } from './pos/demoSession'
+import { isVevenoPosKiosk } from './pos/session'
 import {
   addDaysYmd,
   computeStockUsageForecast,
@@ -666,7 +668,19 @@ export function currentDemoStore(): VevenoStore {
 
 export const vevenoDemoApi = {
   getStore(_storeId: string) {
-    return ok(currentDemoStore())
+    const store = currentDemoStore()
+    if (!isVevenoPosKiosk()) {
+      return ok(store)
+    }
+    const session = getDemoPosSession()
+    return ok({
+      ...store,
+      owned: false,
+      subscribed: true,
+      onDuty: true,
+      canEditStock: session?.canEditStock ?? store.canEditStock,
+      inviteCode: null,
+    })
   },
 
   updateStore(

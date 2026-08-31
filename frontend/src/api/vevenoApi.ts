@@ -22,6 +22,11 @@ import type {
   VevenoChecklistInput,
   VevenoChecklistTemplate,
   VevenoChecklistToday,
+  VevenoPosDevice,
+  VevenoPosMe,
+  VevenoPosPair,
+  VevenoPosPoll,
+  VevenoPosToken,
 } from '../types/veveno';
 import type { ApiMessageResponse } from '../types/auth';
 import { isVevenoDemoRequest } from '../features/veveno/vevenoDemo';
@@ -408,6 +413,52 @@ const vevenoLiveApi = {
     return apiClient.put<VevenoChecklistToday[]>(
       `/api/v1/veveno/stores/${storeId}/checklists/${templateId}/checks`,
       payload,
+    );
+  },
+
+  posCreateSession(deviceId: string) {
+    return apiClient.post<VevenoPosPair>('/api/v1/veveno/pos/sessions', { deviceId });
+  },
+
+  posPoll(pairs: { pairId: string; secret: string }[]) {
+    return apiClient.post<VevenoPosPoll>('/api/v1/veveno/pos/sessions/poll', { pairs });
+  },
+
+  posClaim(pairId: string, secret: string) {
+    return apiClient.post<VevenoPosToken>(
+      `/api/v1/veveno/pos/sessions/${pairId}/claim`,
+      { secret },
+    );
+  },
+
+  posApprove(pairId: string, storeId: string, secret: string) {
+    return apiClient.post(`/api/v1/veveno/pos/sessions/${pairId}/approve`, {
+      storeId,
+      secret,
+    });
+  },
+
+  posMe() {
+    return apiClient.get<VevenoPosMe>('/api/v1/veveno/pos/session');
+  },
+
+  posExtend() {
+    return apiClient.post<VevenoPosToken>('/api/v1/veveno/pos/session/extend');
+  },
+
+  posLogout() {
+    return apiClient.delete('/api/v1/veveno/pos/session');
+  },
+
+  listPosDevices(storeId: string) {
+    return apiClient.get<VevenoPosDevice[]>(
+      `/api/v1/veveno/stores/${storeId}/pos-devices`,
+    );
+  },
+
+  revokePosDevice(storeId: string, deviceRowId: string) {
+    return apiClient.delete(
+      `/api/v1/veveno/stores/${storeId}/pos-devices/${deviceRowId}`,
     );
   },
 };

@@ -6,6 +6,11 @@ import axios, {
 import { useAppStatusStore } from '../stores/appStatusStore';
 import { useAuthStore } from '../stores/authStore';
 import type { ApiErrorBody, RefreshResponse } from '../types/auth';
+import {
+  clearVevenoPosToken,
+  getVevenoPosToken,
+  isVevenoPosKiosk,
+} from '../features/veveno/pos/session';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -18,7 +23,8 @@ export const apiClient: AxiosInstance = axios.create({
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = useAuthStore.getState().accessToken;
+  const posToken = isVevenoPosKiosk() ? getVevenoPosToken() : null;
+  const token = posToken ?? useAuthStore.getState().accessToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -77,6 +83,11 @@ apiClient.interceptors.response.use(
       error.response?.status !== 401 ||
       originalRequest._retry
     ) {
+      return Promise.reject(error);
+    }
+
+    if (isVevenoPosKiosk()) {
+      clearVevenoPosToken();
       return Promise.reject(error);
     }
 

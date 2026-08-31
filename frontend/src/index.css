@@ -148,7 +148,9 @@ html {
 }
 
 [data-theme='dark'] .veveno-shell,
-[data-theme='dark'] .veveno-modal-backdrop {
+[data-theme='dark'] .veveno-modal-backdrop,
+[data-theme='dark'] .veveno-tools-pip,
+[data-theme='dark'] .veveno-tools-pop {
   --veveno-paper: #2c2c2e;
   --veveno-paper-deep: #3a3a3c;
   --veveno-foam: #2c2c2e;
@@ -253,6 +255,10 @@ a:hover {
   padding-left: 0;
   padding-right: 0;
   padding-bottom: 0;
+}
+
+.app-shell--tools-pop {
+  padding-top: 0;
 }
 
 /* Figma-style global top nav */
@@ -1215,7 +1221,9 @@ html:not([data-theme='dark']) .global-nav__logo {
 
 /* —— Veveno · Apple tokens —— */
 .veveno-shell,
-.veveno-modal-backdrop {
+.veveno-modal-backdrop,
+.veveno-tools-pip,
+.veveno-tools-pop {
   --veveno-paper: #f5f5f7;
   --veveno-paper-deep: #e0e0e0;
   --veveno-foam: #ffffff;
@@ -1661,6 +1669,112 @@ html:not([data-theme='dark']) .global-nav__logo {
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--veveno-ink);
+}
+
+.veveno-store-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.veveno-hub-guest__badge {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--veveno-mute);
+}
+
+.veveno-hub-guest__cta {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.85rem;
+  width: min(100%, 28rem);
+  margin: 1.35rem auto 0;
+}
+
+.veveno-hub-guest__cta .veveno-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3.25rem;
+  padding: 0.95rem 1.1rem;
+  font-size: 1.05rem;
+}
+
+.veveno-pos-wait {
+  max-width: 28rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.veveno-pos-wait__brand {
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-qr {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid var(--veveno-line);
+}
+
+.veveno-pos-qr-remain {
+  margin: -0.75rem 0 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-qr img {
+  display: block;
+  width: min(280px, 70vw);
+  height: auto;
+}
+
+.veveno-pos-scan {
+  overflow: hidden;
+  border-radius: 0.85rem;
+  background: #111;
+  aspect-ratio: 3 / 4;
+}
+
+.veveno-pos-scan__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.veveno-pos-expiry {
+  font-size: 0.78rem;
+  color: var(--veveno-mute);
+}
+
+.veveno-pos-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.veveno-pos-device-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.veveno-pos-device-list__row p {
+  margin: 0;
 }
 
 .veveno-notice-icon-btn {
@@ -2351,6 +2465,64 @@ html:not([data-theme='dark']) .global-nav__logo {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
+}
+
+.veveno-tools-head {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+}
+
+.veveno-tools-head .veveno-tools-seg--main {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.veveno-tools-head .veveno-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.veveno-tools-pop,
+.veveno-tools-pip {
+  min-height: 100%;
+  margin: 0;
+  padding: 0.75rem 0.8rem 1.1rem;
+  background: #f5f5f7;
+  background: var(--veveno-paper, #f5f5f7);
+  color: #1d1d1f;
+  color: var(--veveno-ink, #1d1d1f);
+  font-family: var(--veveno-font-body, sans-serif);
+}
+
+[data-theme='dark'] .veveno-tools-pop,
+[data-theme='dark'] .veveno-tools-pip {
+  background: #2c2c2e;
+  background: var(--veveno-paper, #2c2c2e);
+  color: #f5f5f7;
+  color: var(--veveno-ink, #f5f5f7);
+}
+
+#veveno-tools-pip-root {
+  min-height: 100%;
+  color: inherit;
+  background: transparent;
+}
+
+.veveno-tools-pip .veveno-tools-head,
+.veveno-tools-pop .veveno-tools-head {
+  flex-wrap: wrap;
+}
+
+.veveno-tools-pip .veveno-tools-head .veveno-tools-seg--main,
+.veveno-tools-pop .veveno-tools-head .veveno-tools-seg--main {
+  flex: 1 1 100%;
+}
+
+.veveno-tools-pip .veveno-tools-seg--main button,
+.veveno-tools-pop .veveno-tools-seg--main button {
+  white-space: normal;
 }
 
 .veveno-tools-seg {

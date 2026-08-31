@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { vevenoApi } from '../api/vevenoApi';
 import {
   isVevenoDemoStoreId,
+  VEVENO_DEMO_STORE_ID,
   type VevenoDemoRole,
 } from '../features/veveno/vevenoDemo';
-import { getDemoRole, setDemoRole } from '../features/veveno/vevenoDemoApi';
+import { currentDemoStore, getDemoRole, setDemoRole } from '../features/veveno/vevenoDemoApi';
 import { VevenoButton } from '../components/veveno/VevenoButton';
 import { VevenoHelpTip } from '../components/veveno/VevenoHelpTip';
 import { VevenoCard } from '../components/veveno/VevenoCard';
@@ -42,6 +43,7 @@ import type {
   VevenoStore,
   VevenoSubscriber,
   VevenoChecklistToday,
+  VevenoPosDevice,
 } from '../types/veveno';
 import {
   EMPTY_RECIPE_CONTENT,
@@ -51,6 +53,18 @@ import {
 import { getVevenoErrorMessage } from '../features/veveno/i18n/error';
 import { useTranslation } from '../features/veveno/i18n/LanguageContext';
 import { VevenoLangSwitch } from '../components/veveno/VevenoLangSwitch';
+import { VevenoPosScanModal } from '../components/veveno/VevenoPosScanModal';
+import {
+  clearDemoPosSession,
+  extendDemoPosSession,
+  getDemoPosSession,
+  switchToDemoPos,
+} from '../features/veveno/pos/demoSession';
+import {
+  clearVevenoPosToken,
+  isVevenoPosKioskPath,
+  setVevenoPosToken,
+} from '../features/veveno/pos/session';
 
 type Tab = 'menus' | 'stocks' | 'checklists' | 'schedule' | 'tools' | 'settings';
 
@@ -108,9 +122,24 @@ function parseTabParam(raw: string | null): Tab {
   return 'menus';
 }
 
+function formatPosExpiry(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function VevenoStorePage() {
   const { storeId = '' } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPosKiosk = isVevenoPosKioskPath(location.pathname);
   const [searchParams, setSearchParams] = useSearchParams();
   const accessToken = useAuthStore((state) => state.accessToken);
   const isDemo = isVevenoDemoStoreId(storeId);
@@ -191,6 +220,11 @@ export function VevenoStorePage() {
   const [approving, setApproving] = useState(false);
   const [regeneratingCode, setRegeneratingCode] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [posScanOpen, setPosScanOpen] = useState(false);
+  const [toolsCompact, setToolsCompact] = useState(false);
+  const [posDevices, setPosDevices] = useState<VevenoPosDevice[]>([]);
+  const [posExpiresAt, setPosExpiresAt] = useState<string | null>(null);
+  const [posExtending, setPosExtending] = useState(false);
   const {
     notices,
     setNotices,
@@ -208,7 +242,7 @@ export function VevenoStorePage() {
   } = useVevenoNotices({ store, storeId, setError });
 
   const loadStore = useCallback(async () => {
-    if (!storeId || (!accessToken && !isVevenoDemoStoreId(storeId))) {
+    if (!storeId || (!accessToken && !isVevenoDemoStoreId(storeId) && !isPosKiosk)) {
       return;
     }
     setLoading(true);
@@ -241,13 +275,13 @@ export function VevenoStorePage() {
         setNotices([]);
         setTodayChecklists([]);
       }
-      if (data.canEditStock) {
+      if (data.canEditStock || isPosKiosk) {
         const stocksRes = await vevenoApi.listStocks(storeId);
         setStockCategories(stocksRes.data);
       } else {
         setStockCategories([]);
       }
-      if (data.owned) {
+      if (data.owned && !isPosKiosk) {
         const [joinsRes, subsRes] = await Promise.all([
           vevenoApi.listJoinRequests(storeId),
           vevenoApi.listSubscribers(storeId),
@@ -259,15 +293,56 @@ export function VevenoStorePage() {
         setSubscribers([]);
       }
     } catch (err: unknown) {
+      if (isPosKiosk) {
+        if (isDemo) {
+          clearDemoPosSession();
+        } else {
+          clearVevenoPosToken();
+        }
+        void navigate('/hobbies/veveno/pos', { replace: true });
+        return;
+      }
       setError(getVevenoErrorMessage(err, t('errors.failLoadStore'), t));
     } finally {
       setLoading(false);
     }
-  }, [accessToken, storeId, setNotices]);
+  }, [accessToken, storeId, setNotices, isPosKiosk, isDemo, t, navigate]);
 
   useEffect(() => {
     void loadStore();
   }, [loadStore]);
+
+  useEffect(() => {
+    if (!isPosKiosk) {
+      return;
+    }
+    if (isDemo) {
+      const session = getDemoPosSession();
+      if (!session) {
+        void navigate('/hobbies/veveno/pos', { replace: true });
+        return;
+      }
+      setPosExpiresAt(session.expiresAt);
+      return;
+    }
+    void vevenoApi
+      .posMe()
+      .then((res) => setPosExpiresAt(res.data.expiresAt))
+      .catch(() => {
+        clearVevenoPosToken();
+        void navigate('/hobbies/veveno/pos', { replace: true });
+      });
+  }, [isPosKiosk, isDemo, navigate]);
+
+  useEffect(() => {
+    if (isDemo || !store?.owned || tab !== 'settings') {
+      return;
+    }
+    void vevenoApi
+      .listPosDevices(storeId)
+      .then((res) => setPosDevices(res.data))
+      .catch(() => setPosDevices([]));
+  }, [isDemo, store?.owned, tab, storeId]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -281,7 +356,11 @@ export function VevenoStorePage() {
     if (!store) {
       return;
     }
-    if (tab === 'stocks' && !store.canEditStock) {
+    if (tab === 'stocks' && !store.canEditStock && !isPosKiosk) {
+      setTab('menus');
+      return;
+    }
+    if ((tab === 'schedule' || tab === 'settings') && isPosKiosk) {
       setTab('menus');
       return;
     }
@@ -300,7 +379,7 @@ export function VevenoStorePage() {
     if (tab === 'settings' && !store.owned && !store.subscribed) {
       setTab('menus');
     }
-  }, [tab, store, setTab]);
+  }, [tab, store, setTab, isPosKiosk]);
 
   useEffect(() => {
     if (!storeId) {
@@ -318,7 +397,7 @@ export function VevenoStorePage() {
   }, [todayChecklists, storeId]);
 
   useEffect(() => {
-    if (tab !== 'stocks' || !storeId || (!accessToken && !isDemo) || !store?.canEditStock) {
+    if (tab !== 'stocks' || !storeId || (!accessToken && !isDemo && !isPosKiosk) || (!store?.canEditStock && !isPosKiosk)) {
       return;
     }
     void (async () => {
@@ -329,7 +408,7 @@ export function VevenoStorePage() {
         /* keep previous store snapshot */
       }
     })();
-  }, [tab, storeId, accessToken, isDemo, store?.canEditStock]);
+  }, [tab, storeId, accessToken, isDemo, store?.canEditStock, isPosKiosk]);
 
   useEffect(() => {
     if (menus.length === 0) {
@@ -400,7 +479,62 @@ export function VevenoStorePage() {
     void loadStore();
   };
 
-  if (!accessToken && !isDemo) {
+  const handleDemoPosSwitch = () => {
+    setError('');
+    try {
+      switchToDemoPos(getDemoRole() === 'owner', currentDemoStore().canEditStock);
+      void navigate(`/hobbies/veveno/pos/store/${VEVENO_DEMO_STORE_ID}`);
+    } catch (err: unknown) {
+      setError(getVevenoErrorMessage(err, t('errors.failPosApprove'), t));
+    }
+  };
+
+  const handlePosExtend = async () => {
+    setPosExtending(true);
+    setError('');
+    try {
+      if (isDemo) {
+        setPosExpiresAt(extendDemoPosSession().expiresAt);
+        return;
+      }
+      const { data } = await vevenoApi.posExtend();
+      setVevenoPosToken(data.accessToken);
+      setPosExpiresAt(data.expiresAt);
+    } catch (err: unknown) {
+      setError(getVevenoErrorMessage(err, t('errors.failPosExtend'), t));
+    } finally {
+      setPosExtending(false);
+    }
+  };
+
+  const handlePosLogout = async () => {
+    if (isDemo) {
+      clearDemoPosSession();
+      void navigate('/hobbies/veveno/pos', { replace: true });
+      return;
+    }
+    try {
+      await vevenoApi.posLogout();
+    } catch {
+      /* token already dead */
+    }
+    clearVevenoPosToken();
+    void navigate('/hobbies/veveno/pos', { replace: true });
+  };
+
+  const handleRevokePosDevice = async (deviceRowId: string) => {
+    if (!window.confirm(t('settings.posRevokeConfirm'))) {
+      return;
+    }
+    try {
+      await vevenoApi.revokePosDevice(storeId, deviceRowId);
+      setPosDevices((prev) => prev.filter((device) => device.id !== deviceRowId));
+    } catch (err: unknown) {
+      setError(getVevenoErrorMessage(err, t('errors.failPosRevoke'), t));
+    }
+  };
+
+  if (!accessToken && !isDemo && !isPosKiosk) {
     if (useAuthStore.getState().suppressLoginRedirect) {
       return null;
     }
@@ -790,26 +924,26 @@ export function VevenoStorePage() {
 
   const tabs: { id: Tab; label: string; visible?: boolean; badge?: string }[] = [
     { id: 'menus', label: t('store.tabs.menus'), visible: true },
-    { id: 'stocks', label: t('store.tabs.stocks'), visible: canEditStock },
+    { id: 'stocks', label: t('store.tabs.stocks'), visible: canEditStock || isPosKiosk },
     {
       id: 'checklists',
       label: t('store.tabs.checklists'),
       visible: Boolean(store?.owned || store?.subscribed),
       badge: checklistOpenCount > 0 ? String(checklistOpenCount) : undefined,
     },
-    { id: 'schedule', label: t('store.tabs.schedule'), visible: Boolean(store?.owned || store?.subscribed) },
+    { id: 'schedule', label: t('store.tabs.schedule'), visible: !isPosKiosk && Boolean(store?.owned || store?.subscribed) },
     {
       id: 'tools',
       label: t('store.tabs.tools'),
       visible: Boolean(store?.owned || store?.subscribed),
     },
-    { id: 'settings', label: t('store.tabs.settings'), visible: Boolean(store?.owned || store?.subscribed) },
+    { id: 'settings', label: t('store.tabs.settings'), visible: !isPosKiosk && Boolean(store?.owned || store?.subscribed) },
   ];
   const visibleTabs = tabs.filter((tabItem) => tabItem.visible);
 
   return (
     <>
-      {showSplash ? <VevenoSplashScreen onFinish={handleSplashFinish} /> : null}
+      {showSplash && !isPosKiosk ? <VevenoSplashScreen onFinish={handleSplashFinish} /> : null}
       {loading ? (
         <main className="veveno-shell">
           <div className="veveno-shell__inner veveno-shell__loading">{t('store.loading')}</div>
@@ -820,12 +954,16 @@ export function VevenoStorePage() {
         <div className="veveno-store-chrome">
           <div className="veveno-detail-head">
             <div>
+              {isPosKiosk ? (
+                <p className="veveno-shell__back">POS</p>
+              ) : (
               <Link
                 to={isDemo ? '/hobbies/veveno' : '/hobbies/veveno/hub'}
                 className="veveno-shell__back"
               >
                 ← Veveno
               </Link>
+              )}
               {store ? (
                 <>
                   <h1>{store.name}</h1>
@@ -856,6 +994,64 @@ export function VevenoStorePage() {
               ) : null}
             </div>
             {store && (store.owned || store.subscribed) ? (
+              <div className="veveno-store-head-actions">
+                {isPosKiosk ? (
+                  <>
+                    {posExpiresAt ? (
+                      <span className="veveno-pos-expiry">{t('pos.until', { time: formatPosExpiry(posExpiresAt) })}</span>
+                    ) : null}
+                    <VevenoButton
+                      type="button"
+                      disabled={posExtending}
+                      onClick={() => {
+                        void handlePosExtend();
+                      }}
+                    >
+                      {posExtending ? t('common.processing') : t('pos.extend')}
+                    </VevenoButton>
+                    <VevenoButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        void handlePosLogout();
+                      }}
+                    >
+                      {t('pos.logout')}
+                    </VevenoButton>
+                  </>
+                ) : null}
+                {isDemo && !isPosKiosk ? (
+                  <VevenoButton type="button" onClick={handleDemoPosSwitch}>
+                    {t('store.demoPos')}
+                  </VevenoButton>
+                ) : null}
+                {!isPosKiosk && !isDemo && accessToken ? (
+                  <button
+                    type="button"
+                    className="veveno-notice-icon-btn"
+                    aria-label={t('pos.scanTitle')}
+                    title={t('pos.scanTitle')}
+                    onClick={() => setPosScanOpen(true)}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="22"
+                      height="22"
+                      aria-hidden="true"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+                      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+                      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+                      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+                      <rect x="7" y="7" width="10" height="10" rx="1" />
+                    </svg>
+                  </button>
+                ) : null}
               <button
                 type="button"
                 className="veveno-notice-icon-btn"
@@ -883,9 +1079,10 @@ export function VevenoStorePage() {
                   </span>
                 ) : null}
               </button>
+              </div>
             ) : null}
           </div>
-          {isDemo ? (
+          {isDemo && !isPosKiosk ? (
             <div className="veveno-demo-bar" role="status">
               <p className="veveno-demo-bar__copy">
                 {t('store.demoBanner')}
@@ -1225,11 +1422,12 @@ export function VevenoStorePage() {
             ) : null}
 
             <VevenoStoreStocksPanel
-              active={tab === 'stocks' && canEditStock}
+              active={tab === 'stocks' && (canEditStock || isPosKiosk)}
               storeId={storeId}
               owned={store.owned}
               onDuty={store.onDuty}
               stockEditOffDuty={store.stockEditOffDuty}
+              canEditStock={canEditStock}
               stockCategories={stockCategories}
               setStockCategories={setStockCategories}
               onError={setError}
@@ -1245,7 +1443,7 @@ export function VevenoStorePage() {
               />
             ) : null}
 
-            {tab === 'schedule' && (store.owned || store.subscribed) ? (
+            {tab === 'schedule' && !isPosKiosk && (store.owned || store.subscribed) ? (
               <VevenoSchedulePanel
                 storeId={storeId}
                 storeName={store.name}
@@ -1256,11 +1454,18 @@ export function VevenoStorePage() {
               />
             ) : null}
 
-            {tab === 'tools' && (store.owned || store.subscribed) ? (
-              <VevenoToolsPanel storeId={storeId} />
+            {tab === 'tools' || toolsCompact ? (
+              store.owned || store.subscribed ? (
+                <div hidden={tab !== 'tools'}>
+                  <VevenoToolsPanel
+                    storeId={storeId}
+                    onCompactChange={setToolsCompact}
+                  />
+                </div>
+              ) : null
             ) : null}
 
-            {tab === 'settings' && (store.owned || store.subscribed) ? (
+            {tab === 'settings' && !isPosKiosk && (store.owned || store.subscribed) ? (
               <div className="veveno-settings-stack">
                 <VevenoCard title={t('settings.language')}>
                   <p className="veveno-card-lead">{t('settings.languageHelp')}</p>
@@ -1268,6 +1473,39 @@ export function VevenoStorePage() {
                 </VevenoCard>
                 {store.owned ? (
                 <div className="veveno-settings-owner">
+                {isDemo ? null : (
+                <VevenoCard title={t('settings.posDevices')}>
+                  <p className="veveno-card-lead">{t('settings.posDevicesHelp')}</p>
+                  {posDevices.length === 0 ? (
+                    <p className="veveno-empty">{t('settings.posEmpty')}</p>
+                  ) : (
+                    <ul className="veveno-pos-device-list">
+                      {posDevices.map((device) => (
+                        <li key={device.id} className="veveno-pos-device-list__row">
+                          <div>
+                            <p>…{device.deviceId.slice(-8)}</p>
+                            <p className="veveno-shell__meta">
+                              {device.enrolledByNickname}
+                              {' · '}
+                              {formatPosExpiry(device.createdAt)}
+                            </p>
+                          </div>
+                          <VevenoButton
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            onClick={() => {
+                              void handleRevokePosDevice(device.id);
+                            }}
+                          >
+                            {t('settings.posRevoke')}
+                          </VevenoButton>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </VevenoCard>
+                )}
                 <VevenoCard title={t('settings.storeInfo')}>
                   <form className="veveno-form-stack" onSubmit={handleSaveStore}>
                     <VevenoInput
@@ -1526,6 +1764,11 @@ export function VevenoStorePage() {
         ) : null}
       </div>
 
+      <VevenoPosScanModal
+        open={posScanOpen}
+        storeId={storeId}
+        onClose={() => setPosScanOpen(false)}
+      />
       <VevenoModal open={noticesOpen} title={t('store.notices')} onClose={closeNotices}>
         <div className="veveno-stack-lg">
           {store?.owned ? (

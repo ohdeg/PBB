@@ -302,3 +302,38 @@ export const EMPTY_RECIPE_CONTENT: VevenoRecipeContent = {
   title: '',
   notes: '',
 };
+
+export interface VevenoPosPair {
+  pairId: string;
+  secret: string;
+  payload: string;
+  expiresAt: string;
+  storeId: string | null;
+}
+
+export interface VevenoPosPoll {
+  status: 'pending' | 'ready';
+  pairId: string | null;
+}
+
+export interface VevenoPosToken {
+  accessToken: string;
+  storeId: string;
+  canEditStock: boolean;
+  expiresAt: string;
+  deviceId: string;
+}
+
+export interface VevenoPosMe {
+  storeId: string;
+  canEditStock: boolean;
+  expiresAt: string;
+  deviceId: string;
+}
+
+export interface VevenoPosDevice {
+  id: string;
+  deviceId: string;
+  enrolledByNickname: string;
+  createdAt: string;
+}

@@ -20,6 +20,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionR
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.brew.support.BrewStockUsageForecast;
 import com.studiobs.spring_backend.domain.brew.support.BrewStockUsageForecast.Forecast;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
@@ -54,7 +55,11 @@ public class BrewStockService {
     @Transactional(readOnly = true)
     public List<StockCategoryResponse> listStockCategories(UUID storeId, String email) {
         User user = requireUser(email);
-        requireStockEditor(storeId, user.getId());
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(storeId);
+        } else {
+            requireStockEditor(storeId, user.getId());
+        }
         BrewStore store = requireStore(storeId);
         List<BrewStoreStockCategory> categories =
                 stockCategoryRepository.findByStoreIdOrderByCategoryNameAsc(storeId);
@@ -70,7 +75,7 @@ public class BrewStockService {
                         Collectors.toList()));
         Map<Integer, List<BrewStoreStockUsageDay>> usageByStock =
                 loadUsageByStock(store.isStockUsageHint(), stocks);
-        boolean includeOrderUrl = isOwner(store, user.getId());
+        boolean includeOrderUrl = isOwner(store, user.getId()) && !PosAccess.isPos();
         List<StockCategoryResponse> result = new ArrayList<>(categories.size());
         for (BrewStoreStockCategory category : categories) {
             List<StockResponse> responses = stocksByCategory
@@ -224,7 +229,11 @@ public class BrewStockService {
     @Transactional(readOnly = true)
     public List<StockLogResponse> listStockLogs(UUID storeId, Integer stockId, String email) {
         User user = requireUser(email);
-        requireStockEditor(storeId, user.getId());
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(storeId);
+        } else {
+            requireStockEditor(storeId, user.getId());
+        }
         BrewStoreStock stock = requireStock(stockId);
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
         if (!category.getStoreId().equals(storeId)) {
@@ -268,6 +277,13 @@ public class BrewStockService {
     }
 
     private void requireStockMutator(UUID storeId, UUID userId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(storeId);
+            if (!PosAccess.require().canEditStock()) {
+                throw new BusinessException(HttpStatus.FORBIDDEN, "STOCK_EDIT_FORBIDDEN", "재고 수정 권한이 없습니다.");
+            }
+            return;
+        }
         requireStockEditor(storeId, userId);
         BrewStore store = requireStore(storeId);
         if (store.getOwnerUserId().equals(userId)) {

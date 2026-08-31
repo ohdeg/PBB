@@ -7,6 +7,7 @@ import com.studiobs.spring_backend.domain.brew.entity.BrewStoreNotice;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreNoticeRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
@@ -92,6 +93,7 @@ public class BrewNoticeService {
     }
 
     private BrewStore requireOwnedStore(UUID storeId, UUID ownerId) {
+        PosAccess.forbidManagement();
         BrewStore store = requireStore(storeId);
         if (!store.getOwnerUserId().equals(ownerId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");
@@ -100,6 +102,10 @@ public class BrewNoticeService {
     }
 
     private void assertMember(BrewStore store, UUID userId) {
+        if (PosAccess.isPos()) {
+            PosAccess.requireBoundStore(store.getId());
+            return;
+        }
         if (store.getOwnerUserId().equals(userId)) {
             return;
         }

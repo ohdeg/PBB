@@ -28,6 +28,7 @@ export function RouteSplash() {
       || location.pathname.startsWith('/hobbies/lotto')
       || location.pathname.startsWith('/hobbies/veveno/hub')
       || location.pathname.startsWith('/hobbies/veveno/stores')
+      || location.pathname.startsWith('/hobbies/veveno/pos')
       || location.pathname.startsWith('/hobbies/brew-note')
     ) {
       setVisible(false);

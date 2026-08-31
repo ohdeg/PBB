@@ -86,6 +86,15 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(publicBrewStoreReadMatcher()).permitAll()
                         .requestMatchers(publicVevenoStoreReadMatcher()).permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/veveno/pos/sessions",
+                                "/api/v1/veveno/pos/sessions/poll",
+                                "/api/v1/veveno/pos/sessions/*/claim",
+                                "/api/v1/brew/pos/sessions",
+                                "/api/v1/brew/pos/sessions/poll",
+                                "/api/v1/brew/pos/sessions/*/claim"
+                        ).permitAll()
                         .requestMatchers("/api/v1/dev/**").hasRole("DEV")
                         .requestMatchers(
                                 HttpMethod.PUT,

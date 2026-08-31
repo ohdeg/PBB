@@ -2656,6 +2656,11 @@ html:not([data-theme='dark']) .global-nav__logo {
   min-height: 4.5rem;
 }
 
+.veveno-callbell-range input[type='range'] {
+  width: 100%;
+  accent-color: var(--veveno-accent);
+}
+
 .veveno-conc-result__row {
   display: flex;
   flex-direction: column;

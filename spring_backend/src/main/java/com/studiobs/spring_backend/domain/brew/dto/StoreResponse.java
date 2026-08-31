@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.brew.dto;
 
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
+import com.studiobs.spring_backend.domain.brew.support.CallBellSettings;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -20,6 +21,8 @@ public record StoreResponse(
         boolean stockUsageHint,
         /** 호출벨 멘트. 없으면 클라이언트 기본 문구 */
         String callBellPhrase,
+        Double callBellRate,
+        Double callBellPitch,
         /** 열람자 본인의 퇴사 예정일(마지막 근무일). 없으면 null */
         LocalDate leaveDate,
         LocalDateTime createdAt,
@@ -34,6 +37,7 @@ public record StoreResponse(
             LocalDate leaveDate
     ) {
         boolean owned = viewerUserId != null && store.getOwnerUserId().equals(viewerUserId);
+        CallBellSettings bell = CallBellSettings.parse(store.getCallBellPhrase());
         return new StoreResponse(
                 store.getId(),
                 store.getOwnerUserId(),
@@ -46,7 +50,9 @@ public record StoreResponse(
                 onDuty,
                 store.isStockEditOffDuty(),
                 store.isStockUsageHint(),
-                store.getCallBellPhrase(),
+                bell.phrase(),
+                bell.rate(),
+                bell.pitch(),
                 leaveDate,
                 store.getCreatedAt(),
                 store.getUpdatedAt()

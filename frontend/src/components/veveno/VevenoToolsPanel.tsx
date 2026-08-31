@@ -6,7 +6,7 @@ import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { openVevenoToolsPopup } from '../../features/veveno/tools/compact';
 import { openDocumentPip } from '../../features/veveno/tools/documentPip';
 import { VevenoButton } from './VevenoButton';
-import { VevenoCallBell } from './VevenoCallBell';
+import { VevenoCallBell, type VevenoCallBellSaved } from './VevenoCallBell';
 import { VevenoConcentrationCalculator } from './VevenoConcentrationCalculator';
 import { VevenoTimers } from './VevenoTimers';
 import { VevenoUnitConverter } from './VevenoUnitConverter';
@@ -18,7 +18,9 @@ interface VevenoToolsPanelProps {
   popup?: boolean;
   onCompactChange?: (open: boolean) => void;
   callBellPhrase?: string | null;
-  onCallBellPhraseChange?: (phrase: string | null) => void;
+  callBellRate?: number | null;
+  callBellPitch?: number | null;
+  onCallBellChange?: (next: VevenoCallBellSaved) => void;
 }
 
 export function VevenoToolsPanel({
@@ -26,35 +28,51 @@ export function VevenoToolsPanel({
   popup = false,
   onCompactChange,
   callBellPhrase,
-  onCallBellPhraseChange,
+  callBellRate,
+  callBellPitch,
+  onCallBellChange,
 }: VevenoToolsPanelProps) {
   const t = useTranslation();
   const location = useLocation();
   const [section, setSection] = useState<ToolsSection>('units');
   const [pipRoot, setPipRoot] = useState<HTMLElement | null>(null);
   const [error, setError] = useState('');
-  const [phrase, setPhrase] = useState<string | null>(callBellPhrase ?? null);
+  const [bell, setBell] = useState<VevenoCallBellSaved>({
+    callBellPhrase: callBellPhrase ?? null,
+    callBellRate: callBellRate ?? null,
+    callBellPitch: callBellPitch ?? null,
+  });
   const pipWinRef = useRef<Window | null>(null);
+  const hasCallBellProps = callBellPhrase !== undefined;
 
   useEffect(() => {
-    if (callBellPhrase !== undefined) {
-      setPhrase(callBellPhrase);
+    if (!hasCallBellProps) {
+      return;
     }
-  }, [callBellPhrase]);
+    setBell({
+      callBellPhrase: callBellPhrase ?? null,
+      callBellRate: callBellRate ?? null,
+      callBellPitch: callBellPitch ?? null,
+    });
+  }, [hasCallBellProps, callBellPhrase, callBellRate, callBellPitch]);
 
   useEffect(() => {
-    if (callBellPhrase !== undefined) {
+    if (hasCallBellProps) {
       return;
     }
     void vevenoApi
       .getStore(storeId)
       .then(({ data }) => {
-        setPhrase(data.callBellPhrase);
+        setBell({
+          callBellPhrase: data.callBellPhrase,
+          callBellRate: data.callBellRate,
+          callBellPitch: data.callBellPitch,
+        });
       })
       .catch(() => {
         /* keep default until save */
       });
-  }, [storeId, callBellPhrase]);
+  }, [storeId, hasCallBellProps]);
 
   const closePip = useCallback(() => {
     const win = pipWinRef.current;
@@ -163,10 +181,12 @@ export function VevenoToolsPanel({
       ) : (
         <VevenoCallBell
           storeId={storeId}
-          phrase={phrase}
-          onPhraseChange={(next) => {
-            setPhrase(next);
-            onCallBellPhraseChange?.(next);
+          phrase={bell.callBellPhrase}
+          rate={bell.callBellRate}
+          pitch={bell.callBellPitch}
+          onSaved={(next) => {
+            setBell(next);
+            onCallBellChange?.(next);
           }}
         />
       )}

@@ -49,7 +49,7 @@ public class BrewStore {
     @Column(name = "stock_usage_hint", nullable = false)
     private boolean stockUsageHint;
 
-    @Column(name = "call_bell_phrase", length = 200)
+    @Column(name = "call_bell_phrase", columnDefinition = "TEXT")
     private String callBellPhrase;
 
     @CreationTimestamp

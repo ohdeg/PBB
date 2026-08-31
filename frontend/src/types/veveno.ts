@@ -15,6 +15,8 @@ export interface VevenoStore {
   stockUsageHint: boolean;
   /** 호출벨 멘트. 없으면 기본 문구 */
   callBellPhrase: string | null;
+  callBellRate: number | null;
+  callBellPitch: number | null;
   leaveDate: string | null;
   createdAt: string;
   updatedAt: string;

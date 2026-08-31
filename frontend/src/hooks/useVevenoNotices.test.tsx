@@ -30,6 +30,8 @@ const ownerStore: VevenoStore = {
   stockEditOffDuty: false,
   stockUsageHint: false,
   callBellPhrase: null,
+  callBellRate: null,
+  callBellPitch: null,
   leaveDate: null,
   createdAt: '2026-07-27T00:00:00Z',
   updatedAt: '2026-07-27T00:00:00Z',

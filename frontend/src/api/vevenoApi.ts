@@ -72,10 +72,15 @@ const vevenoLiveApi = {
     return apiClient.patch<VevenoStore>(`/api/v1/veveno/stores/${storeId}`, payload);
   },
 
-  updateCallBellPhrase(storeId: string, phrase: string) {
-    return apiClient.put<VevenoStore>(`/api/v1/veveno/stores/${storeId}/call-bell`, {
-      phrase,
-    });
+  updateCallBellPhrase(
+    storeId: string,
+    payload: {
+      phrase: string;
+      rate: number;
+      pitch: number;
+    },
+  ) {
+    return apiClient.put<VevenoStore>(`/api/v1/veveno/stores/${storeId}/call-bell`, payload);
   },
 
   regenerateInviteCode(storeId: string) {

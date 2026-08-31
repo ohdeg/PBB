@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { callBellSpeech, DEFAULT_CALL_BELL_PHRASE } from './speech';
+import {
+  callBellSpeech,
+  clampCallBellPitch,
+  clampCallBellRate,
+  DEFAULT_CALL_BELL_PHRASE,
+} from './speech';
 
 describe('callBellSpeech', () => {
   it('returns null when the number is empty', () => {
@@ -14,5 +19,14 @@ describe('callBellSpeech', () => {
 
   it('falls back to the default phrase', () => {
     expect(callBellSpeech('12', '  ')).toBe(`12 ${DEFAULT_CALL_BELL_PHRASE}`);
+  });
+});
+
+describe('clampCallBell', () => {
+  it('clamps rate and pitch', () => {
+    expect(clampCallBellRate(9)).toBe(2);
+    expect(clampCallBellRate(0.1)).toBe(0.5);
+    expect(clampCallBellPitch(-1)).toBe(0);
+    expect(clampCallBellPitch(9)).toBe(2);
   });
 });

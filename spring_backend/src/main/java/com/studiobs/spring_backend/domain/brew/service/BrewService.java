@@ -27,6 +27,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewInviteCodes;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
+import com.studiobs.spring_backend.domain.brew.support.CallBellSettings;
 import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
@@ -233,8 +234,9 @@ public class BrewService {
         User user = requireUser(email);
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
-        String raw = request.phrase() == null ? "" : request.phrase().trim();
-        store.updateCallBellPhrase(raw.isEmpty() ? null : raw);
+        store.updateCallBellPhrase(
+                CallBellSettings.fromRequest(request.phrase(), request.rate(), request.pitch())
+                        .toStorage());
         return toStoreResponse(storeRepository.save(store), user.getId());
     }
 
@@ -563,6 +565,7 @@ public class BrewService {
         if (PosAccess.isPos()) {
             PosAccess.requireBoundStore(store.getId());
             PosAccess.Snapshot pos = PosAccess.require();
+            CallBellSettings bell = CallBellSettings.parse(store.getCallBellPhrase());
             return new StoreResponse(
                     store.getId(),
                     store.getOwnerUserId(),
@@ -575,6 +578,9 @@ public class BrewService {
                     true,
                     store.isStockEditOffDuty(),
                     store.isStockUsageHint(),
+                    bell.phrase(),
+                    bell.rate(),
+                    bell.pitch(),
                     null,
                     store.getCreatedAt(),
                     store.getUpdatedAt());

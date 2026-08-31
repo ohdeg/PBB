@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS brew_stores (
     invite_code VARCHAR(8) NOT NULL COMMENT '가게 검색·공유 코드',
     stock_edit_off_duty TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1이면 재고권한 직원이 근무 외에도 재고 수정',
     stock_usage_hint TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1이면 사용량 일수 안내',
-    call_bell_phrase VARCHAR(200) NULL COMMENT '호출벨 멘트',
+    call_bell_phrase TEXT NULL COMMENT '호출벨 JSON {phrase,rate,pitch}. 구버전은 멘트 문자열',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 

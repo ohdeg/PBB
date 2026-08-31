@@ -49,6 +49,9 @@ public class BrewStore {
     @Column(name = "stock_usage_hint", nullable = false)
     private boolean stockUsageHint;
 
+    @Column(name = "call_bell_phrase", length = 200)
+    private String callBellPhrase;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -70,6 +73,10 @@ public class BrewStore {
         this.isPublic = isPublic;
         this.stockEditOffDuty = stockEditOffDuty;
         this.stockUsageHint = stockUsageHint;
+    }
+
+    public void updateCallBellPhrase(String callBellPhrase) {
+        this.callBellPhrase = callBellPhrase;
     }
 
     public void rotateInviteCode(String inviteCode) {

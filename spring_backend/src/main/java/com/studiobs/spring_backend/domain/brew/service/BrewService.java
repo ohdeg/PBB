@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.brew.service;
 
 import com.studiobs.spring_backend.domain.brew.dto.ApproveJoinRequest;
 import com.studiobs.spring_backend.domain.brew.dto.BrewStatsResponse;
+import com.studiobs.spring_backend.domain.brew.dto.CallBellPhraseRequest;
 import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
 import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
@@ -225,6 +226,16 @@ public class BrewService {
                 false,
                 brewScheduleService.isCurrentlyOnDuty(storeId, user.getId()),
                 null);
+    }
+
+    @Transactional
+    public StoreResponse updateCallBellPhrase(String email, UUID storeId, CallBellPhraseRequest request) {
+        User user = requireUser(email);
+        BrewStore store = requireStore(storeId);
+        assertMember(store, user.getId());
+        String raw = request.phrase() == null ? "" : request.phrase().trim();
+        store.updateCallBellPhrase(raw.isEmpty() ? null : raw);
+        return toStoreResponse(storeRepository.save(store), user.getId());
     }
 
     @Transactional

@@ -135,4 +135,13 @@ describe('veveno demo', () => {
     expect(after?.soonLow).toBe(false)
     expect(after?.daysOfStock).toBe(20)
   })
+
+  it('persists call bell phrase on the demo store', async () => {
+    const { data: saved } = await vevenoDemoApi.updateCallBellPhrase(
+      VEVENO_DEMO_STORE_ID,
+      '  픽업하세요  ',
+    )
+    expect(saved.callBellPhrase).toBe('픽업하세요')
+    expect(applyDemoRole('staff').callBellPhrase).toBe('픽업하세요')
+  })
 })

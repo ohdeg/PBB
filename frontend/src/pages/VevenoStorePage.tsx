@@ -1459,6 +1459,10 @@ export function VevenoStorePage() {
                 <div hidden={tab !== 'tools'}>
                   <VevenoToolsPanel
                     storeId={storeId}
+                    callBellPhrase={store.callBellPhrase}
+                    onCallBellPhraseChange={(phrase) => {
+                      setStore((prev) => (prev ? { ...prev, callBellPhrase: phrase } : prev));
+                    }}
                     onCompactChange={setToolsCompact}
                   />
                 </div>

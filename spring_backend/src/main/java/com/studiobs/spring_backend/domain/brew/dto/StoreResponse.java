@@ -18,6 +18,8 @@ public record StoreResponse(
         boolean onDuty,
         boolean stockEditOffDuty,
         boolean stockUsageHint,
+        /** 호출벨 멘트. 없으면 클라이언트 기본 문구 */
+        String callBellPhrase,
         /** 열람자 본인의 퇴사 예정일(마지막 근무일). 없으면 null */
         LocalDate leaveDate,
         LocalDateTime createdAt,
@@ -44,6 +46,7 @@ public record StoreResponse(
                 onDuty,
                 store.isStockEditOffDuty(),
                 store.isStockUsageHint(),
+                store.getCallBellPhrase(),
                 leaveDate,
                 store.getCreatedAt(),
                 store.getUpdatedAt()

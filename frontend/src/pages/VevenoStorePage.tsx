@@ -221,6 +221,7 @@ export function VevenoStorePage() {
   const [regeneratingCode, setRegeneratingCode] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [posScanOpen, setPosScanOpen] = useState(false);
+  const [toolsCompact, setToolsCompact] = useState(false);
   const [posDevices, setPosDevices] = useState<VevenoPosDevice[]>([]);
   const [posExpiresAt, setPosExpiresAt] = useState<string | null>(null);
   const [posExtending, setPosExtending] = useState(false);
@@ -1453,8 +1454,15 @@ export function VevenoStorePage() {
               />
             ) : null}
 
-            {tab === 'tools' && (store.owned || store.subscribed) ? (
-              <VevenoToolsPanel storeId={storeId} />
+            {tab === 'tools' || toolsCompact ? (
+              store.owned || store.subscribed ? (
+                <div hidden={tab !== 'tools'}>
+                  <VevenoToolsPanel
+                    storeId={storeId}
+                    onCompactChange={setToolsCompact}
+                  />
+                </div>
+              ) : null
             ) : null}
 
             {tab === 'settings' && !isPosKiosk && (store.owned || store.subscribed) ? (

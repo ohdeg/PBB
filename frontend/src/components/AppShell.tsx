@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { authApi } from '../api/authApi';
 import { ThemeToggle } from './ThemeToggle';
 import { getNavHobbies } from '../data/hobbies';
+import { isVevenoToolsPopPath } from '../features/veveno/tools/compact';
 import { useAuthStore } from '../stores/authStore';
 import { toast } from '../stores/toastStore';
 import { getErrorMessage } from '../utils/error';
@@ -50,6 +51,7 @@ export function AppShell() {
   const navHobbies = getNavHobbies(isDev);
   const isHome = location.pathname === '/';
   const isSranko = location.pathname.startsWith('/hobbies/sranko');
+  const isToolsPop = isVevenoToolsPopPath(location.pathname);
 
   useEffect(() => {
     if (!useAuthStore.getState().suppressLoginRedirect) {
@@ -84,7 +86,10 @@ export function AppShell() {
   };
 
   return (
-    <div className={`app-shell${isHome || isSranko ? ' app-shell--flush' : ''}`}>
+    <div
+      className={`app-shell${isHome || isSranko || isToolsPop ? ' app-shell--flush' : ''}${isToolsPop ? ' app-shell--tools-pop' : ''}`}
+    >
+      {isToolsPop ? null : (
       <header className="global-nav">
         <div className="global-nav__inner">
           <Link to="/" className="global-nav__brand" aria-label="PBB 홈">
@@ -206,6 +211,7 @@ export function AppShell() {
           </div>
         ) : null}
       </header>
+      )}
 
       <Outlet />
     </div>

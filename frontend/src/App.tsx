@@ -41,6 +41,11 @@ const VevenoPosPage = lazy(() =>
     default: module.VevenoPosPage,
   })),
 );
+const VevenoToolsPopPage = lazy(() =>
+  import('./pages/VevenoToolsPopPage').then((module) => ({
+    default: module.VevenoToolsPopPage,
+  })),
+);
 const LottoPage = lazy(() =>
   import('./pages/LottoPage').then((module) => ({
     default: module.LottoPage,
@@ -239,8 +244,16 @@ export default function App() {
                 <Route path="/hobbies/veveno/hub" element={<VevenoPage />} />
                 <Route path="/hobbies/veveno/pos" element={<VevenoPosPage />} />
                 <Route
+                  path="/hobbies/veveno/pos/store/:storeId/tools"
+                  element={<VevenoToolsPopPage />}
+                />
+                <Route
                   path="/hobbies/veveno/pos/store/:storeId"
                   element={<VevenoStorePage />}
+                />
+                <Route
+                  path="/hobbies/veveno/stores/:storeId/tools"
+                  element={<VevenoToolsPopPage />}
                 />
                 <Route
                   path="/hobbies/veveno/stores/:storeId"

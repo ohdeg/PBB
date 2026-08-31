@@ -271,7 +271,12 @@ flowchart LR
     store --> notice[헤더 공지 아이콘]
     tools --> units[단위 변환]
     tools --> timers[타이머]
+    tools --> compact[소형 창]
+    compact --> pip[Chrome·Firefox 항상 위]
+    compact --> pop[그 외 팝업]
 ```
+
+- 도구 **소형 창**: Chromium/Firefox Document PiP(항상 위, 같은 탭 state). Safari 등은 `/hobbies/veveno/stores/:storeId/tools`(POS는 `/pos/store/:id/tools`) 팝업. 팝업은 타이머를 창마다 따로 둔다.
 
 - 메뉴 등록: 재고와 같이 모달 한 장. 카테고리(선택 또는 직접 입력) + 제목 + 노트. 카테고리가 없으면 만든 뒤 레시피를 붙인다. 빈 화면 「메뉴 추가」·목록 「새로 추가」·레시피 0 「첫 레시피 적기」가 같은 모달을 연다.
 
@@ -416,6 +421,7 @@ flowchart LR
 - `/hobbies/veveno/pos/store/:storeId` — POS 카운터 (POS JWT)
 - `/hobbies/veveno/stores/demo` — 로컬 체험 (로그인 불필요, `localStorage`, 사장/직원 토글)
 - `/hobbies/veveno/stores/:storeId` — 실가게(메뉴·재고·할 일·근무·도구·설정·공지). 탭은 `?tab=` 로 유지(새로고침 시 유지). `demo`가 아니면 로그인 필수
+- `/hobbies/veveno/stores/:storeId/tools` · `/hobbies/veveno/pos/store/:storeId/tools` — 도구 소형 창(팝업 폴백)
 - 메뉴 탭 **카테고리(메뉴) 목록**: 일반 클릭은 선택(레시피 조회), **편집** 모드에서 클릭 시 이름 수정·삭제 모달
 - 하위 호환: `/hobbies/brew-note` → 랜딩, `/hobbies/brew-note/stores/:id` → veveno stores
 
@@ -781,8 +787,10 @@ flowchart LR
 | `/hobbies/veveno/hub` | Veveno 허브 (게스트=로그인 전·QR 모달) | 목록은 로그인 후 |
 | `/hobbies/veveno/pos` | → `/hub?pos=1` (유효 세션이면 카운터) | 불필요 (페어 후 POS JWT) |
 | `/hobbies/veveno/pos/store/:storeId` | Veveno POS 카운터 | **POS JWT** |
+| `/hobbies/veveno/pos/store/:storeId/tools` | 도구 소형 창 (POS) | **POS JWT** 또는 체험 |
 | `/hobbies/veveno/stores/demo` | Veveno 로컬 체험 (사장/직원 토글) | 불필요 |
 | `/hobbies/veveno/stores/:storeId` | 실가게(메뉴·재고·할 일·근무·도구·설정·공지) | **필수** (`demo` 제외) |
+| `/hobbies/veveno/stores/:storeId/tools` | 도구 소형 창 | 가게와 동일 |
 | `/hobbies/6pick` | 6PICK 소개 랜딩 | **DEV** |
 | `/hobbies/6pick/play` | 6PICK (로또 번호·세금·회차) | **DEV** |
 | `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | **DEV** |

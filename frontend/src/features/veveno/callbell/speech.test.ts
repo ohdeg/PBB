@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  callBellSpoken,
   callBellSpeech,
   clampCallBellPitch,
   clampCallBellRate,
   DEFAULT_CALL_BELL_PHRASE,
+  speakCallBellSlot,
+  toSinoKorean,
 } from './speech';
 
 describe('callBellSpeech', () => {
@@ -19,6 +22,33 @@ describe('callBellSpeech', () => {
 
   it('falls back to the default phrase', () => {
     expect(callBellSpeech('12', '  ')).toBe(`12 ${DEFAULT_CALL_BELL_PHRASE}`);
+  });
+});
+
+describe('toSinoKorean', () => {
+  it('reads cafe numbers in Sino-Korean', () => {
+    expect(toSinoKorean(312)).toBe('삼백십이');
+    expect(toSinoKorean(12)).toBe('십이');
+    expect(toSinoKorean(100)).toBe('백');
+    expect(toSinoKorean(10)).toBe('십');
+    expect(toSinoKorean(0)).toBe('영');
+  });
+});
+
+describe('speakCallBellSlot', () => {
+  it('keeps a user-typed 번 after the number', () => {
+    expect(speakCallBellSlot('312번')).toBe('삼백십이번');
+  });
+});
+
+describe('callBellSpoken', () => {
+  it('reads 312 plus a phrase that starts with 번 as 삼백십이번', () => {
+    expect(callBellSpoken('312', '번 고객님 나왔습니다', 'ko')).toBe(
+      '삼백십이번 고객님 나왔습니다',
+    );
+    expect(callBellSpoken('312', '번 고객님 나왔습니다', 'en')).toBe(
+      '312 번 고객님 나왔습니다',
+    );
   });
 });
 

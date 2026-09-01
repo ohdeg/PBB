@@ -42,7 +42,7 @@ public class BrewStoreSubscription {
     @Column(name = "work_start_date")
     private LocalDate workStartDate;
 
-    /** 마지막 근무일. 이 날짜가 지나면 구독 해제 대상 */
+    /** 마지막 정규일. 잔여 슬롯이 끝나면 구독 해제 대상 */
     @Column(name = "leave_date")
     private LocalDate leaveDate;
 

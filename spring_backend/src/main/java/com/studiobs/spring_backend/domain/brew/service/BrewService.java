@@ -112,12 +112,11 @@ public class BrewService {
         User user = requireUser(email);
         LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
 
-        // Phase A: only rows whose leave_date is already past
+        // Phase A: leave_date past and last remaining shift ended
         for (BrewStoreSubscription sub :
                 subscriptionRepository.findBySubscriberUserIdAndLeaveDateBefore(user.getId(), today)) {
-            LocalDate leaveDate = sub.getLeaveDate();
-            if (leaveDate != null) {
-                finalizeLeave(sub.getStoreId(), sub.getSubscriberUserId(), leaveDate);
+            if (isLeaveDue(sub)) {
+                finalizeLeave(sub.getStoreId(), sub.getSubscriberUserId(), sub.getLeaveDate());
             }
         }
 
@@ -447,8 +446,8 @@ public class BrewService {
     }
 
     /**
-     * 업주가 직원 퇴사 처리. leaveDate = 마지막 근무일.
-     * 이미 지난 날이면 즉시 해제, 오늘 이후면 예약.
+     * 업주가 직원 퇴사 처리. leaveDate = 마지막 정규일.
+     * 잔여 슬롯이 끝났으면 즉시 해제, 아니면 예약.
      */
     @Transactional
     public SubscriberResponse resignSubscriber(
@@ -517,14 +516,13 @@ public class BrewService {
                 .findBySubscriberUserIdAndStoreId(subscriberId, storeId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "SUBSCRIBER_NOT_FOUND", "구독자를 찾을 수 없습니다."));
 
-        if (leaveDate.isBefore(today)) {
+        sub.scheduleLeave(leaveDate);
+        subscriptionRepository.save(sub);
+        brewScheduleService.applyLeaveCoverAdjustments(storeId, subscriberId, leaveDate);
+        if (isLeaveDue(sub)) {
             finalizeLeave(storeId, subscriberId, leaveDate);
             return null;
         }
-
-        sub.scheduleLeave(leaveDate);
-        subscriptionRepository.save(sub);
-        brewScheduleService.deleteCoversAfterLeaveDate(storeId, subscriberId, leaveDate);
         if (!returnResponseIfScheduled) {
             return null;
         }
@@ -533,18 +531,38 @@ public class BrewService {
         return toSubscriberResponse(subscriber, sub);
     }
 
+    @Transactional
+    public int finalizeDueLeaves() {
+        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
+        int done = 0;
+        for (BrewStoreSubscription sub : subscriptionRepository.findByLeaveDateBefore(today)) {
+            if (isLeaveDue(sub)) {
+                finalizeLeave(sub.getStoreId(), sub.getSubscriberUserId(), sub.getLeaveDate());
+                done++;
+            }
+        }
+        return done;
+    }
+
     private void processDueLeavesForStore(UUID storeId) {
         LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
         for (BrewStoreSubscription sub :
                 subscriptionRepository.findByStoreIdAndLeaveDateBefore(storeId, today)) {
-            LocalDate leaveDate = sub.getLeaveDate();
-            if (leaveDate != null) {
-                finalizeLeave(storeId, sub.getSubscriberUserId(), leaveDate);
+            if (isLeaveDue(sub)) {
+                finalizeLeave(storeId, sub.getSubscriberUserId(), sub.getLeaveDate());
             }
         }
     }
 
+    private boolean isLeaveDue(BrewStoreSubscription sub) {
+        LocalDate leaveDate = sub.getLeaveDate();
+        return leaveDate != null
+                && brewScheduleService.isLeaveFinalizeDue(
+                        sub.getStoreId(), sub.getSubscriberUserId(), leaveDate);
+    }
+
     private void finalizeLeave(UUID storeId, UUID userId, LocalDate leaveDate) {
+        brewScheduleService.applyLeaveCoverAdjustments(storeId, userId, leaveDate);
         brewScheduleService.purgeStaffMembership(storeId, userId, leaveDate);
         subscriptionRepository.deleteBySubscriberUserIdAndStoreId(userId, storeId);
     }
@@ -598,7 +616,7 @@ public class BrewService {
                         .findBySubscriberUserIdAndStoreId(viewerId, store.getId());
                 if (subOpt.isPresent()) {
                     BrewStoreSubscription sub = subOpt.get();
-                    if (sub.isLeaveDue(BrewShiftTimes.nowSeoul().toLocalDate())) {
+                    if (isLeaveDue(sub)) {
                         LocalDate dueLeave = sub.getLeaveDate();
                         if (dueLeave != null) {
                             finalizeLeave(store.getId(), viewerId, dueLeave);
@@ -637,7 +655,6 @@ public class BrewService {
                         Function.identity(),
                         (a, b) -> a));
 
-        LocalDate today = BrewShiftTimes.nowSeoul().toLocalDate();
         List<UUID> dutyCandidateIds = new ArrayList<>();
         for (BrewStore store : stores) {
             if (store.getOwnerUserId().equals(viewerId)) {
@@ -645,7 +662,7 @@ public class BrewService {
                 continue;
             }
             BrewStoreSubscription sub = subsByStore.get(store.getId());
-            if (sub != null && !sub.isLeaveDue(today)) {
+            if (sub != null && !isLeaveDue(sub)) {
                 dutyCandidateIds.add(store.getId());
             }
         }
@@ -665,7 +682,7 @@ public class BrewService {
                 canEditStock = true;
             } else {
                 BrewStoreSubscription sub = subsByStore.get(store.getId());
-                if (sub != null && !sub.isLeaveDue(today)) {
+                if (sub != null && !isLeaveDue(sub)) {
                     subscribed = true;
                     canEditStock = sub.isCanEditStock();
                     leaveDate = sub.getLeaveDate();

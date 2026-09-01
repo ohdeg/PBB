@@ -141,4 +141,10 @@ public class BrewShiftCover {
     public void cancel(UUID decidedByUserId) {
         decide(STATUS_CANCELLED, decidedByUserId);
     }
+
+    /** 퇴사자 정규를 대신하던 대타 → 대타자 추가 근무. */
+    public void convertToExtra() {
+        this.shiftKind = KIND_EXTRA;
+        this.originalUserId = null;
+    }
 }

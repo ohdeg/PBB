@@ -8,6 +8,7 @@ import type {
   VevenoCover,
   VevenoCreateCoverInput,
   VevenoJoinRequest,
+  VevenoLeaveCoverPreview,
   VevenoMenu,
   VevenoNotice,
   VevenoNoticeInput,
@@ -45,6 +46,34 @@ const STAFF_NICK = '민수'
 
 function fail(code: string, ko: string): Promise<never> {
   return Promise.reject(Object.assign(new Error(ko), { code }))
+}
+
+type LeaveCoverAction = 'convert' | 'delete' | 'keep'
+
+function classifyLeaveCover(userId: string, row: VevenoCover): LeaveCoverAction {
+  const original = row.originalUserId === userId
+  const worker = row.coverUserId === userId
+  if (original && row.coverUserId) {
+    return 'convert'
+  }
+  if (original) {
+    return 'delete'
+  }
+  if (worker && row.status === 'APPROVED') {
+    return 'keep'
+  }
+  if (worker) {
+    return 'delete'
+  }
+  return 'keep'
+}
+
+function isActiveLeaveCover(row: VevenoCover): boolean {
+  return (
+    row.status === 'APPROVED' ||
+    row.status === 'PENDING_OWNER' ||
+    row.status === 'PENDING_COVER'
+  )
 }
 const STAFF_JIHYE_ID = 'demo-staff-jihye'
 const STAFF_TAEHO_ID = 'demo-staff-taeho'
@@ -1074,11 +1103,35 @@ export const vevenoDemoApi = {
   },
 
   resignSubscriber(_storeId: string, userId: string, leaveDate: string) {
-    const sub = state().subscribers.find((row) => row.userId === userId)
+    const s = state()
+    const sub = s.subscribers.find((row) => row.userId === userId)
     if (!sub) {
       return fail('STAFF_NOT_FOUND', '직원을 찾을 수 없습니다.')
     }
     sub.leaveDate = leaveDate
+    s.covers = s.covers.flatMap((row) => {
+      if (row.workDate <= leaveDate || !isActiveLeaveCover(row)) {
+        return [row]
+      }
+      if (row.originalUserId !== userId && row.coverUserId !== userId && row.requestedByUserId !== userId) {
+        return [row]
+      }
+      const action = classifyLeaveCover(userId, row)
+      if (action === 'delete') {
+        return []
+      }
+      if (action === 'convert') {
+        return [
+          {
+            ...row,
+            shiftKind: 'EXTRA' as const,
+            originalUserId: null,
+            originalNickname: '',
+          },
+        ]
+      }
+      return [row]
+    })
     persist()
     return ok({ ...sub })
   },
@@ -1094,13 +1147,35 @@ export const vevenoDemoApi = {
   },
 
   countCoversAfterLeave(_storeId: string, userId: string, leaveDate: string) {
-    const count = state().covers.filter(
-      (row) =>
-        (row.originalUserId === userId || row.coverUserId === userId) &&
-        row.workDate > leaveDate &&
-        row.status === 'APPROVED',
-    ).length
-    return ok({ count })
+    let convert = 0
+    let deleted = 0
+    let keep = 0
+    for (const row of state().covers) {
+      if (row.workDate <= leaveDate || !isActiveLeaveCover(row)) {
+        continue
+      }
+      if (
+        row.originalUserId !== userId &&
+        row.coverUserId !== userId &&
+        row.requestedByUserId !== userId
+      ) {
+        continue
+      }
+      const action = classifyLeaveCover(userId, row)
+      if (action === 'convert') {
+        convert += 1
+      } else if (action === 'keep') {
+        keep += 1
+      } else {
+        deleted += 1
+      }
+    }
+    return ok<VevenoLeaveCoverPreview>({
+      count: convert + deleted + keep,
+      convert,
+      delete: deleted,
+      keep,
+    })
   },
 
   listSchedules(_storeId: string) {

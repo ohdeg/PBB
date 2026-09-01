@@ -4,6 +4,7 @@ import type {
   VevenoCover,
   VevenoCreateCoverInput,
   VevenoJoinRequest,
+  VevenoLeaveCoverPreview,
   VevenoMenu,
   VevenoNotice,
   VevenoNoticeInput,
@@ -268,7 +269,7 @@ const vevenoLiveApi = {
   },
 
   countCoversAfterLeave(storeId: string, userId: string, leaveDate: string) {
-    return apiClient.get<{ count: number }>(
+    return apiClient.get<VevenoLeaveCoverPreview>(
       `/api/v1/veveno/stores/${storeId}/subscribers/${userId}/covers-after-leave`,
       { params: { leaveDate } },
     );

@@ -505,13 +505,12 @@ public class BrewController {
             @PathVariable UUID userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate leaveDate
     ) {
-        int count = brewScheduleService.countCoversAfterLeaveDate(
+        return brewScheduleService.countCoversAfterLeaveDate(
                 accessTokenResolver.requireEmail(request),
                 storeId,
                 userId,
                 leaveDate
         );
-        return new CoverAfterLeaveCountResponse(count);
     }
 
     @GetMapping("/stores/{storeId}/covers/pending")

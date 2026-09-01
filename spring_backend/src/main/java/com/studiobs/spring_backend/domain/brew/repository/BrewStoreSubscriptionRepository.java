@@ -14,13 +14,15 @@ public interface BrewStoreSubscriptionRepository extends JpaRepository<BrewStore
 
     List<BrewStoreSubscription> findByStoreIdOrderByCreatedAtDesc(UUID storeId);
 
-    /** leave_date &lt; today → isLeaveDue (오늘이 퇴사일 다음인 경우). null leave_date 제외. */
+    /** leave_date &lt; date. null leave_date 제외. 확정은 lastShiftEnd 추가 확인. */
     List<BrewStoreSubscription> findBySubscriberUserIdAndLeaveDateBefore(
             UUID subscriberUserId,
             LocalDate date
     );
 
     List<BrewStoreSubscription> findByStoreIdAndLeaveDateBefore(UUID storeId, LocalDate date);
+
+    List<BrewStoreSubscription> findByLeaveDateBefore(LocalDate date);
 
     List<BrewStoreSubscription> findBySubscriberUserIdAndStoreIdIn(
             UUID subscriberUserId,

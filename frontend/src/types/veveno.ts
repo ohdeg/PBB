@@ -89,6 +89,13 @@ export interface VevenoJoinRequest {
   nickname: string;
 }
 
+export interface VevenoLeaveCoverPreview {
+  count: number;
+  convert: number;
+  delete: number;
+  keep: number;
+}
+
 export interface VevenoSubscriber {
   userId: string;
   email: string;

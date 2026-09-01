@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import { VevenoI18nProvider } from './features/veveno/i18n/LanguageContext';
-import { bootstrapAuth } from './api/axios';
+import { bindAuthResume, bootstrapAuth } from './api/axios';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { AppShell } from './components/AppShell';
 import { RouteSplash } from './components/RouteSplash';
@@ -211,6 +211,8 @@ export default function App() {
       cancelled = true;
     };
   }, [skipBootSplash]);
+
+  useEffect(() => bindAuthResume(), []);
 
   return (
     <>

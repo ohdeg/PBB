@@ -220,11 +220,11 @@ const VEVENO_KO = {
     leave: '퇴사',
     leaveTitle: '{{nickname}} 퇴사',
     leaveLead:
-      '퇴사일(마지막 근무일)을 선택하세요. 그날까지 근무할 수 있고, 다음날부터 구독이 해제됩니다. 이미 지난 날짜를 고르면 즉시 처리됩니다.',
+      '퇴사일(마지막 정규일)을 선택하세요. 그날 정규까지 근무하고, 그 이후 본인이 서는 대타·추가는 끝난 뒤에 구독이 해제됩니다. 다른 사람이 대신 서던 대타는 추가 근무로 바뀝니다.',
     leaveDate: '퇴사일',
     leaveSubmit: '퇴사 처리',
     confirmLeaveCovers:
-      '퇴사일({{leaveDate}}) 이후에 대체·추가 근무가 {{count}}건 있습니다.\n확인하면 해당 건이 삭제되고 퇴사가 진행됩니다. 계속할까요?',
+      '퇴사일({{leaveDate}}) 이후: 추가 근무로 바꿀 대타 {{convert}}건, 삭제 {{delete}}건, 본인이 서서 남는 건 {{keep}}건.\n계속할까요?',
   },
   units: {
     piece: '개',
@@ -1054,11 +1054,11 @@ Owners and staff share the same screen and wrap up the shop's day together.`,
     leave: 'Leave',
     leaveTitle: '{{nickname}} leave',
     leaveLead:
-      'Pick the last working day. They can work through that date, and membership ends the next day. A past date is processed right away.',
+      'Pick the last regular day. Regular work stops after that date. Approved cover/extra they still work ends membership after those shifts. Someone covering their later regulars becomes extra.',
     leaveDate: 'Last day',
     leaveSubmit: 'Confirm leave',
     confirmLeaveCovers:
-      'There are {{count}} cover/extra shifts after {{leaveDate}}.\nThey will be deleted if you continue. Continue?',
+      'After {{leaveDate}}: {{convert}} cover(s) become extra, {{delete}} will be removed, {{keep}} they still work will stay.\nContinue?',
   },
   units: {
     piece: 'pcs',
@@ -1885,11 +1885,11 @@ const VEVENO_JA: VevenoMessageTree = {
     leave: '退職',
     leaveTitle: '{{nickname}} の退職',
     leaveLead:
-      '退職日（最後の勤務日）を選んでください。その日まで働けて、翌日から参加が外れます。過ぎた日付ならすぐに処理されます。',
+      '退職日（最後の正規日）を選んでください。その日の正規まで働き、その後本人が立つ代わり・追加は終わってから参加が外れます。他人が代わりに立つ予定は追加勤務になります。',
     leaveDate: '退職日',
     leaveSubmit: '退職する',
     confirmLeaveCovers:
-      '退職日（{{leaveDate}}）以降に代わり・追加勤務が{{count}}件あります。\n続けるとそれらが削除されて退職が進みます。続けますか？',
+      '退職日（{{leaveDate}}）以降: 追加勤務に変える代わり {{convert}}件、削除 {{delete}}件、本人が立つので残す {{keep}}件。\n続けますか？',
   },
   units: {
     piece: '個',

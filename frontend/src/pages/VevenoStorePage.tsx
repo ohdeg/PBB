@@ -819,7 +819,9 @@ export function VevenoStorePage() {
         const ok = window.confirm(
           t('settings.confirmLeaveCovers', {
             leaveDate,
-            count: coverCount.count,
+            convert: coverCount.convert,
+            delete: coverCount.delete,
+            keep: coverCount.keep,
           }),
         );
         if (!ok) {

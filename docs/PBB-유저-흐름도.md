@@ -374,25 +374,27 @@ flowchart LR
 
 ### 8-3d. 퇴사 (leave_date)
 
-`leave_date` = **마지막 근무일**. `오늘 > leave_date` 이면 구독·정규 근무·대기 중 커버를 정리하고 구독 행을 삭제한다.
+`leave_date` = **마지막 정규일**. 구독 해제는 `오늘 > leave_date` **그리고** 잔여 근무(퇴사일 슬롯 + 그 이후 본인이 서는 승인 대타·추가)가 끝난 뒤. 서울 **매시 정각** 배치와 API lazy가 같은 조건.
 
 ```mermaid
 flowchart LR
-    pick[퇴사일 지정] --> past{leave_date < 오늘?}
-    past -->|"예"| purge[즉시 해제·근무 정리]
-    past -->|"아니오"| schedule[leave_date 예약]
-    schedule --> cancelAfter[leave 이후 대기 커버 취소]
-    schedule --> due{조회 시 due?}
-    due -->|"오늘 > leave"| purge
+    pick[퇴사일 지정] --> adjust[이후 커버 정리]
+    adjust --> dueCheck{잔여 슬롯 끝?}
+    dueCheck -->|예| purge[구독 해제·정규 삭제]
+    dueCheck -->|아니오| schedule[leave_date 예약]
+    schedule --> hourly[매시 정각]
+    hourly --> dueCheck
     owner[업주 · 설정 구독자] --> pick
     schedule --> clear[업주 · 퇴사 예약 취소]
 ```
 
 - 업주만: 설정 → 구독자에서 **퇴사** / **퇴사 예약 취소**. 직원은 지정·취소 불가(헤더에 예정일만 표시)
 - 직원 셀프 API(`DELETE /subscriptions/{storeId}`, `DELETE .../leave`)는 403
-- 퇴사일 **이후**에 대체·추가(PENDING/APPROVED)가 있으면 confirm 후 해당 건 **삭제**. 퇴사일 당일·이전은 유지
-- API: `GET .../subscribers/{userId}/covers-after-leave?leaveDate=`, `POST .../subscribers/{userId}/resign`, `DELETE .../subscribers/{userId}/leave`
-- `brew_store_subscriptions.work_start_date`: 첫 근무일. 달력·근무 중 판정은 이 날짜부터 (`leave_date`까지)
+- 퇴사일 **이후** 커버: 대타자 있는 퇴사자-original → **추가 근무로 변환**. 본인이 서는 승인 대타·추가 → **유지**(확정 연기). 사람 없는 구인·본인 미승인 → **삭제**. 퇴사일 당일·이전은 유지
+- 취소 시 정규는 다시 보이지만, 이미 EXTRA로 바꾼 대타는 되돌리지 않음
+- API: `GET .../subscribers/{userId}/covers-after-leave?leaveDate=` (`count/convert/delete/keep`), `POST .../subscribers/{userId}/resign`, `DELETE .../subscribers/{userId}/leave`
+- `brew_store_subscriptions.work_start_date`: 첫 근무일. 달력 정규는 이 날짜부터 (`leave_date`까지)
+
 
 ### 8-3e. POS QR 로그인 (계산대)
 

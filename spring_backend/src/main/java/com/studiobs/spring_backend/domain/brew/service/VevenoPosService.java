@@ -17,7 +17,6 @@ import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.repository.BrewPosDeviceRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
-import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
@@ -47,6 +46,7 @@ public class VevenoPosService {
     private final VevenoPosRedisService posRedisService;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthRateLimitService authRateLimitService;
+    private final BrewScheduleService brewScheduleService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PosCreateSessionResponse createPair(String deviceId, String clientIp) {
@@ -227,7 +227,8 @@ public class VevenoPosService {
         }
         return subscriptionRepository
                 .findBySubscriberUserIdAndStoreId(userId, store.getId())
-                .filter(sub -> !sub.isLeaveDue(BrewShiftTimes.nowSeoul().toLocalDate()))
+                .filter(sub -> !brewScheduleService.isLeaveFinalizeDue(
+                        store.getId(), userId, sub.getLeaveDate()))
                 .map(BrewStoreSubscription::isCanEditStock)
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.FORBIDDEN,

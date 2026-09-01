@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.studiobs.spring_backend.domain.brew.dto.CreateCoverRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewShiftCover;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStaffSchedule;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
 import com.studiobs.spring_backend.domain.brew.repository.BrewShiftCoverRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleOverrideRepository;
@@ -22,6 +23,7 @@ import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -171,6 +173,120 @@ class BrewScheduleCoverRulesTest {
                 });
 
         verify(coverRepository, never()).save(any());
+    }
+
+    @Test
+    void lastShiftEndOn_usesOvernightRegularWhenNotCoveredOut() {
+        UUID storeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        LocalDate leave = LocalDate.of(2026, 8, 31);
+
+        when(coverRepository.findByStoreIdAndCoverUserIdAndWorkDateGreaterThanEqualAndStatus(
+                storeId, userId, leave, BrewShiftCover.STATUS_APPROVED))
+                .thenReturn(List.of());
+        when(coverRepository.findByStoreIdAndOriginalUserIdAndWorkDateAndStatusIn(
+                eq(storeId), eq(userId), eq(leave), anyList()))
+                .thenReturn(List.of());
+        when(scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, userId))
+                .thenReturn(List.of(BrewStaffSchedule.builder()
+                        .storeId(storeId)
+                        .userId(userId)
+                        .dayOfWeek(leave.getDayOfWeek().getValue())
+                        .startTime(LocalTime.of(22, 0))
+                        .endTime(LocalTime.of(8, 0))
+                        .effectiveFrom(LocalDate.of(2020, 1, 1))
+                        .active(true)
+                        .build()));
+        when(overrideRepository.findByStoreIdAndUserIdAndWorkDate(storeId, userId, leave))
+                .thenReturn(Optional.empty());
+
+        assertThat(brewScheduleService.lastShiftEndOn(storeId, userId, leave))
+                .isEqualTo(LocalDateTime.of(2026, 9, 1, 8, 0));
+    }
+
+    @Test
+    void lastShiftEndOn_includesLaterApprovedExtra() {
+        UUID storeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        LocalDate leave = LocalDate.of(2026, 8, 31);
+        BrewShiftCover extra = BrewShiftCover.builder()
+                .storeId(storeId)
+                .coverUserId(userId)
+                .workDate(leave.plusDays(5))
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(18, 0))
+                .shiftKind(BrewShiftCover.KIND_EXTRA)
+                .initiatorType(BrewShiftCover.INITIATOR_OWNER)
+                .requestedByUserId(userId)
+                .status(BrewShiftCover.STATUS_APPROVED)
+                .build();
+
+        when(coverRepository.findByStoreIdAndCoverUserIdAndWorkDateGreaterThanEqualAndStatus(
+                storeId, userId, leave, BrewShiftCover.STATUS_APPROVED))
+                .thenReturn(List.of(extra));
+        when(coverRepository.findByStoreIdAndOriginalUserIdAndWorkDateAndStatusIn(
+                eq(storeId), eq(userId), eq(leave), anyList()))
+                .thenReturn(List.of());
+        when(scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, userId))
+                .thenReturn(List.of());
+        when(overrideRepository.findByStoreIdAndUserIdAndWorkDate(storeId, userId, leave))
+                .thenReturn(Optional.empty());
+
+        assertThat(brewScheduleService.lastShiftEndOn(storeId, userId, leave))
+                .isEqualTo(LocalDateTime.of(2026, 9, 5, 18, 0));
+    }
+
+    @Test
+    void applyLeaveCoverAdjustments_convertsAssignedCoverAndKeepsOwnExtra() {
+        UUID storeId = UUID.randomUUID();
+        UUID leaver = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        LocalDate leave = LocalDate.of(2026, 8, 31);
+
+        BrewShiftCover assigned = BrewShiftCover.builder()
+                .storeId(storeId)
+                .originalUserId(leaver)
+                .coverUserId(other)
+                .workDate(leave.plusDays(1))
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(18, 0))
+                .shiftKind(BrewShiftCover.KIND_COVER)
+                .initiatorType(BrewShiftCover.INITIATOR_OWNER)
+                .requestedByUserId(other)
+                .status(BrewShiftCover.STATUS_APPROVED)
+                .build();
+        BrewShiftCover ownExtra = BrewShiftCover.builder()
+                .storeId(storeId)
+                .coverUserId(leaver)
+                .workDate(leave.plusDays(2))
+                .startTime(LocalTime.of(10, 0))
+                .endTime(LocalTime.of(14, 0))
+                .shiftKind(BrewShiftCover.KIND_EXTRA)
+                .initiatorType(BrewShiftCover.INITIATOR_EMPLOYEE)
+                .requestedByUserId(leaver)
+                .status(BrewShiftCover.STATUS_APPROVED)
+                .build();
+        BrewShiftCover open = BrewShiftCover.builder()
+                .storeId(storeId)
+                .originalUserId(leaver)
+                .workDate(leave.plusDays(3))
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(18, 0))
+                .shiftKind(BrewShiftCover.KIND_COVER)
+                .initiatorType(BrewShiftCover.INITIATOR_OWNER)
+                .requestedByUserId(leaver)
+                .status(BrewShiftCover.STATUS_PENDING_OWNER)
+                .build();
+
+        when(coverRepository.findInvolvingUserAfterLeaveDate(eq(storeId), eq(leaver), eq(leave), anyList()))
+                .thenReturn(List.of(assigned, ownExtra, open));
+
+        brewScheduleService.applyLeaveCoverAdjustments(storeId, leaver, leave);
+
+        assertThat(assigned.getShiftKind()).isEqualTo(BrewShiftCover.KIND_EXTRA);
+        assertThat(assigned.getOriginalUserId()).isNull();
+        verify(coverRepository).save(assigned);
+        verify(coverRepository).deleteAll(List.of(open));
     }
 
     private static User user(String email, UUID id) {

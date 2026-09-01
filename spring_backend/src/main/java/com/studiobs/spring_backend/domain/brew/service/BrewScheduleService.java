@@ -3,6 +3,7 @@ package com.studiobs.spring_backend.domain.brew.service;
 import com.studiobs.spring_backend.domain.brew.dto.CalendarOccurrenceResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CalendarResponse;
 import com.studiobs.spring_backend.domain.brew.dto.AssignCoverRequest;
+import com.studiobs.spring_backend.domain.brew.dto.CoverAfterLeaveCountResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CoverResponse;
 import com.studiobs.spring_backend.domain.brew.dto.CreateCoverRequest;
 import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
@@ -21,6 +22,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStaffScheduleRepos
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewEffectiveShifts;
+import com.studiobs.spring_backend.domain.brew.support.BrewLeaveFinalize;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
@@ -1039,36 +1041,109 @@ public class BrewScheduleService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "COVER_NOT_FOUND", "대타 요청을 찾을 수 없습니다."));
     }
 
-    /** 퇴사 처리: 정규 근무 삭제 + 퇴사일 이후 연관 대체/추가 삭제 */
+    /** 퇴사 처리: 정규 근무 삭제 + 퇴사일 이후 남은 연관 대체/추가 삭제 */
     @Transactional
     public void purgeStaffMembership(UUID storeId, UUID userId, LocalDate leaveDate) {
         scheduleRepository.deleteByStoreIdAndUserId(storeId, userId);
         overrideRepository.deleteByStoreIdAndUserId(storeId, userId);
-        deleteCoversAfterLeaveDate(storeId, userId, leaveDate);
+        deleteRemainingCoversAfterLeave(storeId, userId, leaveDate);
     }
 
     /**
-     * 퇴사일 이후(workDate &gt; leaveDate) 연관 대기·승인 대체/추가를 삭제.
-     * 퇴사일 당일·이전 건은 유지.
+     * 퇴사일 이후 커버 정리: 대타자 있는 퇴사자-original은 EXTRA 변환,
+     * 본인이 서는 승인은 유지, 나머지 삭제.
      */
     @Transactional
-    public void deleteCoversAfterLeaveDate(UUID storeId, UUID userId, LocalDate leaveDate) {
-        List<BrewShiftCover> covers = coverRepository.findInvolvingUserAfterLeaveDate(
-                storeId,
-                userId,
+    public void applyLeaveCoverAdjustments(UUID storeId, UUID userId, LocalDate leaveDate) {
+        List<BrewShiftCover> covers = coversAfterLeave(storeId, userId, leaveDate);
+        List<BrewShiftCover> toDelete = new ArrayList<>();
+        for (BrewShiftCover cover : covers) {
+            switch (BrewLeaveFinalize.classifyAfterLeave(userId, cover)) {
+                case CONVERT -> {
+                    cover.convertToExtra();
+                    coverRepository.save(cover);
+                }
+                case DELETE -> toDelete.add(cover);
+                case KEEP -> {
+                }
+            }
+        }
+        if (!toDelete.isEmpty()) {
+            coverRepository.deleteAll(toDelete);
+        }
+    }
+
+    public boolean isLeaveFinalizeDue(UUID storeId, UUID userId, LocalDate leaveDate) {
+        return BrewLeaveFinalize.isDue(
                 leaveDate,
-                List.of(
-                        BrewShiftCover.STATUS_PENDING_OWNER,
-                        BrewShiftCover.STATUS_PENDING_COVER,
-                        BrewShiftCover.STATUS_APPROVED
-                ));
+                BrewShiftTimes.nowSeoul(),
+                lastShiftEndOn(storeId, userId, leaveDate));
+    }
+
+    public LocalDateTime lastShiftEndOn(UUID storeId, UUID userId, LocalDate leaveDate) {
+        if (leaveDate == null) {
+            return null;
+        }
+        LocalDateTime latest = null;
+        List<BrewShiftCover> asWorker = coverRepository
+                .findByStoreIdAndCoverUserIdAndWorkDateGreaterThanEqualAndStatus(
+                        storeId, userId, leaveDate, BrewShiftCover.STATUS_APPROVED);
+        for (BrewShiftCover cover : asWorker) {
+            latest = later(latest, BrewShiftTimes.rangeEnd(
+                    cover.getWorkDate(), cover.getStartTime(), cover.getEndTime()));
+        }
+        boolean coveredOut = coverRepository
+                .findByStoreIdAndOriginalUserIdAndWorkDateAndStatusIn(
+                        storeId,
+                        userId,
+                        leaveDate,
+                        List.of(BrewShiftCover.STATUS_APPROVED))
+                .stream()
+                .anyMatch(c -> BrewShiftCover.KIND_COVER.equals(
+                        c.getShiftKind() == null ? BrewShiftCover.KIND_COVER : c.getShiftKind()));
+        if (!coveredOut) {
+            BrewEffectiveShifts.Shift regular = BrewEffectiveShifts.resolve(
+                    scheduleRepository.findByStoreIdAndUserIdOrderByDayOfWeekAsc(storeId, userId),
+                    overrideRepository.findByStoreIdAndUserIdAndWorkDate(storeId, userId, leaveDate)
+                            .orElse(null),
+                    leaveDate);
+            if (regular != null) {
+                latest = later(latest, BrewShiftTimes.rangeEnd(
+                        leaveDate, regular.start(), regular.end()));
+            }
+        }
+        return latest;
+    }
+
+    private static LocalDateTime later(LocalDateTime a, LocalDateTime b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        return b.isAfter(a) ? b : a;
+    }
+
+    private void deleteRemainingCoversAfterLeave(UUID storeId, UUID userId, LocalDate leaveDate) {
+        List<BrewShiftCover> covers = coversAfterLeave(storeId, userId, leaveDate).stream()
+                .filter(c -> userId.equals(c.getOriginalUserId()) || userId.equals(c.getCoverUserId()))
+                .toList();
         if (!covers.isEmpty()) {
             coverRepository.deleteAll(covers);
         }
     }
 
+    private List<BrewShiftCover> coversAfterLeave(UUID storeId, UUID userId, LocalDate leaveDate) {
+        return coverRepository.findInvolvingUserAfterLeaveDate(
+                storeId,
+                userId,
+                leaveDate,
+                ACTIVE_COVER_STATUSES);
+    }
+
     @Transactional(readOnly = true)
-    public int countCoversAfterLeaveDate(
+    public CoverAfterLeaveCountResponse countCoversAfterLeaveDate(
             String email,
             UUID storeId,
             UUID targetUserId,
@@ -1081,14 +1156,16 @@ public class BrewScheduleService {
         if (!owner && !user.getId().equals(targetUserId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "SELF_OR_OWNER_VIEW", "본인 또는 업주만 조회할 수 있습니다.");
         }
-        return coverRepository.findInvolvingUserAfterLeaveDate(
-                storeId,
-                targetUserId,
-                leaveDate,
-                List.of(
-                        BrewShiftCover.STATUS_PENDING_OWNER,
-                        BrewShiftCover.STATUS_PENDING_COVER,
-                        BrewShiftCover.STATUS_APPROVED
-                )).size();
+        int convert = 0;
+        int delete = 0;
+        int keep = 0;
+        for (BrewShiftCover cover : coversAfterLeave(storeId, targetUserId, leaveDate)) {
+            switch (BrewLeaveFinalize.classifyAfterLeave(targetUserId, cover)) {
+                case CONVERT -> convert++;
+                case DELETE -> delete++;
+                case KEEP -> keep++;
+            }
+        }
+        return CoverAfterLeaveCountResponse.of(convert, delete, keep);
     }
 }

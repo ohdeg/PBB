@@ -36,6 +36,13 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 let refreshPromise: Promise<string | null> | null = null;
+let lastRefreshOkAt = 0;
+const AUTH_RESUME_OK_WITHIN_MS = 10_000;
+
+/** RT가 거절된 경우만 세션을 버린다. 네트워크·5xx는 쿠키가 살아 있을 수 있다. */
+export function shouldClearAuthOnRefreshFailure(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}
 
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
@@ -44,10 +51,13 @@ async function refreshAccessToken(): Promise<string | null> {
       .then((response) => {
         const token = response.data.accessToken;
         useAuthStore.getState().setAccessToken(token);
+        lastRefreshOkAt = Date.now();
         return token;
       })
-      .catch(() => {
-        useAuthStore.getState().clearAuth();
+      .catch((error: unknown) => {
+        if (shouldClearAuthOnRefreshFailure(error)) {
+          useAuthStore.getState().clearAuth();
+        }
         return null;
       })
       .finally(() => {
@@ -113,4 +123,31 @@ apiClient.interceptors.response.use(
 export async function bootstrapAuth(): Promise<boolean> {
   const token = await refreshAccessToken();
   return token !== null;
+}
+
+/** 백그라운드 복귀·네트워크 재연결 시 세션 재부착. 게스트는 치지 않는다. */
+export function bindAuthResume(): () => void {
+  const resume = () => {
+    if (!useAuthStore.getState().accessToken) {
+      return;
+    }
+    if (refreshPromise) {
+      return;
+    }
+    if (Date.now() - lastRefreshOkAt < AUTH_RESUME_OK_WITHIN_MS) {
+      return;
+    }
+    void bootstrapAuth();
+  };
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') {
+      resume();
+    }
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', resume);
+  return () => {
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', resume);
+  };
 }

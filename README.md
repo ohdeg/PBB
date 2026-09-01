@@ -5,6 +5,8 @@ Play beom's BAG
 공통 JWT 인증 위에 매장 노트(**Veveno**)를 붙인 웹 서비스입니다.  
 Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 담당합니다.
 
+아래 「문제 해결 사례」는 *왜 이렇게 짰는지*이고, 「공부용 흐름」은 *코드가 어디로 가는지*다.
+
 [![CI](https://github.com/ohdeg/PBB/actions/workflows/ci.yml/badge.svg)](https://github.com/ohdeg/PBB/actions/workflows/ci.yml)  
 **Live:** [app.pbbstudio.com](https://app.pbbstudio.com) · API `api.pbbstudio.com`
 
@@ -29,8 +31,9 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 | 영역 | 기술 |
 |------|------|
 | Frontend | React, TypeScript, Vite, Zustand, Axios, React Router |
-| Backend | Java, Spring Boot, Spring Security, JPA, Redis, Actuator |
-| Data | MySQL 8, Redis 7 |
+| Backend | Java 25, Spring Boot, Spring Security, JPA, Redis, Actuator |
+| ML | FastAPI (분류·rembg·fit-warp), Vertex Gemini (Sranko try-on) |
+| Data | MySQL 8, Redis 7, Cloudflare R2 |
 | Infra | Docker Compose, Cloudflare Pages / Tunnel / R2 |
 | Quality | JUnit 5, Mockito, Testcontainers, Vitest, Playwright, GitHub Actions |
 
@@ -41,6 +44,7 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 - **Access Token** (30분): JSON Body → 프론트 Zustand **메모리**만 보관
 - **Refresh Token** (7일): Redis `RT:{email}` + HttpOnly 쿠키 (`Secure` / `SameSite` / 운영 CORS와 함께 점검)
 - 앱 기동 시 `POST /auth/refresh`로 세션 복원 · Axios 401 시 갱신 후 원요청 재시도
+- 탭 복귀·온라인 복구: `bindAuthResume` (refresh 401만 로그아웃)
 - 비밀번호: BCrypt · 회원 ID: UUID (`CHAR(36)`)
 - 회원가입 동의: `user_consents` (필수: 이용약관 / 개인정보 / 만 14세 · 선택: 마케팅)
 - Rate limit (IP·이메일 각각): 메일 발송·검증·로그인 — 초과 시 HTTP 429
@@ -54,21 +58,24 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 
 ### 1. 인증과 세션 복구
 
-초기에는 로그인 성공 후 토큰을 저장하고 API에 붙이는 방식만 있었습니다. Access Token 만료·새로고침 시 세션이 끊겼고, FE/BE 도메인이 갈라진 운영에서는 로컬에서 되던 쿠키가 빠지기도 했습니다.
+초기에는 로그인 성공 후 토큰을 저장하고 API에 붙이는 방식만 있었습니다. Access Token 만료·새로고침 시 세션이 끊겼고, FE/BE 도메인이 갈라진 운영에서는 로컬에서 되던 쿠키가 빠지기도 했습니다. 탭을 오래 꺼두면 Access는 이미 죽었는데, refresh가 네트워크/5xx로 실패하면 쿠키는 살아 있는데도 로그아웃처럼 보이기도 했습니다.
 
-**해결:** Access Token은 메모리(Zustand)만, Refresh Token은 HttpOnly 쿠키 + Redis. 기동 시 Refresh로 복원, Axios 401이면 refresh 단일화 후 원요청 재시도. 운영 CORS·`Secure` / `SameSite` / `Path`를 맞춤.
+**해결:** Access Token은 메모리(Zustand)만, Refresh Token은 HttpOnly 쿠키 + Redis. 기동 시 Refresh로 복원, Axios 401이면 refresh 한 번으로 모아서 원요청 재시도. 탭이 다시 보이거나 온라인이 되면 `bindAuthResume`으로 세션을 다시 붙인다. refresh 실패는 **401일 때만** 세션을 버린다. 운영 CORS·`Secure` / `SameSite` / `Path`를 맞춤.
 
 | 고민 | 선택 |
 |------|------|
 | AT를 localStorage | XSS 위험 → 메모리만, RT로 복원 |
 | RT를 JS에서 읽기 | HttpOnly + Redis |
 | 동시 401 | refresh 한 번 + 대기열 재시도 |
+| 백그라운드에서 AT 만료 | `visibilitychange` / `online`일 때만 refresh |
+| refresh 실패 = 무조건 로그아웃 | 401만 `clearAuth`. 5xx·오프라인은 쿠키를 남김 |
+| POS 키오스크 401 | 회원 refresh를 돌리지 않고 POS 토큰만 지움 |
 
-**배운 점:** 인증은 JWT 발급으로 끝나지 않고, 브라우저 정책·만료·중복 갱신까지 설계해야 한다.
+**배운 점:** 인증은 JWT 발급으로 끝나지 않고, 브라우저 정책·만료·중복 갱신·“실패의 종류”까지 설계해야 한다.
 
 ---
 
-### 2. Veveno — 근무·가입·재고 정합성, 그리고 목록 N+1
+### 2. Veveno — 근무·가입·재고 정합성, 그리고 목록 1+N
 
 소규모 매장 노트에서 UI보다 먼저 막힌 것은 **도메인 규칙**, **동시성**, 그다음 **목록 API의 쿼리 폭발**이었다.
 
@@ -79,8 +86,8 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 - 가입 신청을 MySQL에 영구 저장할지, 승인 전까지만 둘지.
 - `leave_date`를 “나간 날”로 두면 당일 근무·대기 일정 정리가 어긋난다.
 - 재고 ±는 절대값 PATCH라 두 명이 거의 동시에 바꾸면 Lost Update가 난다.
-- 허브·검색·가게 헤더에 「근무중」을 붙이려다, 가게마다 스케줄을 하나씩 조회하면 **N+1**이 된다. 업주를 상시 근무중으로 두면 배지가 거짓 정보가 된다.
-- 직원/구독자/공지/커버 목록에서 닉네임을 userId마다 조회하면 같은 N+1이 반복된다.
+- 허브·검색·가게 헤더에 「근무중」을 붙이려다, 가게마다 스케줄을 하나씩 조회하면 **1+N**이 된다. 업주를 상시 근무중으로 두면 배지가 거짓 정보가 된다.
+- 직원/구독자/공지/커버 목록에서 닉네임을 userId마다 조회하면 같은 1+N이 반복된다.
 
 #### 고민 과정
 
@@ -98,6 +105,12 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 
 7. **「근무중」뱃지**는 처음 “업주면 true”로 빠르게 붙였다. 실제로는 업주도 스케줄·자정 넘김·대타 구간이 있어, **열람자 본인이 그 가게의 현재 근무 구간에 있는지**로 바꿨다. 구현을 가게별 루프로 두면 허브에 가게가 N개일 때 스케줄 조회가 N번이라, `storeIds`를 모아 **한 번의 IN 조회 + 메모리에서 현재 시각과 매칭**하는 `onDutyByStoreIds`로 올렸다. 같은 패턴으로 닉네임도 `userId` 집합 → 배치 조회로 맞췄다.
 
+8. **퇴사일을 저장만 하면** 그날 밤 근무가 남아 있는데 권한이 끊긴다. `leave_date`는 마지막 정규일로 두고, 그날 마지막 슬롯이 끝난 뒤에야 구독을 지운다. 허브 조회 때 한 번 확인하고, 놓친 건 `VevenoLeaveFinalizeScheduler`가 서울 매시 정각에 Redis 락 잡고 확정한다.
+
+9. **계산대는 로그인 화면을 두면 안 된다.** 손님 앞에서 이메일/비번을 치면 안 되고, 직원 폰으로 찍는 QR이 맞았다. 페어는 Redis 2분, 세션은 12시간 POS JWT. 처음 등록은 사장님만, 그다음부터는 그 가게 구성원.
+
+10. **호출 번호를 DB에 남기면** 로그·개인정보만 늘고 다시 쓸 일도 없다. 번호는 그때그때 입력하고, 멘트·속도·음높이만 `brew_stores.call_bell_phrase`에 둔다. 말은 브라우저 TTS.
+
 #### 해결 (현재)
 
 - DB에 `shift_kind`(COVER/EXTRA)·신청 주체·원근무자·대타자·상태. 취소는 `CANCELLED`. overnight는 시작/종료 관계로 익일 해석.
@@ -111,6 +124,9 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 - 할 일(체크리스트): 템플릿·오늘 런. 업주가 만들고 직원이 체크.
 - 로컬 체험 `/stores/demo`: 로그인 없이 `localStorage`. 사장/직원 토글, 직원 보기에서는 메뉴 편집·발주 URL 숨김.
 - UI 한/영/일: 첫 방문은 브라우저 언어, 칩·설정에서 고른 뒤에만 `veveno:lang` 저장. 가게·메뉴·재고 이름은 번역하지 않음. API 오류는 `code`로 프론트가 번역.
+- POS: 비로그인 허브 「POS 모드 사용」 → QR → 폰에서 승인 → 계산대 JWT(`type=pos`). 메뉴·오늘 할 일·도구·재고 조회(권한 있으면 수정). 설정·근무 관리·메뉴 쓰기는 API에서 거절.
+- 호출벨: `PUT .../call-bell`. 번호는 저장하지 않음. 체험은 `localStorage`.
+- 퇴사: 업주만 `resign`. 예약 후 마지막 슬롯 종료 시 확정. 스케줄러 락 `veveno:leave:finalize:lock`.
 
 **고민과 선택**
 
@@ -125,13 +141,16 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 | 업주 = 항상 근무중 | 스케줄 기반 `onDuty` |
 | 가게마다 onDuty 쿼리 | `storeIds` 배치 IN + 메모리 판정 |
 | 닉네임 userId마다 조회 | ID 모아 배치 조회 |
+| 퇴사일 자정에 바로 해제 | 마지막 슬롯 종료 후 + 매시 스케줄러 |
+| 계산대에 회원 로그인 | QR 페어 + POS JWT 12h |
+| 호출 번호를 이력으로 저장 | 번호는 휘발, 멘트만 DB |
 
 **배운 점**
 
 - **복잡한 if보다 날짜·상태의 의미를 먼저 맞추는 것**이 정합성을 지킨다. `leave_date`, COVER 취소와 원근무 복귀가 대표 예다.
 - **비슷해 보이는 도메인이라도 규칙이 다르면 API·상태를 억지로 합치지 않는 편**이 안전하다.
 - **동시성은 UI 연타 방지로 끝나지 않는다.** 서버가 “어느 `version` 스냅샷 기준 수정인지”를 검증하고, 충돌을 숨기지 않고 409로 드러내야 한다.
-- **배지·표시용 필드도 쿼리 설계 대상이다.** “지금은 근무 중인가”처럼 싸 보이는 플래그가 목록에 붙는 순간 N+1이 된다. **응답에 넣을 값을 유스케이스 단위로 배치 계산**하고, 편의상 업주 예외를 두면 제품 의미가 먼저 망가진다.
+- **배지·표시용 필드도 쿼리 설계 대상이다.** “지금은 근무 중인가”처럼 싸 보이는 플래그가 목록에 붙는 순간 1+N이 된다. **응답에 넣을 값을 유스케이스 단위로 배치 계산**하고, 편의상 업주 예외를 두면 제품 의미가 먼저 망가진다.
 - **짧은 충돌·드문 경합**에는 낙관적 락 + 클라이언트 재조회가 단순하고, busy 범위를 stock 단위로 좁히면 다른 품목 조작을 막지 않아도 된다.
 
 ---
@@ -158,7 +177,7 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 - 둘레 Δ만으로 소매·기장을 판단하면 반팔·반바지가 항상 “매우 타이트”로 나온다.
 - 내 사진 try-on은 단벌은 괜찮지만 다벌에서 얼굴·체형이 바뀐다.
 - 플랫레이 콜라주와 try-on 룩이 “선택 옷을 보여 주기”에서 역할이 겹친다.
-- Look↔Item을 JPA로 묶으면 목록 hydrate에서 N+1이 커진다.
+- Look↔Item을 JPA로 묶으면 목록 hydrate에서 1+N이 커진다.
 - 브라우저에 `Access-Control-Allow-Origin` 오류가 떠도, 실제로는 Cloudflare **502** HTML에 CORS 헤더가 없어서일 수 있다.
 - R2 업로드 TLS `handshake_failure`, Vertex `aiplatform.endpoints.predict` 403처럼 **앱 코드 밖**에서 try-on이 죽는다.
 
@@ -176,7 +195,7 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 4. **콜라주.**  
    캔버스 비율·슬롯·R2 CORS가 겹쳐 유지비가 컸고, Gemini 풀룩과 역할이 겹쳐 **COMPOSE 콜라주는 제거**하고 TRY_ON 룩으로 통합했다.
 
-5. **룩·커뮤니티 영속성 / N+1.**  
+5. **룩·커뮤니티 영속성 / 1+N.**  
    Look↔Item JPA 연관은 목록·상세 hydrate 비용이 커질 수 있어 **`item_ids_json`만 저장**하고, 상세/목록은 ID를 모아 **배치 IN**. 커뮤니티 글쓰기용은 `GET /looks/picker`로 **이미지 메타만**(아이템 없음) 내려 조회를 분리했다. 게시 `imageUrls`는 본인 R2 `sranko/{userId}/` 접두만 허용했다.
 
 6. **운영에서 “CORS 오류”로 보이는 502.**  
@@ -226,10 +245,278 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 - **외부 AI는 도메인 서비스가 아니라 의존성이다.** 인증 방식·쿼터·타임아웃·502를 앱 오류와 구분해 로그·플래그로 다루지 않으면, FE CORS로 오인하거나 로컬만 되는 상태가 길어진다.
 - **브라우저 CORS 메시지는 원인을 가릴 수 있다.** 502/504처럼 게이트웨이가 에러 HTML을 주면 Origin 헤더가 없어 CORS로 보인다. **상태 코드와 서버 로그가 1순위**다.
 - **인프라 설정은 “환경변수만 넣으면 됨”이 아니다.** R2는 endpoint와 public base URL의 역할이 다르고, Vertex는 파일 마운트·프로젝트 ID·서비스 계정 이메일·API 활성화·결제가 한 세트다. 약정 할인(CUD) 같은 과금 상품은 권한과 무관하다.
-- **읽기 경로를 유스케이스별로 쪼개야 N+1을 설계 단계에서 막을 수 있다.** “룩 목록”, “룩 상세 상품”, “글쓰기에 썸네일만”은 같은 엔티티라도 API를 나누는 편이 안전했다.
+- **읽기 경로를 유스케이스별로 쪼개야 1+N을 설계 단계에서 막을 수 있다.** “룩 목록”, “룩 상세 상품”, “글쓰기에 썸네일만”은 같은 엔티티라도 API를 나누는 편이 안전했다.
 - **제품에서 겹치는 기능은 보정으로 버티기보다 하나로 합칠 타이밍을 봐야 한다.** 콜라주와 try-on이 같은 문제를 풀고 있을 때, CORS·비율 패치 비용이 엔진 통합보다 커졌다.
 - **자주 안 바뀌는 외부 조회는 Redis TTL이 먼저다.** 날씨는 인증 RT·가입 대기와 같이 “짧은 생명” 구간에만 Redis를 썼고, 캐시 키는 GPS 흔들림까지 포함해 설계해야 히트가 난다.
 - **학습과 서빙은 같은 클래스 계약이어야 한다.** 폴더 라벨·`fc` 출력 수·서비스 택소노미가 어긋나면 가중치만 바꿔도 옷장이 틀린다. 데이터가 부족하면 재학습보다 매핑을 먼저 두고, 사용자 수정값을 GT로 쌓는 편이 안전했다.
+
+---
+
+### 5. Veveno POS — 계산대에 회원 로그인을 두지 않기
+
+계산대 탭에서 이메일·비밀번호를 치면 손님이 본다. 직원 계정으로 들어가면 설정·근무까지 열려서 더 위험했다.
+
+#### 고민한 점
+
+- 키오스크용 별도 계정을 만들면 비밀번호 관리가 또 생긴다.
+- QR을 한 번 찍으면 끝나는지, 폴링이 필요한지.
+- 처음 등록하는 기기와, 이미 등록된 기기에 직원이 들어가는 건 권한이 다르다.
+- POS JWT가 만료됐을 때 회원 refresh를 타면 계산대가 사장님 세션이 된다.
+
+#### 고민 과정
+
+WhatsApp Web처럼 **화면은 QR, 폰은 이미 로그인한 직원**이 찍는 쪽이 맞았다. 페어는 Redis 2분이면 충분하고, 승인 후 키오스크가 `claim`해서 시크릿을 한 번만 쓴다. 미등록 기기는 사장님만 등록(`POS_OWNER_ENROLL_ONLY`), 등록된 기기는 그 가게 구성원만. JWT `type=pos`는 Veveno 경로에서만 통과하고, 관리 API는 `PosAccess.forbidManagement()`로 막는다. Axios는 키오스크일 때 POS 토큰을 쓰고, 401이면 회원 refresh를 돌리지 않는다.
+
+#### 해결 (현재)
+
+- `POST /pos/sessions` → Redis `veveno:pos:pair:{id}` TTL 2분
+- 폰 `POST .../approve` → 상태 APPROVED
+- 키오스크 poll → `claim` → POS JWT + `veveno:pos:sess:{deviceId}` TTL 12시간
+- 테이블 `brew_pos_devices` (가게당 기기 최대 3)
+
+| 고민 | 선택 |
+|------|------|
+| 키오스크 전용 계정 | 기존 회원 + QR 페어 |
+| 페어를 MySQL에 저장 | Redis TTL 2분, claim 시 삭제 |
+| POS 401 → 회원 refresh | POS 토큰만 버리고 키오스크 종료 |
+| 아무 가게나 찍기 | 등록된 device는 storeId 고정 |
+
+**배운 점:** 같은 사람·같은 가게라도 **화면의 역할이 다르면 토큰 종류를 나눈다.** 만료 처리도 회원 세션과 섞이면 안 된다.
+
+---
+
+## 공부용 흐름
+
+사례는 “왜”고, 여기는 “어디를 여는지”다. 화살표는 항상 **화면 → API → 서비스 → MySQL/Redis/R2** 순이다.
+
+### 0. 요청이 공통으로 지나는 길
+
+브라우저가 API를 치면 토큰을 헤더에 붙인다. 키오스크면 POS 토큰, 아니면 Zustand Access.
+
+```ts
+// frontend/src/api/axios.ts — request interceptor
+const posToken = isVevenoPosKiosk() ? getVevenoPosToken() : null;
+const token = posToken ?? useAuthStore.getState().accessToken;
+if (token) config.headers.Authorization = `Bearer ${token}`;
+```
+
+서버는 필터가 Bearer를 읽는다.
+
+```java
+// JwtAuthenticationFilter.authenticate
+if (jwtTokenProvider.isAccessToken(token)) { setAuthentication(token); return; }
+if (jwtTokenProvider.isPosToken(token) && isBrewPath(request)
+        && vevenoPosGuard.bind(token)) {
+    setAuthentication(token);
+}
+```
+
+`SecurityConfig`가 URL을 공개/회원/DEV로 가른 다음, 컨트롤러로 들어간다. 가게 주인인지는 여기서 안 보고 `BrewService.assertCanView` 같은 도메인 검사가 한 번 더 한다.
+
+401이 나면 회원 API만 refresh를 탄다. 동시에 여러 개가 깨져도 `refreshPromise` 하나로 모은다. 탭을 다시 열면 `App.tsx`의 `bindAuthResume()`이 `bootstrapAuth()`를 다시 부른다. **refresh가 401일 때만** `clearAuth()` 한다.
+
+```ts
+// frontend/src/api/axios.ts
+export function shouldClearAuthOnRefreshFailure(error: unknown) {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}
+```
+
+---
+
+### 1. 로그인
+
+`LoginPage.tsx`에서 `authApi.login` → `useAuthStore.setAccessToken`. Access는 메모리, Refresh는 응답 쿠키.
+
+```
+LoginPage.tsx
+  → authApi.login          POST /api/v1/auth/login
+  → AuthController.login
+  → AuthService.login
+       AuthRateLimitService.checkLogin
+       UserService.findByEmail / matchesPassword   → users
+       JwtTokenProvider.createAccessToken / createRefreshToken
+       AuthRedisService.saveRefreshToken           → Redis RT:{email}
+  → Set-Cookie refreshToken + body { accessToken }
+```
+
+```java
+// AuthService.login
+String accessToken = jwtTokenProvider.createAccessToken(user);
+String refreshToken = jwtTokenProvider.createRefreshToken(user);
+authRedisService.saveRefreshToken(email, refreshToken);
+```
+
+```java
+// AuthController.login — 바디에는 Access만
+return ResponseEntity.ok()
+    .header(HttpHeaders.SET_COOKIE,
+            refreshTokenCookieFactory.create(tokens.refreshToken()).toString())
+    .body(new TokenResponse(tokens.accessToken()));
+```
+
+새로고침하면 `bootstrapAuth()`가 쿠키로 `POST /auth/refresh`를 친다. `AuthService.refresh`가 RT를 검증·로테이션한다.
+
+| 저장 | 키/컬럼 |
+|------|---------|
+| Zustand | `accessToken` (30분 JWT) |
+| Redis | `RT:{email}` (7일, 로테이션) |
+| Cookie | HttpOnly `refreshToken`, path `/api/v1/auth` |
+| MySQL | `users` (`id` UUID, `password` BCrypt) |
+
+테스트: `AuthFlowIT`, `AuthServiceTest`, `axios.authResume.test.ts`
+
+---
+
+### 2. Veveno 가입 신청 → 승인
+
+직원이 허브에서 신청하면 MySQL에 안 넣는다. 하루 안에 사장이 안 받으면 그냥 사라지게 Redis만 쓴다.
+
+```
+VevenoJoinApproveModal / vevenoApi.requestJoin
+  → POST /api/v1/veveno/stores/{id}/join
+  → BrewController.requestJoin
+  → BrewService.requestJoin
+  → BrewRedisService.saveJoinRequest     → veveno:join:{storeId}:{userId} TTL 24h
+```
+
+승인:
+
+```
+vevenoApi.approveJoin
+  → POST .../join-requests/{userId}/approve
+  → BrewService.approveJoin
+       Redis에 pending 있는지 확인
+       brew_store_subscriptions insert (can_edit_stock, work_start_date)
+       Redis 키 삭제
+```
+
+```java
+// BrewService.requestJoin
+brewRedisService.saveJoinRequest(storeId, user.getId());
+```
+
+---
+
+### 3. Veveno 재고 PATCH (낙관적 락)
+
+화면이 들고 있는 `version`을 같이 보낸다. 서버 값이 다르면 덮지 않고 409.
+
+```
+VevenoStoreStocksPanel
+  → vevenoApi.updateStock({ ..., version })
+  → PATCH /api/v1/veveno/stocks/{stockId}
+  → BrewController.updateStock
+  → BrewStockService.updateStock
+  → brew_store_stocks.version (@Version)
+```
+
+```java
+// BrewStockService.updateStock
+if (currentVersion != request.version()) {
+    throw new BusinessException(HttpStatus.CONFLICT, "STOCK_STALE",
+            "다른 사용자가 재고를 수정했습니다. 다시 불러온 뒤 수정하세요.");
+}
+stock.update(...);
+```
+
+프론트는 그 칸만 busy로 두고 refetch. 테스트: 재고 optimistic lock IT.
+
+허브 「근무중」은 가게마다 스케줄을 치지 않는다. `BrewService.listSubscriptions`가 storeId를 모아서 `BrewScheduleService.onDutyByStoreIds` 한 번.
+
+---
+
+### 4. Veveno POS
+
+```
+허브 QR (비로그인)
+  → vevenoApi.posCreateSession     POST /pos/sessions
+  → VevenoPosService.createPair    Redis veveno:pos:pair:{pairId}  2분
+  → vevenoApi.posPoll              POST /pos/sessions/poll
+
+폰 (회원)
+  → vevenoApi.posApprove           POST /pos/sessions/{id}/approve
+  → VevenoPosService.approve       미등록이면 사장만 brew_pos_devices insert
+
+키오스크
+  → vevenoApi.posClaim             POST /pos/sessions/{id}/claim
+  → VevenoPosService.claim         pair 삭제, veveno:pos:sess:{deviceId} 12h
+                                   JWT type=pos
+```
+
+이후 계산대 요청은 `axios.ts`가 POS Bearer를 붙이고, `JwtAuthenticationFilter`가 `isPosToken` + `VevenoPosGuard.bind`로만 통과시킨다.
+
+---
+
+### 5. Veveno 퇴사
+
+`leave_date`는 “나간 날”이 아니라 **마지막 근무일**. 업주만 지정.
+
+```
+vevenoApi.resignSubscriber(storeId, userId, leaveDate)
+  → POST .../subscribers/{userId}/resign
+  → BrewService.resignSubscriber → applyLeave
+       brew_store_subscriptions.leave_date
+       당일 슬롯이 이미 끝났으면 finalizeLeave (스케줄·COVER 정리, 구독 삭제)
+       아니면 예약만
+```
+
+놓친 예약은 매시 정각:
+
+```
+VevenoLeaveFinalizeScheduler.finalizeDueLeaves   cron 0 0 * * * * Asia/Seoul
+  → Redis 락 veveno:leave:finalize:lock (5분)
+  → BrewService.finalizeDueLeaves
+```
+
+---
+
+### 6. Sranko 입어보기
+
+브라우저는 Vertex 키를 모른다. Spring이 게이트웨이다.
+
+```
+옷장 다중 선택 → srankoApi.tryOn({ itemIds, fitByItemId })
+  → POST /api/v1/sranko/ml/try-on
+  → SrankoController.tryOn
+  → SrankoService.tryOn
+       sranko_prefs (동의·성별·치수)
+       sranko_items (measurements_json)
+       VertexGeminiTryOnClient.tryOn          ADC, 마네킹 classpath
+       (필요 시) SrankoMlClient.fitWarp       FastAPI POST /ml/fit-warp
+       R2 .../sranko/{userId}/tryon/...
+  → 「내 룩에 저장」 POST /looks  source=TRY_ON
+       sranko_looks.item_ids_json  (Look↔Item 조인 없음, 읽을 때 배치 IN)
+```
+
+분류·배경제거는 브라우저가 FastAPI를 직접 안 친다.
+
+```
+srankoApi.predict (multipart)
+  → POST /api/v1/sranko/ml/predict
+  → SrankoMlClient.predict
+  → FastAPI POST /ml/predict     classify_image / rembg / extract_worn_garment
+```
+
+날씨: `GET /weather` → Redis `sranko:forecast:{lat}:{lon}` TTL 30분, 미스일 때만 WeatherAPI.
+
+---
+
+### 7. DEV만 — 6PICK 회차 동기화, Dieta 식사 큐
+
+공개 홈에는 없다. 코드 따라갈 때만.
+
+**6PICK**  
+`LottoSyncScheduler.syncLatestDraws` (토 21–23시 10분마다) → Redis `lotto:sync:lock` → `DhLotteryClient.fetchDraw` → `lotto_draws`. 유저 번호는 `lotto_user_picks`.
+
+**Dieta**  
+낮 식사는 Redis `dieta:mealq:{userId}:{yyyy-MM-dd}` TTL 48시간. 마감하면 `DietaService.finalizeMealDay` → `GeminiMealClient.analyze` (키 없으면 stub) → `dieta_intake_logs`. 프로필은 `dieta_profiles`.
+
+---
+
+### 8. Score Viewer — 서버 없음
+
+악보는 이 기기 IndexedDB (`score-viewer-local-scores`). OSMD 렌더·메트로놈은 `frontend/src/features/score/`. Spring API 없음.
 
 ---
 
@@ -237,7 +524,7 @@ DigitalCloset 레거시를 PBB로 옮기면서 **옷장·룩·커뮤니티** UI�
 
 | 앱 | 경로 | 설명 |
 |----|------|------|
-| Veveno | `/hobbies/veveno` | 가게 노트. 허브 `/hub` · 실가게 `/stores/:id`(로그인) · 로컬 체험 `/stores/demo` · UI 한/영/일 |
+| Veveno | `/hobbies/veveno` | 가게 노트. 허브 `/hub` · 실가게 `/stores/:id`(로그인) · POS `/pos` · 로컬 체험 `/stores/demo` · UI 한/영/일 |
 | Sranko | `/hobbies/sranko` | 디지털 옷장 · 상품 사진 rembg · Gemini 입어보기 · 룩 · 커뮤니티 |
 | Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 
@@ -304,7 +591,8 @@ com.studiobs.spring_backend
 | POST | `/api/v1/auth/refresh` | Access Token 재발급 |
 | POST | `/api/v1/auth/logout` | 로그아웃 |
 | DELETE | `/api/v1/auth/account` | 회원 탈퇴 |
-| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·할 일·근무·공지 등 |
+| — | `/api/v1/veveno/**` (호환: `/api/v1/brew/**`) | Veveno 가게·메뉴·재고·할 일·근무·공지·POS·호출벨 |
+| — | `/api/v1/veveno/pos/**` | POS QR 페어·claim·세션 (공개 일부 + 회원 승인) |
 | — | `/api/v1/sranko/**` | Sranko prefs·옷장·룩·포스트·업로드·weather·ML |
 | — | `/api/v1/lotto/**` | DEV 전용 앱 회차·picks |
 | — | `/api/v1/dieta/**` | DEV 전용 앱 |

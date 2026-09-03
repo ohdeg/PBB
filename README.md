@@ -5,7 +5,7 @@ Play beom's BAG
 공통 JWT 인증 위에 매장 노트(**Veveno**)를 붙인 웹 서비스입니다.  
 Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 담당합니다.
 
-아래 「문제 해결 사례」는 *왜 이렇게 짰는지*이고, 「공부용 흐름」은 *코드가 어디로 가는지*다.
+막혔던 지점은 「문제 해결 사례」에, 화면에서 DB까지는 「핵심 흐름」에 적었습니다.
 
 [![CI](https://github.com/ohdeg/PBB/actions/workflows/ci.yml/badge.svg)](https://github.com/ohdeg/PBB/actions/workflows/ci.yml)  
 **Live:** [app.pbbstudio.com](https://app.pbbstudio.com) · API `api.pbbstudio.com`
@@ -285,238 +285,56 @@ WhatsApp Web처럼 **화면은 QR, 폰은 이미 로그인한 직원**이 찍는
 
 ---
 
-## 공부용 흐름
+## 핵심 흐름
 
-사례는 “왜”고, 여기는 “어디를 여는지”다. 화살표는 항상 **화면 → API → 서비스 → MySQL/Redis/R2** 순이다.
+요청은 화면에서 Spring을 거쳐 MySQL이나 Redis로 내려갑니다. 파일 올리기나 입어보기는 그 뒤에 R2나 FastAPI가 붙습니다.
 
-### 0. 요청이 공통으로 지나는 길
+공통으로, 브라우저는 `frontend/src/api/axios.ts`에서 Authorization을 붙입니다. 계산대면 POS 토큰, 아니면 Zustand에 있는 Access입니다. 서버 `JwtAuthenticationFilter`가 둘을 가립니다. 회원 토큰은 그대로 통과하고, POS JWT는 Veveno URL에서만 받습니다. 이 URL이 공개인지 회원인지는 `SecurityConfig`가 보고, 이 가게 직원인지는 `BrewService.assertCanView` 같은 도메인 검사가 한 번 더 합니다.
 
-브라우저가 API를 치면 토큰을 헤더에 붙인다. 키오스크면 POS 토큰, 아니면 Zustand Access.
+API가 401을 주면 회원 요청만 Refresh를 탑니다. 여러 개가 한꺼번에 깨져도 재발급은 한 번입니다. 탭을 다시 열면 `bindAuthResume()`이 세션을 다시 붙입니다. Refresh가 401로 거절된 경우만 로그아웃하고, 서버가 잠시 죽은 동안에는 쿠키를 남겨 둡니다.
 
-```ts
-// frontend/src/api/axios.ts — request interceptor
-const posToken = isVevenoPosKiosk() ? getVevenoPosToken() : null;
-const token = posToken ?? useAuthStore.getState().accessToken;
-if (token) config.headers.Authorization = `Bearer ${token}`;
-```
+### 로그인
 
-서버는 필터가 Bearer를 읽는다.
+로그인 화면에서 `POST /api/v1/auth/login`이 나갑니다. `AuthService.login`이 이메일·IP 한도를 보고 `users`에서 비밀번호를 확인한 다음 Access와 Refresh를 만듭니다. Refresh는 Redis `RT:{email}`에 넣고, HTTP로는 Access만 JSON으로 줍니다. Refresh는 HttpOnly 쿠키입니다.
 
-```java
-// JwtAuthenticationFilter.authenticate
-if (jwtTokenProvider.isAccessToken(token)) { setAuthentication(token); return; }
-if (jwtTokenProvider.isPosToken(token) && isBrewPath(request)
-        && vevenoPosGuard.bind(token)) {
-    setAuthentication(token);
-}
-```
-
-`SecurityConfig`가 URL을 공개/회원/DEV로 가른 다음, 컨트롤러로 들어간다. 가게 주인인지는 여기서 안 보고 `BrewService.assertCanView` 같은 도메인 검사가 한 번 더 한다.
-
-401이 나면 회원 API만 refresh를 탄다. 동시에 여러 개가 깨져도 `refreshPromise` 하나로 모은다. 탭을 다시 열면 `App.tsx`의 `bindAuthResume()`이 `bootstrapAuth()`를 다시 부른다. **refresh가 401일 때만** `clearAuth()` 한다.
-
-```ts
-// frontend/src/api/axios.ts
-export function shouldClearAuthOnRefreshFailure(error: unknown) {
-  return axios.isAxiosError(error) && error.response?.status === 401;
-}
-```
-
----
-
-### 1. 로그인
-
-`LoginPage.tsx`에서 `authApi.login` → `useAuthStore.setAccessToken`. Access는 메모리, Refresh는 응답 쿠키.
+새로고침하면 `bootstrapAuth()`가 그 쿠키로 `POST /api/v1/auth/refresh`를 보냅니다. 서버가 Redis의 값과 맞는지 보고 토큰을 다시 발급합니다. Access는 메모리에 30분, Refresh는 Redis에 7일 둡니다.
 
 ```
-LoginPage.tsx
-  → authApi.login          POST /api/v1/auth/login
-  → AuthController.login
-  → AuthService.login
-       AuthRateLimitService.checkLogin
-       UserService.findByEmail / matchesPassword   → users
-       JwtTokenProvider.createAccessToken / createRefreshToken
-       AuthRedisService.saveRefreshToken           → Redis RT:{email}
-  → Set-Cookie refreshToken + body { accessToken }
+LoginPage → POST /api/v1/auth/login → AuthService.login
+         → MySQL users, Redis RT:{email}, Cookie refreshToken, body accessToken
 ```
 
-```java
-// AuthService.login
-String accessToken = jwtTokenProvider.createAccessToken(user);
-String refreshToken = jwtTokenProvider.createRefreshToken(user);
-authRedisService.saveRefreshToken(email, refreshToken);
-```
+### Veveno 가입
 
-```java
-// AuthController.login — 바디에는 Access만
-return ResponseEntity.ok()
-    .header(HttpHeaders.SET_COOKIE,
-            refreshTokenCookieFactory.create(tokens.refreshToken()).toString())
-    .body(new TokenResponse(tokens.accessToken()));
-```
+직원이 가게에 들어가려 하면 `POST /stores/{id}/join`이 Redis `veveno:join:{storeId}:{userId}`에 24시간만 남깁니다. 사장이 그날 안 받으면 키만 사라집니다. 승인되면 그때 `brew_store_subscriptions`에 들어가고 Redis 키는 지웁니다.
 
-새로고침하면 `bootstrapAuth()`가 쿠키로 `POST /auth/refresh`를 친다. `AuthService.refresh`가 RT를 검증·로테이션한다.
+### Veveno 재고
 
-| 저장 | 키/컬럼 |
-|------|---------|
-| Zustand | `accessToken` (30분 JWT) |
-| Redis | `RT:{email}` (7일, 로테이션) |
-| Cookie | HttpOnly `refreshToken`, path `/api/v1/auth` |
-| MySQL | `users` (`id` UUID, `password` BCrypt) |
+재고 ±를 누르면 화면이 들고 있던 `version`을 `PATCH /stocks/{id}`에 같이 보냅니다. `BrewStockService.updateStock`이 DB `version`과 다르면 덮지 않고 409를 줍니다. 그 칸만 다시 불러 고칩니다.
 
-테스트: `AuthFlowIT`, `AuthServiceTest`, `axios.authResume.test.ts`
+허브 「근무중」은 가게마다 스케줄을 치지 않습니다. 구독 목록이 storeId를 모아 `onDutyByStoreIds` 한 번입니다.
 
----
+### Veveno POS
 
-### 2. Veveno 가입 신청 → 승인
+계산대에는 이메일 로그인을 두지 않았습니다. 키오스크가 `POST /pos/sessions`로 QR을 띄우면 Redis 페어가 2분 살아 있고, 이미 로그인한 폰이 찍어서 승인합니다. 처음 붙는 기기는 사장만 등록할 수 있습니다. 키오스크가 claim하면 페어는 지워지고, 12시간짜리 POS JWT와 `veveno:pos:sess:{deviceId}`가 남습니다. 그다음부터 계산대 요청은 POS 토큰만 타고, 설정이나 근무 관리 API는 막혀 있습니다.
 
-직원이 허브에서 신청하면 MySQL에 안 넣는다. 하루 안에 사장이 안 받으면 그냥 사라지게 Redis만 쓴다.
+### Veveno 퇴사
 
-```
-VevenoJoinApproveModal / vevenoApi.requestJoin
-  → POST /api/v1/veveno/stores/{id}/join
-  → BrewController.requestJoin
-  → BrewService.requestJoin
-  → BrewRedisService.saveJoinRequest     → veveno:join:{storeId}:{userId} TTL 24h
-```
+사장이 넣는 퇴사일은 ‘나간 날’이 아니라 마지막 근무일입니다. 그날 근무가 이미 끝났으면 구독과 이후 대타를 바로 정리하고, 아직이면 예약만 합니다. 놓친 건 서울 매시 정각 스케줄러가 Redis 락을 잡고 확정합니다.
 
-승인:
+### Sranko
 
-```
-vevenoApi.approveJoin
-  → POST .../join-requests/{userId}/approve
-  → BrewService.approveJoin
-       Redis에 pending 있는지 확인
-       brew_store_subscriptions insert (can_edit_stock, work_start_date)
-       Redis 키 삭제
-```
+옷 사진을 올려도 브라우저는 FastAPI를 직접 부르지 않습니다. `POST /api/v1/sranko/ml/predict`를 Spring이 받아 내부망 FastAPI로 넘깁니다. 분류와 배경 제거가 여기서 됩니다.
 
-```java
-// BrewService.requestJoin
-brewRedisService.saveJoinRequest(storeId, user.getId());
-```
+여러 벌을 골라 입어보기를 누르면 `POST /api/v1/sranko/ml/try-on`입니다. Spring이 동의·치수·마네킹을 붙인 뒤 Vertex를 호출하고, 결과는 R2에 올립니다. 내 룩으로 저장하면 아이템 id 목록만 `item_ids_json`에 남기고, 나중에 읽을 때 id를 모아 한 번에 가져옵니다.
 
----
+옷장 날씨는 Redis `sranko:forecast:{lat}:{lon}`을 30분 씁니다. 위경도는 소수 둘째 자리에서 반올림해서, GPS가 살짝 흔들려도 같은 캐시를 칩니다. 없을 때만 예보 API를 부릅니다.
 
-### 3. Veveno 재고 PATCH (낙관적 락)
+### 그 외
 
-화면이 들고 있는 `version`을 같이 보낸다. 서버 값이 다르면 덮지 않고 409.
+6PICK과 Dieta는 DEV 계정에만 보입니다. 6PICK 회차는 토요일 밤 스케줄러가 락을 잡고 외부 회차를 넣습니다. Dieta 낮 식사는 Redis 큐에 두었다가 마감할 때 Gemini로 넘기고 MySQL 섭취 로그에 씁니다.
 
-```
-VevenoStoreStocksPanel
-  → vevenoApi.updateStock({ ..., version })
-  → PATCH /api/v1/veveno/stocks/{stockId}
-  → BrewController.updateStock
-  → BrewStockService.updateStock
-  → brew_store_stocks.version (@Version)
-```
-
-```java
-// BrewStockService.updateStock
-if (currentVersion != request.version()) {
-    throw new BusinessException(HttpStatus.CONFLICT, "STOCK_STALE",
-            "다른 사용자가 재고를 수정했습니다. 다시 불러온 뒤 수정하세요.");
-}
-stock.update(...);
-```
-
-프론트는 그 칸만 busy로 두고 refetch. 테스트: 재고 optimistic lock IT.
-
-허브 「근무중」은 가게마다 스케줄을 치지 않는다. `BrewService.listSubscriptions`가 storeId를 모아서 `BrewScheduleService.onDutyByStoreIds` 한 번.
-
----
-
-### 4. Veveno POS
-
-```
-허브 QR (비로그인)
-  → vevenoApi.posCreateSession     POST /pos/sessions
-  → VevenoPosService.createPair    Redis veveno:pos:pair:{pairId}  2분
-  → vevenoApi.posPoll              POST /pos/sessions/poll
-
-폰 (회원)
-  → vevenoApi.posApprove           POST /pos/sessions/{id}/approve
-  → VevenoPosService.approve       미등록이면 사장만 brew_pos_devices insert
-
-키오스크
-  → vevenoApi.posClaim             POST /pos/sessions/{id}/claim
-  → VevenoPosService.claim         pair 삭제, veveno:pos:sess:{deviceId} 12h
-                                   JWT type=pos
-```
-
-이후 계산대 요청은 `axios.ts`가 POS Bearer를 붙이고, `JwtAuthenticationFilter`가 `isPosToken` + `VevenoPosGuard.bind`로만 통과시킨다.
-
----
-
-### 5. Veveno 퇴사
-
-`leave_date`는 “나간 날”이 아니라 **마지막 근무일**. 업주만 지정.
-
-```
-vevenoApi.resignSubscriber(storeId, userId, leaveDate)
-  → POST .../subscribers/{userId}/resign
-  → BrewService.resignSubscriber → applyLeave
-       brew_store_subscriptions.leave_date
-       당일 슬롯이 이미 끝났으면 finalizeLeave (스케줄·COVER 정리, 구독 삭제)
-       아니면 예약만
-```
-
-놓친 예약은 매시 정각:
-
-```
-VevenoLeaveFinalizeScheduler.finalizeDueLeaves   cron 0 0 * * * * Asia/Seoul
-  → Redis 락 veveno:leave:finalize:lock (5분)
-  → BrewService.finalizeDueLeaves
-```
-
----
-
-### 6. Sranko 입어보기
-
-브라우저는 Vertex 키를 모른다. Spring이 게이트웨이다.
-
-```
-옷장 다중 선택 → srankoApi.tryOn({ itemIds, fitByItemId })
-  → POST /api/v1/sranko/ml/try-on
-  → SrankoController.tryOn
-  → SrankoService.tryOn
-       sranko_prefs (동의·성별·치수)
-       sranko_items (measurements_json)
-       VertexGeminiTryOnClient.tryOn          ADC, 마네킹 classpath
-       (필요 시) SrankoMlClient.fitWarp       FastAPI POST /ml/fit-warp
-       R2 .../sranko/{userId}/tryon/...
-  → 「내 룩에 저장」 POST /looks  source=TRY_ON
-       sranko_looks.item_ids_json  (Look↔Item 조인 없음, 읽을 때 배치 IN)
-```
-
-분류·배경제거는 브라우저가 FastAPI를 직접 안 친다.
-
-```
-srankoApi.predict (multipart)
-  → POST /api/v1/sranko/ml/predict
-  → SrankoMlClient.predict
-  → FastAPI POST /ml/predict     classify_image / rembg / extract_worn_garment
-```
-
-날씨: `GET /weather` → Redis `sranko:forecast:{lat}:{lon}` TTL 30분, 미스일 때만 WeatherAPI.
-
----
-
-### 7. DEV만 — 6PICK 회차 동기화, Dieta 식사 큐
-
-공개 홈에는 없다. 코드 따라갈 때만.
-
-**6PICK**  
-`LottoSyncScheduler.syncLatestDraws` (토 21–23시 10분마다) → Redis `lotto:sync:lock` → `DhLotteryClient.fetchDraw` → `lotto_draws`. 유저 번호는 `lotto_user_picks`.
-
-**Dieta**  
-낮 식사는 Redis `dieta:mealq:{userId}:{yyyy-MM-dd}` TTL 48시간. 마감하면 `DietaService.finalizeMealDay` → `GeminiMealClient.analyze` (키 없으면 stub) → `dieta_intake_logs`. 프로필은 `dieta_profiles`.
-
----
-
-### 8. Score Viewer — 서버 없음
-
-악보는 이 기기 IndexedDB (`score-viewer-local-scores`). OSMD 렌더·메트로놈은 `frontend/src/features/score/`. Spring API 없음.
+Score Viewer는 API가 없습니다. 악보는 이 기기 IndexedDB에 있고, 보기는 `frontend/src/features/score/`입니다.
 
 ---
 

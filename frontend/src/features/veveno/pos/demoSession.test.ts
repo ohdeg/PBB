@@ -8,23 +8,33 @@ import {
 } from './demoSession';
 
 const memory = new Map<string, string>();
+const sessionMemory = new Map<string, string>();
+
+function mockStorage(map: Map<string, string>) {
+  return {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      map.set(key, value);
+    },
+    removeItem: (key: string) => {
+      map.delete(key);
+    },
+  };
+}
 
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
-  value: {
-    getItem: (key: string) => memory.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      memory.set(key, value);
-    },
-    removeItem: (key: string) => {
-      memory.delete(key);
-    },
-  },
+  value: mockStorage(memory),
+});
+Object.defineProperty(globalThis, 'sessionStorage', {
+  configurable: true,
+  value: mockStorage(sessionMemory),
 });
 
 describe('demo POS session', () => {
   beforeEach(() => {
     memory.clear();
+    sessionMemory.clear();
     resetDemoPos();
   });
 
@@ -55,11 +65,17 @@ describe('demo POS session', () => {
     expect(getDemoPosSession()?.deviceId).toBe('device-a');
     const expired = getDemoPosSession();
     if (expired) {
-      localStorage.setItem(
+      sessionStorage.setItem(
         'veveno:pos:demo:session',
         JSON.stringify({ ...expired, expiresAt: '2000-01-01T00:00:00.000Z' }),
       );
     }
     expect(getDemoPosSession()).toBeNull();
+  });
+
+  it('keeps POS session on this tab only', () => {
+    switchToDemoPos(true, true, 'device-a');
+    expect(sessionStorage.getItem('veveno:pos:demo:session')).toBeTruthy();
+    expect(localStorage.getItem('veveno:pos:demo:session')).toBeNull();
   });
 });

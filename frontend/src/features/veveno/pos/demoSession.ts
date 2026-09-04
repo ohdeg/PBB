@@ -29,12 +29,22 @@ interface DemoPosDevice {
   createdAt: string;
 }
 
-function readJson<T>(key: string, fallback: T): T {
-  if (typeof localStorage === 'undefined') {
+function store(kind: 'local' | 'session'): Storage | null {
+  try {
+    const target = kind === 'session' ? sessionStorage : localStorage;
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+function readJson<T>(key: string, fallback: T, kind: 'local' | 'session' = 'local'): T {
+  const storage = store(kind);
+  if (!storage) {
     return fallback;
   }
   try {
-    const raw = localStorage.getItem(key);
+    const raw = storage.getItem(key);
     if (!raw) {
       return fallback;
     }
@@ -44,8 +54,8 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
-function writeJson(key: string, value: unknown): void {
-  localStorage.setItem(key, JSON.stringify(value));
+function writeJson(key: string, value: unknown, kind: 'local' | 'session' = 'local'): void {
+  store(kind)?.setItem(key, JSON.stringify(value));
 }
 
 function enrollDevice(deviceId: string, isOwner: boolean): void {
@@ -68,12 +78,12 @@ function enrollDevice(deviceId: string, isOwner: boolean): void {
 }
 
 export function getDemoPosSession(): DemoPosSession | null {
-  const session = readJson<DemoPosSession | null>(SESSION_KEY, null);
+  const session = readJson<DemoPosSession | null>(SESSION_KEY, null, 'session');
   if (!session) {
     return null;
   }
   if (Date.parse(session.expiresAt) <= Date.now()) {
-    localStorage.removeItem(SESSION_KEY);
+    store('session')?.removeItem(SESSION_KEY);
     return null;
   }
   return session;
@@ -88,7 +98,7 @@ export function startDemoPosSession(
     canEditStock,
     expiresAt: new Date(Date.now() + SESSION_MS).toISOString(),
   };
-  writeJson(SESSION_KEY, session);
+  writeJson(SESSION_KEY, session, 'session');
   return session;
 }
 
@@ -110,12 +120,13 @@ export function extendDemoPosSession(): DemoPosSession {
 }
 
 export function clearDemoPosSession(): void {
-  localStorage.removeItem(SESSION_KEY);
+  store('session')?.removeItem(SESSION_KEY);
 }
 
 export function resetDemoPos(): void {
   localStorage.removeItem(LEGACY_PENDING_KEY);
   localStorage.removeItem(LEGACY_CLAIM_KEY);
   localStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(DEVICES_KEY);
 }

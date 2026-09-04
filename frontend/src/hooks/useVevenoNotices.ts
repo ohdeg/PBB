@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { vevenoApi } from '../api/vevenoApi'
 import { getVevenoErrorMessage } from '../features/veveno/i18n/error'
 import { useTranslation } from '../features/veveno/i18n/LanguageContext'
+import { useVevenoWsLive } from '../features/veveno/ws/live'
 import type { VevenoNotice, VevenoStore } from '../types/veveno'
 
 interface UseVevenoNoticesOptions {
@@ -17,11 +18,19 @@ export function useVevenoNotices({
   setError,
 }: UseVevenoNoticesOptions) {
   const t = useTranslation()
+  const live = useVevenoWsLive()
   const [notices, setNotices] = useState<VevenoNotice[]>([])
   const [noticesOpen, setNoticesOpen] = useState(false)
   const [noticeForm, setNoticeForm] = useState({ title: '', body: '' })
   const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null)
   const [savingNotice, setSavingNotice] = useState(false)
+
+  useEffect(() => {
+    const rows = live.notices.get(storeId)
+    if (rows) {
+      setNotices([...rows])
+    }
+  }, [live.notices, live.version, storeId])
 
   const openNotices = () => {
     setNoticesOpen(true)

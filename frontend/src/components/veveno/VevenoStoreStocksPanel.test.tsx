@@ -5,7 +5,12 @@ import type { AxiosResponse } from 'axios'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { vevenoApi } from '../../api/vevenoApi'
-import type { VevenoStock, VevenoStockCategory, VevenoStockLog } from '../../types/veveno'
+import type {
+  VevenoStock,
+  VevenoStockCategory,
+  VevenoStockCheck,
+  VevenoStockLog,
+} from '../../types/veveno'
 import { VevenoStoreStocksPanel, placeStock } from './VevenoStoreStocksPanel'
 import { VevenoI18nProvider } from '../../features/veveno/i18n/LanguageContext'
 
@@ -19,6 +24,7 @@ vi.mock('../../api/vevenoApi', () => ({
     deleteStock: vi.fn(),
     listStocks: vi.fn(),
     listStockLogs: vi.fn(),
+    createStockCheck: vi.fn(),
   },
 }))
 
@@ -502,5 +508,20 @@ describe('VevenoStoreStocksPanel', () => {
     })
     expect(screen.queryByText('에티오피아')).not.toBeInTheDocument()
     confirm.mockRestore()
+  })
+
+  it('lets owner send a stock-check request', async () => {
+    vi.mocked(vevenoApi.createStockCheck).mockResolvedValue({
+      data: { requestId: 'r1', updatedAt: '2026-09-04T00:00:00Z', items: [] },
+    } as AxiosResponse<VevenoStockCheck>)
+
+    render(<Harness owned onDuty={false} />)
+    fireEvent.click(screen.getByRole('button', { name: '확인 요청' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '에티오피아' }))
+    fireEvent.click(screen.getByRole('button', { name: /요청 보내기/ }))
+
+    await waitFor(() => {
+      expect(vevenoApi.createStockCheck).toHaveBeenCalledWith('store-1', [10])
+    })
   })
 })

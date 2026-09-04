@@ -69,16 +69,17 @@ export function VevenoI18nProvider({
 
 export function useVevenoI18n(): VevenoI18nValue {
   const context = useContext(VevenoI18nContext);
-  if (!context) {
-    const locale = resolveVevenoLocale();
-    return {
-      locale,
-      dateLocale: VEVENO_DATE_LOCALES[locale],
+  const fallbackLocale = resolveVevenoLocale();
+  const fallback = useMemo<VevenoI18nValue>(
+    () => ({
+      locale: fallbackLocale,
+      dateLocale: VEVENO_DATE_LOCALES[fallbackLocale],
       setLocale: saveVevenoLocale,
-      t: createTranslator(locale),
-    };
-  }
-  return context;
+      t: createTranslator(fallbackLocale),
+    }),
+    [fallbackLocale],
+  );
+  return context ?? fallback;
 }
 
 export function useTranslation(): TranslateFn {

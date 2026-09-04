@@ -20,6 +20,7 @@ import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockLogRepos
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockUsageDayRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
+import com.studiobs.spring_backend.domain.brew.support.PosAccess;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.entity.UserClass;
 import com.studiobs.spring_backend.domain.user.service.UserService;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -55,9 +57,16 @@ class BrewStockServiceUsageTest {
     private BrewStoreStockUsageDayRepository usageDayRepository;
     @Mock
     private BrewScheduleService brewScheduleService;
+    @Mock
+    private VevenoStockCheckService stockCheckService;
 
     @InjectMocks
     private BrewStockService brewStockService;
+
+    @AfterEach
+    void clearPos() {
+        PosAccess.clear();
+    }
 
     @Test
     void updateStock_addsBulkDecrease_whenHintOn() {
@@ -239,6 +248,38 @@ class BrewStockServiceUsageTest {
         assertThat(result.orderUrl()).isNull();
     }
 
+    @Test
+    void updateStock_posWithoutEdit_qtyOnlyWhenRequested() {
+        UUID ownerId = UUID.randomUUID();
+        UUID posUser = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        BrewStore store = store(storeId, ownerId, false);
+        BrewStoreStockCategory category = BrewStoreStockCategory.builder()
+                .storeId(storeId)
+                .categoryName("Dairy")
+                .build();
+        ReflectionTestUtils.setField(category, "id", 7);
+        BrewStoreStock stock = stock(10, 7, "Milk", 10, 1);
+        when(userService.findByEmail("pos@example.com"))
+                .thenReturn(Optional.of(user("pos@example.com", posUser)));
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(stockRepository.findById(10)).thenReturn(Optional.of(stock));
+        when(stockCategoryRepository.findById(7)).thenReturn(Optional.of(category));
+        when(stockRepository.save(stock)).thenReturn(stock);
+        when(stockCheckService.isRequested(storeId, 10)).thenReturn(true);
+        PosAccess.set(new PosAccess.Snapshot(posUser, storeId, false, "dev"));
+
+        var result = brewStockService.updateStock(
+                "pos@example.com",
+                10,
+                new StockRequest("Hacked", 4, 99, 0, 99, "박스", "https://evil.example"));
+
+        assertThat(result.stockNum()).isEqualTo(4);
+        assertThat(stock.getStockName()).isEqualTo("Milk");
+        assertThat(stock.getStockMinNum()).isEqualTo(1);
+        assertThat(stock.getUnit()).isEqualTo("개");
+    }
+
     private void stubListStocks(UUID ownerId, UUID storeId, UUID viewerId, String email) {
         User viewer = user(email, viewerId);
         BrewStore store = store(storeId, ownerId, false);
@@ -285,7 +326,7 @@ class BrewStockServiceUsageTest {
         return stock;
     }
 
-    private void stubOwnerUpdate(UUID ownerId, UUID storeId, boolean hintOn, int currentNum) {
+    private BrewStoreStock stubOwnerUpdate(UUID ownerId, UUID storeId, boolean hintOn, int currentNum) {
         User owner = user("owner@example.com", ownerId);
         BrewStore store = store(storeId, ownerId, hintOn);
         BrewStoreStockCategory category = BrewStoreStockCategory.builder()
@@ -307,6 +348,7 @@ class BrewStockServiceUsageTest {
             when(usageDayRepository.findByStockIdAndUsedOnGreaterThanEqual(eq(10), any()))
                     .thenReturn(List.of());
         }
+        return stock;
     }
 
     private static User user(String email, UUID id) {

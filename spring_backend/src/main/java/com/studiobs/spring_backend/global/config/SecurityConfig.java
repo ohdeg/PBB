@@ -95,6 +95,7 @@ public class SecurityConfig {
                                 "/api/v1/brew/pos/sessions/poll",
                                 "/api/v1/brew/pos/sessions/*/claim"
                         ).permitAll()
+                        .requestMatchers("/api/v1/veveno/ws", "/api/v1/brew/ws").permitAll()
                         .requestMatchers("/api/v1/dev/**").hasRole("DEV")
                         .requestMatchers(
                                 HttpMethod.PUT,

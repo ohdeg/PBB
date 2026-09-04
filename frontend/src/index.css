@@ -3487,6 +3487,21 @@ html:not([data-theme='dark']) .global-nav__logo {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.veveno-stock-check-row__setqty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.4rem;
+  flex: 1 1 12rem;
+}
+
+.veveno-stock-check-row__setqty .veveno-field {
+  flex: 1 1 6rem;
+  min-width: 5rem;
+  margin: 0;
 }
 
 .veveno-stock-check-actions {

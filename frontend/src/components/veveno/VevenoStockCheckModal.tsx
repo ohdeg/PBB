@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { vevenoApi } from '../../api/vevenoApi';
 import type { VevenoStockCheck, VevenoStockCheckItem } from '../../types/veveno';
 import { getVevenoErrorMessage } from '../../features/veveno/i18n/error';
 import { useTranslation } from '../../features/veveno/i18n/LanguageContext';
 import { VevenoButton } from './VevenoButton';
+import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
+import { parseStockQtyInput, sanitizeStockQtyInput } from './vevenoStockQtyInput';
 
 type Mode = 'pos' | 'owner' | 'done';
 
@@ -28,6 +31,7 @@ export function VevenoStockCheckModal({
   const t = useTranslation();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [qtyDraft, setQtyDraft] = useState<{ id: number; value: string } | null>(null);
 
   const canEditQty = mode === 'pos' || mode === 'owner' || mode === 'done';
   const title =
@@ -110,6 +114,26 @@ export function VevenoStockCheckModal({
     }
   };
 
+  const openQtyDraft = (item: VevenoStockCheckItem) => {
+    setQtyDraft({
+      id: item.id,
+      value: item.qty === 0 ? '' : String(item.qty),
+    });
+  };
+
+  const submitQtyDraft = (item: VevenoStockCheckItem, event: FormEvent) => {
+    event.preventDefault();
+    if (qtyDraft?.id !== item.id) {
+      return;
+    }
+    const qty = parseStockQtyInput(qtyDraft.value);
+    setQtyDraft(null);
+    if (qty === item.qty) {
+      return;
+    }
+    void patchQty(item, qty);
+  };
+
   return (
     <VevenoModal open={open} title={title} onClose={onClose}>
       {check.items.length === 0 ? (
@@ -120,7 +144,49 @@ export function VevenoStockCheckModal({
             <li key={item.id} className="veveno-stock-check-row">
               <span className="veveno-stock-check-row__name">{item.name}</span>
               <div className="veveno-stock-check-row__qty">
-                {canEditQty ? (
+                {canEditQty && qtyDraft?.id === item.id ? (
+                  <form
+                    className="veveno-stock-check-row__setqty"
+                    onSubmit={(event) => {
+                      submitQtyDraft(item, event);
+                    }}
+                  >
+                    <VevenoInput
+                      label={t('stockCheck.setQty')}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      autoFocus
+                      pattern="[0-9]*"
+                      value={qtyDraft.value}
+                      placeholder={t('stockCheck.setQtyPh')}
+                      disabled={busyId === item.id}
+                      onChange={(e) => {
+                        setQtyDraft({
+                          id: item.id,
+                          value: sanitizeStockQtyInput(e.target.value),
+                        });
+                      }}
+                    />
+                    <VevenoButton
+                      size="sm"
+                      type="submit"
+                      disabled={busyId === item.id}
+                    >
+                      {t('common.save')}
+                    </VevenoButton>
+                    <VevenoButton
+                      size="sm"
+                      variant="secondary"
+                      disabled={busyId === item.id}
+                      onClick={() => {
+                        setQtyDraft(null);
+                      }}
+                    >
+                      {t('common.cancel')}
+                    </VevenoButton>
+                  </form>
+                ) : canEditQty ? (
                   <>
                     <VevenoButton
                       size="sm"
@@ -132,10 +198,21 @@ export function VevenoStockCheckModal({
                     >
                       −
                     </VevenoButton>
-                    <span className="veveno-stock-num">
+                    <button
+                      type="button"
+                      className="veveno-stock-num veveno-stock-num--action"
+                      disabled={busyId === item.id}
+                      aria-label={t('stockCheck.setQtyAria', {
+                        name: item.name,
+                        qty: `${item.qty}${item.unit}`,
+                      })}
+                      onClick={() => {
+                        openQtyDraft(item);
+                      }}
+                    >
                       {item.qty}
                       {item.unit}
-                    </span>
+                    </button>
                     <VevenoButton
                       size="sm"
                       variant="secondary"

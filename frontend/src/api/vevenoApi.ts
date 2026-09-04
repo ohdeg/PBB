@@ -15,6 +15,7 @@ import type {
   VevenoStats,
   VevenoStock,
   VevenoStockCategory,
+  VevenoStockCheck,
   VevenoStockLog,
   VevenoStore,
   VevenoSubscriber,
@@ -148,6 +149,51 @@ const vevenoLiveApi = {
 
   listStocks(storeId: string) {
     return apiClient.get<VevenoStockCategory[]>(`/api/v1/veveno/stores/${storeId}/stocks`);
+  },
+
+  getStockCheckCurrent(storeId: string) {
+    return apiClient
+      .get<VevenoStockCheck>(`/api/v1/veveno/stores/${storeId}/stock-checks/current`, {
+        validateStatus: (status) => status === 200 || status === 204,
+      })
+      .then((res) => ({ data: res.status === 204 ? null : res.data }));
+  },
+
+  getStockCheckDone(storeId: string) {
+    return apiClient
+      .get<VevenoStockCheck>(`/api/v1/veveno/stores/${storeId}/stock-checks/done`, {
+        validateStatus: (status) => status === 200 || status === 204,
+      })
+      .then((res) => ({ data: res.status === 204 ? null : res.data }));
+  },
+
+  createStockCheck(storeId: string, stockIds: number[]) {
+    return apiClient.post<VevenoStockCheck>(
+      `/api/v1/veveno/stores/${storeId}/stock-checks`,
+      { stockIds },
+    );
+  },
+
+  removeStockCheckItems(storeId: string, removeStockIds: number[]) {
+    return apiClient
+      .patch<VevenoStockCheck>(`/api/v1/veveno/stores/${storeId}/stock-checks`, {
+        removeStockIds,
+      }, {
+        validateStatus: (status) => status === 200 || status === 204,
+      })
+      .then((res) => ({ data: res.status === 204 ? null : res.data }));
+  },
+
+  cancelStockCheck(storeId: string) {
+    return apiClient.delete(`/api/v1/veveno/stores/${storeId}/stock-checks`);
+  },
+
+  completeStockCheck(storeId: string) {
+    return apiClient.post(`/api/v1/veveno/stores/${storeId}/stock-checks/complete`);
+  },
+
+  ackStockCheckDone(storeId: string) {
+    return apiClient.delete(`/api/v1/veveno/stores/${storeId}/stock-checks/done`);
   },
 
   createStockCategory(storeId: string, name: string) {

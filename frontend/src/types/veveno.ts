@@ -314,6 +314,44 @@ export const EMPTY_RECIPE_CONTENT: VevenoRecipeContent = {
   notes: '',
 };
 
+export interface VevenoStockCheckItem {
+  id: number;
+  categoryId: number;
+  name: string;
+  qty: number;
+  stockMinNum: number | null;
+  unit: string;
+  version: number;
+}
+
+/** ponytail: WS payload == REST GET current/done */
+export interface VevenoStockCheck {
+  requestId: string;
+  updatedAt: string;
+  items: VevenoStockCheckItem[];
+}
+
+export interface VevenoWsStoreSnapshot {
+  storeId: string;
+  storeName: string;
+  open: VevenoStockCheck | null;
+  done: VevenoStockCheck | null;
+  notices: VevenoNotice[];
+}
+
+export interface VevenoWsEvent {
+  topic: 'hello' | 'stockCheck' | 'notice';
+  kind: string;
+  storeId?: string | null;
+  storeName?: string | null;
+  open?: VevenoStockCheck | null;
+  done?: VevenoStockCheck | null;
+  notices?: VevenoNotice[] | null;
+  notice?: VevenoNotice | null;
+  noticeId?: string | null;
+  stores?: VevenoWsStoreSnapshot[] | null;
+}
+
 export interface VevenoPosPair {
   pairId: string;
   secret: string;

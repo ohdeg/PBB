@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import axios from 'axios';
 import { vevenoApi } from '../../api/vevenoApi';
@@ -14,6 +14,11 @@ import { VevenoCard } from './VevenoCard';
 import { VevenoEmptyState } from './VevenoEmptyState';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
+import { isVevenoPosKiosk } from '../../features/veveno/pos/session';
+import {
+  setStockCheckWatchStore,
+  useStockCheckRequestedIds,
+} from '../../features/veveno/stockCheck/watch';
 
 type StockListView = 'all' | 'low';
 
@@ -121,6 +126,7 @@ interface VevenoStoreStocksPanelProps {
   stockCategories: VevenoStockCategory[];
   setStockCategories: Dispatch<SetStateAction<VevenoStockCategory[]>>;
   onError: (message: string) => void;
+  initialSelect?: boolean;
 }
 
 export function VevenoStoreStocksPanel({
@@ -133,6 +139,7 @@ export function VevenoStoreStocksPanel({
   stockCategories,
   setStockCategories,
   onError,
+  initialSelect = false,
 }: VevenoStoreStocksPanelProps) {
   const t = useTranslation();
   const { dateLocale } = useVevenoI18n();
@@ -172,7 +179,18 @@ export function VevenoStoreStocksPanel({
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingStock, setDeletingStock] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [sendingCheck, setSendingCheck] = useState(false);
 
+  useEffect(() => {
+    if (initialSelect && owned) {
+      setSelectMode(true);
+    }
+  }, [initialSelect, owned]);
+
+  const requestedIds = useStockCheckRequestedIds();
+  const canRequestCheck = owned && !isVevenoPosKiosk();
   const canMutateStock = canEditStock && (owned || onDuty || stockEditOffDuty);
   const normalizedStockSearch = stockSearch.trim().toLowerCase();
   const lowStockCount = useMemo(
@@ -414,6 +432,30 @@ export function VevenoStoreStocksPanel({
     }
   };
 
+  const toggleSelected = (stockId: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(stockId) ? prev.filter((id) => id !== stockId) : [...prev, stockId],
+    );
+  };
+
+  const handleSendStockCheck = async () => {
+    if (selectedIds.length === 0) {
+      return;
+    }
+    setSendingCheck(true);
+    onError('');
+    try {
+      await vevenoApi.createStockCheck(storeId, selectedIds);
+      setStockCheckWatchStore(storeId);
+      setSelectMode(false);
+      setSelectedIds([]);
+    } catch (err: unknown) {
+      onError(getVevenoErrorMessage(err, t('errors.failStockCheck'), t));
+    } finally {
+      setSendingCheck(false);
+    }
+  };
+
   const openInbound = (categoryId: number, stock: VevenoStock) => {
     setInboundQty('');
     setInboundTarget({ categoryId, stock });
@@ -652,6 +694,35 @@ export function VevenoStoreStocksPanel({
               >
                 {t('stocks.addPlus')}
               </VevenoButton>
+              {canRequestCheck ? (
+                <VevenoButton
+                  size="sm"
+                  variant={selectMode ? 'secondary' : 'ghost'}
+                  onClick={() => {
+                    setSelectMode((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        setSelectedIds([]);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  {selectMode ? t('stockCheck.selectDone') : t('stockCheck.select')}
+                </VevenoButton>
+              ) : null}
+              {selectMode ? (
+                <VevenoButton
+                  size="sm"
+                  disabled={selectedIds.length === 0 || sendingCheck}
+                  loading={sendingCheck}
+                  onClick={() => {
+                    void handleSendStockCheck();
+                  }}
+                >
+                  {t('stockCheck.send', { count: selectedIds.length })}
+                </VevenoButton>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -773,10 +844,21 @@ export function VevenoStoreStocksPanel({
                       {cat.stocks.map((stock) => (
                         <div
                           key={stock.id}
-                          className={`veveno-stock-row${stock.lowStock ? ' is-low' : stock.soonLow ? ' is-soon' : ''}`}
+                          className={`veveno-stock-row${stock.lowStock ? ' is-low' : stock.soonLow ? ' is-soon' : ''}${requestedIds.includes(stock.id) ? ' is-check' : ''}`}
                         >
                           <div className="veveno-stock-row__info">
                             <div className="veveno-stock-row__title">
+                              {selectMode ? (
+                                <input
+                                  type="checkbox"
+                                  className="veveno-stock-check-box"
+                                  checked={selectedIds.includes(stock.id)}
+                                  onChange={() => {
+                                    toggleSelected(stock.id);
+                                  }}
+                                  aria-label={stock.stockName}
+                                />
+                              ) : null}
                               <p className="veveno-store-row__name">{stock.stockName}</p>
                               {owned && isHttpUrl(stock.orderUrl) ? (
                                 <a

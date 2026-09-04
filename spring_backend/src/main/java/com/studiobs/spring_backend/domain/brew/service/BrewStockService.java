@@ -49,6 +49,7 @@ public class BrewStockService {
     private final BrewStoreStockLogRepository stockLogRepository;
     private final BrewStoreStockUsageDayRepository usageDayRepository;
     private final BrewScheduleService brewScheduleService;
+    private final VevenoStockCheckService stockCheckService;
 
     private static final int UNIT_MAX_LEN = 16;
 
@@ -96,7 +97,7 @@ public class BrewStockService {
             NameRequest request
     ) {
         User user = requireUser(email);
-        requireStockMutator(storeId, user.getId());
+        requireStockMutator(storeId, user.getId(), null);
         String name = request.name().trim();
         if (stockCategoryRepository.existsByStoreIdAndCategoryName(storeId, name)) {
             throw new BusinessException(HttpStatus.CONFLICT, "CATEGORY_NAME_TAKEN", "이미 있는 카테고리 이름입니다.");
@@ -114,7 +115,7 @@ public class BrewStockService {
     ) {
         User user = requireUser(email);
         BrewStoreStockCategory category = requireStockCategory(categoryId);
-        requireStockMutator(category.getStoreId(), user.getId());
+        requireStockMutator(category.getStoreId(), user.getId(), null);
         String name = request.name().trim();
         if (name.isEmpty()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "CATEGORY_NAME_REQUIRED", "카테고리 이름을 입력해 주세요.");
@@ -145,7 +146,7 @@ public class BrewStockService {
     public void deleteStockCategory(String email, Integer categoryId) {
         User user = requireUser(email);
         BrewStoreStockCategory category = requireStockCategory(categoryId);
-        requireStockMutator(category.getStoreId(), user.getId());
+        requireStockMutator(category.getStoreId(), user.getId(), null);
         stockCategoryRepository.delete(category);
     }
 
@@ -153,7 +154,7 @@ public class BrewStockService {
     public StockResponse createStock(String email, Integer categoryId, StockRequest request) {
         User user = requireUser(email);
         BrewStoreStockCategory category = requireStockCategory(categoryId);
-        requireStockMutator(category.getStoreId(), user.getId());
+        requireStockMutator(category.getStoreId(), user.getId(), null);
         BrewStore store = requireStore(category.getStoreId());
         boolean includeOrderUrl = isOwner(store, user.getId());
         validateStockNums(request.stockNum(), request.stockMinNum());
@@ -180,10 +181,15 @@ public class BrewStockService {
         User user = requireUser(email);
         BrewStoreStock stock = requireStock(stockId);
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
-        requireStockMutator(category.getStoreId(), user.getId());
+        requireStockMutator(category.getStoreId(), user.getId(), stockId);
         BrewStore store = requireStore(category.getStoreId());
         boolean includeOrderUrl = isOwner(store, user.getId());
-        validateStockNums(request.stockNum(), request.stockMinNum());
+        boolean posQtyOnly = PosAccess.isPos() && !PosAccess.require().canEditStock();
+        if (posQtyOnly) {
+            validateStockNums(request.stockNum(), stock.getStockMinNum());
+        } else {
+            validateStockNums(request.stockNum(), request.stockMinNum());
+        }
         if (request.version() == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "STOCK_VERSION_REQUIRED", "재고 version이 필요합니다.");
         }
@@ -196,13 +202,15 @@ public class BrewStockService {
             );
         }
         Integer targetCategoryId =
-                request.categoryId() != null ? request.categoryId() : stock.getCategoryId();
+                posQtyOnly || request.categoryId() == null
+                        ? stock.getCategoryId()
+                        : request.categoryId();
         BrewStoreStockCategory targetCategory = requireStockCategory(targetCategoryId);
         if (!targetCategory.getStoreId().equals(category.getStoreId())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "STOCK_CATEGORY_WRONG_STORE", "다른 가게 카테고리로는 옮길 수 없습니다.");
         }
-        String name = request.stockName().trim();
-        if (stockRepository.existsByCategoryIdAndStockNameAndIdNot(
+        String name = posQtyOnly ? stock.getStockName() : request.stockName().trim();
+        if (!posQtyOnly && stockRepository.existsByCategoryIdAndStockNameAndIdNot(
                 targetCategoryId,
                 name,
                 stockId
@@ -210,18 +218,29 @@ public class BrewStockService {
             throw new BusinessException(HttpStatus.CONFLICT, "STOCK_NAME_TAKEN", "이미 있는 재고 이름입니다.");
         }
         int previousNum = stock.getStockNum();
-        String unit = request.unit() == null ? stock.getUnit() : resolveUnit(request.unit());
+        String unit = posQtyOnly || request.unit() == null
+                ? stock.getUnit()
+                : resolveUnit(request.unit());
         String orderUrl = includeOrderUrl
                 ? (request.orderUrl() == null
                         ? stock.getOrderUrl()
                         : resolveOrderUrl(request.orderUrl()))
                 : stock.getOrderUrl();
-        stock.update(targetCategoryId, name, request.stockNum(), request.stockMinNum(), unit, orderUrl);
+        stock.update(
+                targetCategoryId,
+                name,
+                request.stockNum(),
+                posQtyOnly ? stock.getStockMinNum() : request.stockMinNum(),
+                unit,
+                posQtyOnly ? stock.getOrderUrl() : orderUrl);
         BrewStoreStock saved = stockRepository.save(stock);
         stockRepository.flush();
         recordQtyLog(saved.getId(), user.getId(), previousNum, saved.getStockNum());
         if (store.isStockUsageHint()) {
             applyUsageDelta(saved.getId(), previousNum, saved.getStockNum());
+        }
+        if (stockCheckService.isRequested(store.getId(), saved.getId())) {
+            stockCheckService.publishOpen(store.getId());
         }
         return toStockResponse(store.isStockUsageHint(), saved, includeOrderUrl);
     }
@@ -258,7 +277,7 @@ public class BrewStockService {
         User user = requireUser(email);
         BrewStoreStock stock = requireStock(stockId);
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
-        requireStockMutator(category.getStoreId(), user.getId());
+        requireStockMutator(category.getStoreId(), user.getId(), null);
         stockRepository.delete(stock);
     }
 
@@ -276,13 +295,16 @@ public class BrewStockService {
         }
     }
 
-    private void requireStockMutator(UUID storeId, UUID userId) {
+    private void requireStockMutator(UUID storeId, UUID userId, Integer stockId) {
         if (PosAccess.isPos()) {
             PosAccess.requireBoundStore(storeId);
-            if (!PosAccess.require().canEditStock()) {
-                throw new BusinessException(HttpStatus.FORBIDDEN, "STOCK_EDIT_FORBIDDEN", "재고 수정 권한이 없습니다.");
+            if (PosAccess.require().canEditStock()) {
+                return;
             }
-            return;
+            if (stockId != null && stockCheckService.isRequested(storeId, stockId)) {
+                return;
+            }
+            throw new BusinessException(HttpStatus.FORBIDDEN, "STOCK_EDIT_FORBIDDEN", "재고 수정 권한이 없습니다.");
         }
         requireStockEditor(storeId, userId);
         BrewStore store = requireStore(storeId);

@@ -13,8 +13,17 @@ export function isVevenoDemoRequest(): boolean {
     return false;
   }
   const path = window.location.pathname;
-  return (
+  if (
     path.includes(`/hobbies/veveno/stores/${VEVENO_DEMO_STORE_ID}`)
     || path.includes(`/hobbies/veveno/pos/store/${VEVENO_DEMO_STORE_ID}`)
-  );
+  ) {
+    return true;
+  }
+  try {
+    return sessionStorage.getItem('veveno:pos:demo:session') != null
+      || localStorage.getItem('veveno:pos:demo:session') != null
+      || localStorage.getItem('veveno:stock-check:watch') === VEVENO_DEMO_STORE_ID;
+  } catch {
+    return false;
+  }
 }

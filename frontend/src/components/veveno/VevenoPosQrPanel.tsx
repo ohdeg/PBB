@@ -98,7 +98,7 @@ export function VevenoPosQrPanel() {
           }
           claimingRef.current = true;
           const claimed = await vevenoApi.posClaim(ready.pairId, ready.secret);
-          setVevenoPosToken(claimed.data.accessToken);
+          setVevenoPosToken(claimed.data.accessToken, claimed.data.storeId);
           void navigate(`/hobbies/veveno/pos/store/${claimed.data.storeId}`, {
             replace: true,
           });

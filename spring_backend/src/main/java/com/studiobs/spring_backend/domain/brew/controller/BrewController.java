@@ -27,6 +27,9 @@ import com.studiobs.spring_backend.domain.brew.dto.ScheduleResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StaffMemberResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockCategoryResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockLogResponse;
+import com.studiobs.spring_backend.domain.brew.dto.StockCheckCreateRequest;
+import com.studiobs.spring_backend.domain.brew.dto.StockCheckRemoveRequest;
+import com.studiobs.spring_backend.domain.brew.dto.StockCheckResponse;
 import com.studiobs.spring_backend.domain.brew.dto.StockPermissionRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockRequest;
 import com.studiobs.spring_backend.domain.brew.dto.StockResponse;
@@ -41,6 +44,7 @@ import com.studiobs.spring_backend.domain.brew.service.BrewChecklistService;
 import com.studiobs.spring_backend.domain.brew.service.BrewNoticeService;
 import com.studiobs.spring_backend.domain.brew.service.BrewStockService;
 import com.studiobs.spring_backend.domain.brew.service.BrewTimerPresetService;
+import com.studiobs.spring_backend.domain.brew.service.VevenoStockCheckService;
 import com.studiobs.spring_backend.global.common.MessageResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -50,6 +54,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -73,6 +78,7 @@ public class BrewController {
     private final BrewStockService brewStockService;
     private final BrewScheduleService brewScheduleService;
     private final BrewTimerPresetService brewTimerPresetService;
+    private final VevenoStockCheckService vevenoStockCheckService;
     private final AccessTokenResolver accessTokenResolver;
 
     @GetMapping("/stats")
@@ -252,6 +258,75 @@ public class BrewController {
     public MessageResponse deleteRecipe(HttpServletRequest request, @PathVariable UUID recipeId) {
         brewService.deleteRecipe(accessTokenResolver.requireEmail(request), recipeId);
         return new MessageResponse("레시피가 삭제되었습니다.");
+    }
+
+    @GetMapping("/stores/{storeId}/stock-checks/current")
+    public ResponseEntity<StockCheckResponse> stockCheckCurrent(
+            HttpServletRequest request,
+            @PathVariable UUID storeId
+    ) {
+        StockCheckResponse body = vevenoStockCheckService.current(
+                accessTokenResolver.requireEmail(request),
+                storeId
+        );
+        return body == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/stores/{storeId}/stock-checks/done")
+    public ResponseEntity<StockCheckResponse> stockCheckDone(
+            HttpServletRequest request,
+            @PathVariable UUID storeId
+    ) {
+        StockCheckResponse body = vevenoStockCheckService.done(
+                accessTokenResolver.requireEmail(request),
+                storeId
+        );
+        return body == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/stores/{storeId}/stock-checks")
+    public StockCheckResponse createStockCheck(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @Valid @RequestBody StockCheckCreateRequest body
+    ) {
+        return vevenoStockCheckService.upsert(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                body.stockIds()
+        );
+    }
+
+    @PatchMapping("/stores/{storeId}/stock-checks")
+    public ResponseEntity<StockCheckResponse> removeStockCheckItems(
+            HttpServletRequest request,
+            @PathVariable UUID storeId,
+            @Valid @RequestBody StockCheckRemoveRequest body
+    ) {
+        StockCheckResponse result = vevenoStockCheckService.remove(
+                accessTokenResolver.requireEmail(request),
+                storeId,
+                body.removeStockIds()
+        );
+        return result == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/stores/{storeId}/stock-checks")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelStockCheck(HttpServletRequest request, @PathVariable UUID storeId) {
+        vevenoStockCheckService.cancel(accessTokenResolver.requireEmail(request), storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/stock-checks/complete")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void completeStockCheck(HttpServletRequest request, @PathVariable UUID storeId) {
+        vevenoStockCheckService.complete(accessTokenResolver.requireEmail(request), storeId);
+    }
+
+    @DeleteMapping("/stores/{storeId}/stock-checks/done")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void ackStockCheckDone(HttpServletRequest request, @PathVariable UUID storeId) {
+        vevenoStockCheckService.ackDone(accessTokenResolver.requireEmail(request), storeId);
     }
 
     @GetMapping("/stores/{storeId}/stocks")

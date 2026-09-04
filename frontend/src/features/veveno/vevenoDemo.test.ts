@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isVevenoDemoStoreId, VEVENO_DEMO_STORE_ID } from './vevenoDemo'
+import * as demoSession from './pos/demoSession'
 import { applyDemoRole, resetVevenoDemo, setDemoRole, vevenoDemoApi } from './vevenoDemoApi'
 
 describe('veveno demo', () => {
@@ -146,5 +147,43 @@ describe('veveno demo', () => {
     expect(saved.callBellRate).toBe(1.2)
     expect(saved.callBellPitch).toBe(0.8)
     expect(applyDemoRole('staff').callBellPhrase).toBe('픽업하세요')
+  })
+
+  it('merges stock-check items then completes to owner done', async () => {
+    setDemoRole('owner')
+    const { data: cats } = await vevenoDemoApi.listStocks(VEVENO_DEMO_STORE_ID)
+    const stocks = cats.flatMap((cat) => cat.stocks)
+    const first = stocks[0]
+    const second = stocks[1]
+    expect(first && second).toBeTruthy()
+    if (!first || !second) {
+      return
+    }
+
+    const created = await vevenoDemoApi.createStockCheck(VEVENO_DEMO_STORE_ID, [first.id])
+    const merged = await vevenoDemoApi.createStockCheck(VEVENO_DEMO_STORE_ID, [second.id, first.id])
+    expect(merged.data.requestId).toBe(created.data.requestId)
+    expect(merged.data.items.map((item) => item.id)).toEqual([first.id, second.id])
+
+    await vevenoDemoApi.removeStockCheckItems(VEVENO_DEMO_STORE_ID, [second.id])
+    const afterRemove = await vevenoDemoApi.getStockCheckCurrent(VEVENO_DEMO_STORE_ID)
+    expect(afterRemove.data?.items.map((item) => item.id)).toEqual([first.id])
+
+    const last = await vevenoDemoApi.removeStockCheckItems(VEVENO_DEMO_STORE_ID, [first.id])
+    expect(last.data).toBeNull()
+
+    await vevenoDemoApi.createStockCheck(VEVENO_DEMO_STORE_ID, [first.id])
+    vi.spyOn(demoSession, 'getDemoPosSession').mockReturnValue({
+      deviceId: 'demo-pos',
+      canEditStock: false,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+    await vevenoDemoApi.completeStockCheck(VEVENO_DEMO_STORE_ID)
+    vi.restoreAllMocks()
+    expect((await vevenoDemoApi.getStockCheckCurrent(VEVENO_DEMO_STORE_ID)).data).toBeNull()
+    const done = await vevenoDemoApi.getStockCheckDone(VEVENO_DEMO_STORE_ID)
+    expect(done.data?.items.map((item) => item.id)).toEqual([first.id])
+    await vevenoDemoApi.ackStockCheckDone(VEVENO_DEMO_STORE_ID)
+    expect((await vevenoDemoApi.getStockCheckDone(VEVENO_DEMO_STORE_ID)).data).toBeNull()
   })
 })

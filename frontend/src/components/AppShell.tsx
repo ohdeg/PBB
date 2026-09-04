@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { ThemeToggle } from './ThemeToggle';
+import { VevenoStockCheckHost } from './veveno/VevenoStockCheckHost';
 import { getNavHobbies } from '../data/hobbies';
 import { isVevenoToolsPopPath } from '../features/veveno/tools/compact';
 import { useAuthStore } from '../stores/authStore';
@@ -214,6 +215,7 @@ export function AppShell() {
       )}
 
       <Outlet />
+      <VevenoStockCheckHost />
     </div>
   );
 }

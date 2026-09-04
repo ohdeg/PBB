@@ -8,6 +8,7 @@ import { vevenoApi } from '../api/vevenoApi'
 import { VevenoI18nProvider } from '../features/veveno/i18n/LanguageContext'
 import type { VevenoNotice, VevenoStore } from '../types/veveno'
 import { useVevenoNotices } from './useVevenoNotices'
+import { resetVevenoWsLive } from '../features/veveno/ws/live'
 
 vi.mock('../api/vevenoApi', () => ({
   vevenoApi: {
@@ -51,6 +52,7 @@ const createdNotice: VevenoNotice = {
 describe('useVevenoNotices', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetVevenoWsLive()
   })
 
   const wrapper = ({ children }: { children: ReactNode }) => (

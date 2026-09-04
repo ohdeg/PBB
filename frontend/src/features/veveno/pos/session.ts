@@ -1,5 +1,6 @@
 const DEVICE_KEY = 'veveno:pos:device';
 const TOKEN_KEY = 'veveno:pos:token';
+const STORE_KEY = 'veveno:pos:storeId';
 
 export function isVevenoPosKioskPath(pathname: string): boolean {
   return pathname.startsWith('/hobbies/veveno/pos');
@@ -27,10 +28,20 @@ export function getVevenoPosToken(): string | null {
   return token && token.length > 0 ? token : null;
 }
 
-export function setVevenoPosToken(token: string): void {
+export function getVevenoPosStoreId(): string | null {
+  const storeId = localStorage.getItem(STORE_KEY);
+  return storeId && storeId.length > 0 ? storeId : null;
+}
+
+export function setVevenoPosToken(token: string, storeId?: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+  if (storeId) {
+    localStorage.setItem(STORE_KEY, storeId);
+  }
 }
 
 export function clearVevenoPosToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(STORE_KEY);
 }
+

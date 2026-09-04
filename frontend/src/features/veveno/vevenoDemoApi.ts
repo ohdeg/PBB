@@ -18,6 +18,8 @@ import type {
   VevenoScheduleSlotInput,
   VevenoStock,
   VevenoStockCategory,
+  VevenoStockCheck,
+  VevenoStockCheckItem,
   VevenoStockLog,
   VevenoStore,
   VevenoSubscriber,
@@ -123,6 +125,18 @@ interface DemoState {
   checks: Record<string, string>
   personalPresets: VevenoTimerPreset[]
   storePresets: VevenoTimerPreset[]
+  stockCheck: {
+    requestId: string
+    stockIds: number[]
+    requestedAt: string
+    updatedAt: string
+  } | null
+  stockCheckDone: {
+    requestId: string
+    stockIds: number[]
+    requestedAt: string
+    updatedAt: string
+  } | null
 }
 
 function ok<T>(data: T): Promise<{ data: T }> {
@@ -309,6 +323,8 @@ function seedState(): DemoState {
         updatedAt: CREATED,
       },
     ],
+    stockCheck: null,
+    stockCheckDone: null,
   }
 }
 
@@ -483,6 +499,8 @@ function loadState(): DemoState {
         parsed.store.callBellPhrase = parsed.store.callBellPhrase ?? null
         parsed.store.callBellRate = parsed.store.callBellRate ?? null
         parsed.store.callBellPitch = parsed.store.callBellPitch ?? null
+        parsed.stockCheck = parsed.stockCheck ?? null
+        parsed.stockCheckDone = parsed.stockCheckDone ?? null
         return parsed
       }
     }
@@ -503,6 +521,17 @@ function state(): DemoState {
 
 function persist(): void {
   writeStored(JSON.stringify(state()))
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('veveno-demo-sync'))
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY) {
+      cache = null
+    }
+  })
 }
 
 function nextId(kind: string): string {
@@ -515,6 +544,56 @@ function nextNum(kind: string): number {
   const s = state()
   s.ids[kind] = (s.ids[kind] ?? 0) + 1
   return s.ids[kind]
+}
+
+function demoPos(): boolean {
+  return getDemoPosSession() != null || isVevenoPosKiosk()
+}
+
+function requireDemoOwner(): void {
+  if (demoPos()) {
+    throw Object.assign(new Error('POS에서는 관리 기능을 사용할 수 없습니다.'), {
+      code: 'POS_MANAGEMENT_FORBIDDEN',
+    })
+  }
+  if (state().role !== 'owner') {
+    throw Object.assign(new Error('가게 소유자만 관리할 수 있습니다.'), {
+      code: 'OWNER_ONLY',
+    })
+  }
+}
+
+function toCheckItems(ids: number[]): VevenoStockCheckItem[] {
+  const byId = new Map(state().stocks.map((row) => [row.id, row]))
+  return ids.flatMap((id) => {
+    const row = byId.get(id)
+    if (!row) {
+      return []
+    }
+    return [
+      {
+        id: row.id,
+        categoryId: row.categoryId,
+        name: row.stockName,
+        qty: row.stockNum,
+        stockMinNum: row.stockMinNum,
+        unit: row.unit,
+        version: row.version,
+      },
+    ]
+  })
+}
+
+function toCheckResponse(row: {
+  requestId: string
+  stockIds: number[]
+  updatedAt: string
+}): VevenoStockCheck {
+  return {
+    requestId: row.requestId,
+    updatedAt: row.updatedAt,
+    items: toCheckItems(row.stockIds),
+  }
 }
 
 function actor(): { userId: string; nickname: string } {
@@ -891,6 +970,128 @@ export const vevenoDemoApi = {
     return ok(categories())
   },
 
+  getStockCheckCurrent(_storeId: string) {
+    if (!demoPos() && state().role !== 'owner') {
+      return fail('OWNER_ONLY', '가게 소유자만 관리할 수 있습니다.')
+    }
+    const row = state().stockCheck
+    return ok(row ? toCheckResponse(row) : null)
+  },
+
+  getStockCheckDone(_storeId: string) {
+    if (demoPos()) {
+      return fail('OWNER_ONLY', '가게 소유자만 관리할 수 있습니다.')
+    }
+    const row = state().stockCheckDone
+    return ok(row ? toCheckResponse(row) : null)
+  },
+
+  createStockCheck(_storeId: string, stockIds: number[]) {
+    try {
+      requireDemoOwner()
+    } catch (err: unknown) {
+      const code = err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: string }).code)
+        : 'OWNER_ONLY'
+      return fail(code, err instanceof Error ? err.message : '요청에 실패했습니다.')
+    }
+    const ids = [...new Set(stockIds.filter((id) => Number.isInteger(id)))]
+    if (ids.length === 0) {
+      return fail('STOCK_CHECK_EMPTY', '재고를 골라 주세요.')
+    }
+    const known = new Set(state().stocks.map((row) => row.id))
+    if (ids.some((id) => !known.has(id))) {
+      return fail('STOCK_NOT_FOUND', '재고를 찾을 수 없습니다.')
+    }
+    const at = nowIso()
+    const s = state()
+    if (!s.stockCheck) {
+      s.stockCheck = {
+        requestId: `check-${at}`,
+        stockIds: ids,
+        requestedAt: at,
+        updatedAt: at,
+      }
+    } else {
+      const merged = [...s.stockCheck.stockIds]
+      for (const id of ids) {
+        if (!merged.includes(id)) {
+          merged.push(id)
+        }
+      }
+      s.stockCheck.stockIds = merged
+      s.stockCheck.updatedAt = at
+    }
+    persist()
+    return ok(toCheckResponse(s.stockCheck))
+  },
+
+  removeStockCheckItems(_storeId: string, removeStockIds: number[]) {
+    try {
+      requireDemoOwner()
+    } catch (err: unknown) {
+      const code = err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: string }).code)
+        : 'OWNER_ONLY'
+      return fail(code, err instanceof Error ? err.message : '요청에 실패했습니다.')
+    }
+    const s = state()
+    if (!s.stockCheck) {
+      return ok(null)
+    }
+    const drop = new Set(removeStockIds)
+    s.stockCheck.stockIds = s.stockCheck.stockIds.filter((id) => !drop.has(id))
+    if (s.stockCheck.stockIds.length === 0) {
+      s.stockCheck = null
+      persist()
+      return ok(null)
+    }
+    s.stockCheck.updatedAt = nowIso()
+    persist()
+    return ok(toCheckResponse(s.stockCheck))
+  },
+
+  cancelStockCheck(_storeId: string) {
+    try {
+      requireDemoOwner()
+    } catch (err: unknown) {
+      const code = err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: string }).code)
+        : 'OWNER_ONLY'
+      return fail(code, err instanceof Error ? err.message : '요청에 실패했습니다.')
+    }
+    state().stockCheck = null
+    persist()
+    return ok<ApiMessageResponse>({ message: '취소했습니다.' })
+  },
+
+  completeStockCheck(_storeId: string) {
+    if (!demoPos()) {
+      return fail('POS_ONLY', 'POS에서만 완료할 수 있습니다.')
+    }
+    const s = state()
+    if (s.stockCheck) {
+      s.stockCheckDone = { ...s.stockCheck, updatedAt: nowIso() }
+      s.stockCheck = null
+      persist()
+    }
+    return ok<ApiMessageResponse>({ message: '완료했습니다.' })
+  },
+
+  ackStockCheckDone(_storeId: string) {
+    try {
+      requireDemoOwner()
+    } catch (err: unknown) {
+      const code = err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: string }).code)
+        : 'OWNER_ONLY'
+      return fail(code, err instanceof Error ? err.message : '요청에 실패했습니다.')
+    }
+    state().stockCheckDone = null
+    persist()
+    return ok<ApiMessageResponse>({ message: '확인했습니다.' })
+  },
+
   createStockCategory(_storeId: string, name: string) {
     const cat: Omit<VevenoStockCategory, 'stocks'> = {
       id: nextNum('category'),
@@ -984,6 +1185,30 @@ export const vevenoDemoApi = {
     }
     if (row.version !== payload.version) {
       return fail('STOCK_STALE', '다른 화면에서 재고가 바뀌었습니다. 다시 불러와 주세요.')
+    }
+    const pos = getDemoPosSession()
+    if (isVevenoPosKiosk() && pos && !pos.canEditStock) {
+      const requested = state().stockCheck?.stockIds.includes(stockId) === true
+      if (!requested) {
+        return fail('STOCK_EDIT_FORBIDDEN', '재고 수정 권한이 없습니다.')
+      }
+      const fromNum = row.stockNum
+      row.stockNum = payload.stockNum
+      applyUsageDelta(stockId, fromNum, payload.stockNum)
+      row.version += 1
+      row.updatedAt = nowIso()
+      if (fromNum !== payload.stockNum) {
+        state().logs.unshift({
+          id: nextNum('log'),
+          stockId,
+          fromNum,
+          toNum: payload.stockNum,
+          nickname: actor().nickname,
+          createdAt: row.updatedAt,
+        })
+      }
+      persist()
+      return ok(viewStock({ ...row }))
     }
     const fromNum = row.stockNum
     row.stockName = payload.stockName

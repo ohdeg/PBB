@@ -150,6 +150,23 @@ export function VevenoStorePage() {
   const t = useTranslation();
 
   const tab = parseTabParam(searchParams.get('tab'));
+  const [selectForCheck, setSelectForCheck] = useState(
+    () => searchParams.get('stockCheck') === '1',
+  );
+  useEffect(() => {
+    if (searchParams.get('stockCheck') !== '1') {
+      return;
+    }
+    setSelectForCheck(true);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete('stockCheck');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
   const setTab = useCallback(
     (next: Tab) => {
       setSearchParams(
@@ -258,21 +275,25 @@ export function VevenoStorePage() {
       });
       const menusRes = await vevenoApi.listMenus(storeId);
       setMenus(menusRes.data);
-      if (data.owned || data.subscribed) {
+      if (isDemo && (data.owned || data.subscribed)) {
         try {
           const noticesRes = await vevenoApi.listNotices(storeId);
           setNotices(noticesRes.data);
         } catch {
           setNotices([]);
         }
+      }
+      if (data.owned || data.subscribed) {
         try {
           const todayRes = await vevenoApi.listTodayChecklists(storeId);
           setTodayChecklists(todayRes.data);
         } catch {
           setTodayChecklists([]);
         }
-      } else {
+      } else if (isDemo) {
         setNotices([]);
+        setTodayChecklists([]);
+      } else {
         setTodayChecklists([]);
       }
       if (data.canEditStock || isPosKiosk) {
@@ -498,7 +519,7 @@ export function VevenoStorePage() {
         return;
       }
       const { data } = await vevenoApi.posExtend();
-      setVevenoPosToken(data.accessToken);
+      setVevenoPosToken(data.accessToken, data.storeId);
       setPosExpiresAt(data.expiresAt);
     } catch (err: unknown) {
       setError(getVevenoErrorMessage(err, t('errors.failPosExtend'), t));
@@ -1433,6 +1454,7 @@ export function VevenoStorePage() {
               stockCategories={stockCategories}
               setStockCategories={setStockCategories}
               onError={setError}
+              initialSelect={selectForCheck}
             />
 
             {tab === 'checklists' && (store.owned || store.subscribed) ? (

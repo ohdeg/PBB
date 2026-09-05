@@ -63,8 +63,8 @@ export function callBellSpeech(slot: string, phrase: string | null): string | nu
   if (!number) {
     return null;
   }
-  const line = (phrase ?? '').trim() || DEFAULT_CALL_BELL_PHRASE;
-  return `${number} ${line}`;
+  const line = (phrase ?? '').trim();
+  return line ? `${number} ${line}` : number;
 }
 
 export function callBellSpoken(
@@ -76,8 +76,11 @@ export function callBellSpoken(
   if (!number) {
     return null;
   }
-  const line = (phrase ?? '').trim() || DEFAULT_CALL_BELL_PHRASE;
+  const line = (phrase ?? '').trim();
   const spokenNum = locale === 'ko' ? speakCallBellSlot(number) : number;
+  if (!line) {
+    return spokenNum;
+  }
   if (locale === 'ko' && line.startsWith('번')) {
     return `${spokenNum}${line}`;
   }

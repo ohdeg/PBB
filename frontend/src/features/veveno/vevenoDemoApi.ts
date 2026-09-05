@@ -821,13 +821,13 @@ export const vevenoDemoApi = {
   updateCallBellPhrase(
     _storeId: string,
     payload: {
-      phrase: string
+      phrase: string | null
       rate: number
       pitch: number
     },
   ) {
     const s = state()
-    const next = payload.phrase.trim()
+    const next = (payload.phrase ?? '').trim()
     s.store = {
       ...s.store,
       callBellPhrase: next.length === 0 ? null : next,

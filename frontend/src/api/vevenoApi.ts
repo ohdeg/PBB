@@ -77,7 +77,7 @@ const vevenoLiveApi = {
   updateCallBellPhrase(
     storeId: string,
     payload: {
-      phrase: string;
+      phrase: string | null;
       rate: number;
       pitch: number;
     },

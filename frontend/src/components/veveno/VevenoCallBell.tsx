@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { vevenoApi } from '../../api/vevenoApi';
+import { playCallBellChime } from '../../features/veveno/callbell/chime';
 import {
   callBellSpoken,
   callBellSpeech,
   clampCallBellPitch,
   clampCallBellRate,
-  DEFAULT_CALL_BELL_PHRASE,
   DEFAULT_CALL_BELL_PITCH,
   DEFAULT_CALL_BELL_RATE,
 } from '../../features/veveno/callbell/speech';
@@ -41,18 +41,24 @@ function speak(text: string, lang: string, rate: number, pitch: number): void {
   window.speechSynthesis.speak(utterance);
 }
 
-export function VevenoCallBell({ storeId, phrase, rate, pitch, onSaved }: VevenoCallBellProps) {
+export function VevenoCallBell({
+  storeId,
+  phrase,
+  rate,
+  pitch,
+  onSaved,
+}: VevenoCallBellProps) {
   const { t, locale } = useVevenoI18n();
   const slotRef = useRef<HTMLInputElement>(null);
   const [slot, setSlot] = useState('');
-  const [draft, setDraft] = useState(phrase?.trim() || DEFAULT_CALL_BELL_PHRASE);
+  const [draft, setDraft] = useState(phrase?.trim() ?? '');
   const [rateValue, setRateValue] = useState(rate ?? DEFAULT_CALL_BELL_RATE);
   const [pitchValue, setPitchValue] = useState(pitch ?? DEFAULT_CALL_BELL_PITCH);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setDraft(phrase?.trim() || DEFAULT_CALL_BELL_PHRASE);
+    setDraft(phrase?.trim() ?? '');
   }, [phrase]);
 
   useEffect(() => {
@@ -72,7 +78,11 @@ export function VevenoCallBell({ storeId, phrase, rate, pitch, onSaved }: Veveno
       setError(t('callbell.needNumber'));
       return;
     }
-    speak(line, lang, clampCallBellRate(rateValue), clampCallBellPitch(pitchValue));
+    const rateClamped = clampCallBellRate(rateValue);
+    const pitchClamped = clampCallBellPitch(pitchValue);
+    playCallBellChime(() => {
+      speak(line, lang, rateClamped, pitchClamped);
+    });
     slotRef.current?.select();
   };
 
@@ -81,7 +91,7 @@ export function VevenoCallBell({ storeId, phrase, rate, pitch, onSaved }: Veveno
     setError('');
     try {
       const { data } = await vevenoApi.updateCallBellPhrase(storeId, {
-        phrase: draft,
+        phrase: draft.trim() || null,
         rate: clampCallBellRate(rateValue),
         pitch: clampCallBellPitch(pitchValue),
       });
@@ -90,7 +100,7 @@ export function VevenoCallBell({ storeId, phrase, rate, pitch, onSaved }: Veveno
         callBellRate: data.callBellRate,
         callBellPitch: data.callBellPitch,
       });
-      setDraft(data.callBellPhrase?.trim() || DEFAULT_CALL_BELL_PHRASE);
+      setDraft(data.callBellPhrase?.trim() ?? '');
       setRateValue(data.callBellRate ?? DEFAULT_CALL_BELL_RATE);
       setPitchValue(data.callBellPitch ?? DEFAULT_CALL_BELL_PITCH);
     } catch (err: unknown) {
@@ -131,6 +141,7 @@ export function VevenoCallBell({ storeId, phrase, rate, pitch, onSaved }: Veveno
           value={draft}
           maxLength={200}
           rows={2}
+          placeholder={t('callbell.phrasePh')}
           onChange={(event) => setDraft(event.target.value)}
         />
       </label>

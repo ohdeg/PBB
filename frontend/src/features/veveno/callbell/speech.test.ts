@@ -20,8 +20,9 @@ describe('callBellSpeech', () => {
     );
   });
 
-  it('falls back to the default phrase', () => {
-    expect(callBellSpeech('12', '  ')).toBe(`12 ${DEFAULT_CALL_BELL_PHRASE}`);
+  it('keeps only the number when the phrase is empty', () => {
+    expect(callBellSpeech('12', '  ')).toBe('12');
+    expect(callBellSpeech('12', null)).toBe('12');
   });
 });
 
@@ -49,6 +50,11 @@ describe('callBellSpoken', () => {
     expect(callBellSpoken('312', '번 고객님 나왔습니다', 'en')).toBe(
       '312 번 고객님 나왔습니다',
     );
+  });
+
+  it('speaks only the number when the phrase is empty', () => {
+    expect(callBellSpoken('312', null, 'ko')).toBe('삼백십이');
+    expect(callBellSpoken('312', '  ', 'en')).toBe('312');
   });
 });
 

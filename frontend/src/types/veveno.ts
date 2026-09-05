@@ -13,7 +13,7 @@ export interface VevenoStore {
   stockEditOffDuty: boolean;
   /** 1이면 사용량으로 재고 일수·곧 부족 안내. 기본 false */
   stockUsageHint: boolean;
-  /** 호출벨 멘트. 없으면 기본 문구 */
+  /** 호출벨 멘트. 없으면 번호만 */
   callBellPhrase: string | null;
   callBellRate: number | null;
   callBellPitch: number | null;

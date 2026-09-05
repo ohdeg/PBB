@@ -12,6 +12,8 @@ public record CallBellPhraseRequest(
         Double rate,
         @DecimalMin("0")
         @DecimalMax("2")
-        Double pitch
+        Double pitch,
+        @Size(max = 16)
+        String style
 ) {
 }

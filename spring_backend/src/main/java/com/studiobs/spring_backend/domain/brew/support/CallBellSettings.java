@@ -8,12 +8,14 @@ import tools.jackson.databind.json.JsonMapper;
 /** Stored in brew_stores.call_bell_phrase as JSON, or a legacy plain phrase. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record CallBellSettings(String phrase, Double rate, Double pitch) {
+public record CallBellSettings(String phrase, Double rate, Double pitch, String style) {
+
+    public static final String STYLE_CHIME = "chime";
 
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
     public static CallBellSettings empty() {
-        return new CallBellSettings(null, null, null);
+        return new CallBellSettings(null, null, null, null);
     }
 
     public static CallBellSettings parse(String raw) {
@@ -26,26 +28,33 @@ public record CallBellSettings(String phrase, Double rate, Double pitch) {
                 CallBellSettings parsed = MAPPER.readValue(trimmed, CallBellSettings.class);
                 return parsed == null ? empty() : parsed.normalized();
             } catch (Exception ignored) {
-                return new CallBellSettings(trimmed, null, null);
+                return new CallBellSettings(trimmed, null, null, null);
             }
         }
-        return new CallBellSettings(trimmed, null, null);
+        return new CallBellSettings(trimmed, null, null, null);
     }
 
-    public static CallBellSettings fromRequest(String phrase, Double rate, Double pitch) {
-        return new CallBellSettings(phrase, rate, pitch).normalized();
+    public static CallBellSettings fromRequest(String phrase, Double rate, Double pitch, String style) {
+        return new CallBellSettings(phrase, rate, pitch, style).normalized();
     }
 
     public String toStorage() {
         CallBellSettings normalized = normalized();
-        if (normalized.phrase() == null && normalized.rate() == null && normalized.pitch() == null) {
+        if (normalized.phrase() == null
+                && normalized.rate() == null
+                && normalized.pitch() == null
+                && normalized.style() == null) {
             return null;
         }
         return MAPPER.writeValueAsString(normalized);
     }
 
     private CallBellSettings normalized() {
-        return new CallBellSettings(blankToNull(phrase), clampRate(rate), clampPitch(pitch));
+        return new CallBellSettings(
+                blankToNull(phrase),
+                clampRate(rate),
+                clampPitch(pitch),
+                normalizeStyle(style));
     }
 
     private static String blankToNull(String value) {
@@ -54,6 +63,13 @@ public record CallBellSettings(String phrase, Double rate, Double pitch) {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    static String normalizeStyle(String value) {
+        if (value == null) {
+            return null;
+        }
+        return STYLE_CHIME.equalsIgnoreCase(value.trim()) ? STYLE_CHIME : null;
     }
 
     static Double clampRate(Double value) {

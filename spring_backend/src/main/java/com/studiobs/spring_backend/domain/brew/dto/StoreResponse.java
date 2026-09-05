@@ -23,6 +23,7 @@ public record StoreResponse(
         String callBellPhrase,
         Double callBellRate,
         Double callBellPitch,
+        String callBellStyle,
         /** 열람자 본인의 퇴사 예정일(마지막 근무일). 없으면 null */
         LocalDate leaveDate,
         LocalDateTime createdAt,
@@ -53,6 +54,7 @@ public record StoreResponse(
                 bell.phrase(),
                 bell.rate(),
                 bell.pitch(),
+                bell.style(),
                 leaveDate,
                 store.getCreatedAt(),
                 store.getUpdatedAt()

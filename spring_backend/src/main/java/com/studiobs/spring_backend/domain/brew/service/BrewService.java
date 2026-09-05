@@ -234,7 +234,8 @@ public class BrewService {
         BrewStore store = requireStore(storeId);
         assertMember(store, user.getId());
         store.updateCallBellPhrase(
-                CallBellSettings.fromRequest(request.phrase(), request.rate(), request.pitch())
+                CallBellSettings.fromRequest(
+                                request.phrase(), request.rate(), request.pitch(), request.style())
                         .toStorage());
         return toStoreResponse(storeRepository.save(store), user.getId());
     }
@@ -599,6 +600,7 @@ public class BrewService {
                     bell.phrase(),
                     bell.rate(),
                     bell.pitch(),
+                    bell.style(),
                     null,
                     store.getCreatedAt(),
                     store.getUpdatedAt());

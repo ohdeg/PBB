@@ -147,6 +147,12 @@ describe('veveno demo', () => {
     expect(saved.callBellRate).toBe(1.2)
     expect(saved.callBellPitch).toBe(0.8)
     expect(applyDemoRole('staff').callBellPhrase).toBe('픽업하세요')
+    const { data: cleared } = await vevenoDemoApi.updateCallBellPhrase(VEVENO_DEMO_STORE_ID, {
+      phrase: '  ',
+      rate: 1.2,
+      pitch: 0.8,
+    })
+    expect(cleared.callBellPhrase).toBeNull()
   })
 
   it('merges stock-check items then completes to owner done', async () => {

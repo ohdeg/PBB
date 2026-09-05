@@ -2,11 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import axios from 'axios';
 import { vevenoApi } from '../../api/vevenoApi';
-import type { VevenoStock, VevenoStockCategory, VevenoStockLog } from '../../types/veveno';
+import type {
+  VevenoStock,
+  VevenoStockCategory,
+  VevenoStockCheckItem,
+  VevenoStockLog,
+} from '../../types/veveno';
 import { VEVENO_STOCK_UNITS } from '../../types/veveno';
 import { getVevenoErrorMessage } from '../../features/veveno/i18n/error';
 import { useTranslation, useVevenoI18n } from '../../features/veveno/i18n/LanguageContext';
 import type { TranslateFn } from '../../features/veveno/i18n/translate';
+import { isVevenoDemoRequest } from '../../features/veveno/vevenoDemo';
+import { useVevenoWsLive } from '../../features/veveno/ws/live';
 import { VevenoActionMenu } from './VevenoActionMenu';
 import { VevenoBadge } from './VevenoBadge';
 import { VevenoButton } from './VevenoButton';
@@ -116,6 +123,47 @@ export function placeStock(
   });
 }
 
+export function applyStockCheckQtys(
+  categories: VevenoStockCategory[],
+  items: readonly VevenoStockCheckItem[],
+): VevenoStockCategory[] {
+  if (items.length === 0) {
+    return categories;
+  }
+  const byId = new Map(items.map((item) => [item.id, item]));
+  let changed = false;
+  const next = categories.map((cat) => {
+    let catChanged = false;
+    const stocks = cat.stocks.map((stock) => {
+      const item = byId.get(stock.id);
+      if (!item) {
+        return stock;
+      }
+      const lowStock = item.stockMinNum != null && item.qty <= item.stockMinNum;
+      if (
+        stock.stockNum === item.qty
+        && stock.version === item.version
+        && stock.lowStock === lowStock
+      ) {
+        return stock;
+      }
+      catChanged = true;
+      return {
+        ...stock,
+        stockNum: item.qty,
+        version: item.version,
+        lowStock,
+      };
+    });
+    if (!catChanged) {
+      return cat;
+    }
+    changed = true;
+    return { ...cat, stocks };
+  });
+  return changed ? next : categories;
+}
+
 interface VevenoStoreStocksPanelProps {
   active: boolean;
   storeId: string;
@@ -188,6 +236,39 @@ export function VevenoStoreStocksPanel({
       setSelectMode(true);
     }
   }, [initialSelect, owned]);
+
+  const live = useVevenoWsLive();
+  const stockIdsKey = stockCategories
+    .map((cat) => cat.stocks.map((stock) => stock.id).join(','))
+    .join('|');
+
+  useEffect(() => {
+    const row = live.checks.get(storeId);
+    const items = row?.open?.items ?? row?.done?.items;
+    if (!items?.length) {
+      return;
+    }
+    setStockCategories((prev) => applyStockCheckQtys(prev, items));
+  }, [live.checks, live.version, setStockCategories, stockIdsKey, storeId]);
+
+  useEffect(() => {
+    if (!isVevenoDemoRequest()) {
+      return;
+    }
+    const onSync = () => {
+      void vevenoApi.listStocks(storeId).then(({ data }) => {
+        setStockCategories(data);
+      }).catch(() => {
+        /* demo persist already wrote; next tick retries */
+      });
+    };
+    window.addEventListener('veveno-demo-sync', onSync);
+    window.addEventListener('storage', onSync);
+    return () => {
+      window.removeEventListener('veveno-demo-sync', onSync);
+      window.removeEventListener('storage', onSync);
+    };
+  }, [storeId, setStockCategories]);
 
   const requestedIds = useStockCheckRequestedIds();
   const canRequestCheck = owned && !isVevenoPosKiosk();

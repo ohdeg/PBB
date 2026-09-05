@@ -9,9 +9,15 @@ import type {
   VevenoStock,
   VevenoStockCategory,
   VevenoStockCheck,
+  VevenoStockCheckItem,
   VevenoStockLog,
 } from '../../types/veveno'
-import { VevenoStoreStocksPanel, placeStock } from './VevenoStoreStocksPanel'
+import { applyWsEvent, resetVevenoWsLive } from '../../features/veveno/ws/live'
+import {
+  applyStockCheckQtys,
+  VevenoStoreStocksPanel,
+  placeStock,
+} from './VevenoStoreStocksPanel'
 import { VevenoI18nProvider } from '../../features/veveno/i18n/LanguageContext'
 
 vi.mock('../../api/vevenoApi', () => ({
@@ -111,6 +117,7 @@ function Harness({
 describe('VevenoStoreStocksPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetVevenoWsLive()
     vi.mocked(vevenoApi.listStockLogs).mockResolvedValue({
       data: [],
     } as AxiosResponse<VevenoStockLog[]>)
@@ -129,6 +136,56 @@ describe('VevenoStoreStocksPanel', () => {
     const next = placeStock(cats, { ...first, stockNum: 3, version: 1 })
     expect(next[0].stocks.map((s) => s.id)).toEqual([10, 11])
     expect(next[0].stocks[0].stockNum).toBe(3)
+  })
+
+  it('applies stockCheck qty, version, and lowStock only', () => {
+    const item: VevenoStockCheckItem = {
+      id: 10,
+      categoryId: 1,
+      name: '에티오피아',
+      qty: 0,
+      stockMinNum: 1,
+      unit: '개',
+      version: 4,
+    }
+    const next = applyStockCheckQtys(categories, [item])
+    const stock = next[0].stocks[0]
+    expect(stock.stockNum).toBe(0)
+    expect(stock.version).toBe(4)
+    expect(stock.lowStock).toBe(true)
+    expect(stock.soonLow).toBe(false)
+    expect(next[1].stocks[0].stockNum).toBe(1)
+  })
+
+  it('updates the tab qty when a live stockCheck event arrives', async () => {
+    render(<Harness owned onDuty />)
+    expect(screen.getByText('2개')).toBeInTheDocument()
+
+    applyWsEvent({
+      topic: 'stockCheck',
+      kind: 'open',
+      storeId: 'store-1',
+      open: {
+        requestId: 'r1',
+        updatedAt: '2026-09-05T00:00:00.000Z',
+        items: [
+          {
+            id: 10,
+            categoryId: 1,
+            name: '에티오피아',
+            qty: 9,
+            stockMinNum: 1,
+            unit: '개',
+            version: 2,
+          },
+        ],
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('9개')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('2개')).not.toBeInTheDocument()
   })
 
   it('keeps off-duty staff in read-only mode and filters stock names', () => {

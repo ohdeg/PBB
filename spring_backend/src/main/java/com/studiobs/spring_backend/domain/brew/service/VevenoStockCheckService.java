@@ -211,7 +211,8 @@ public class VevenoStockCheckService {
                     stock.getStockNum(),
                     stock.getStockMinNum(),
                     stock.getUnit() == null || stock.getUnit().isBlank() ? "개" : stock.getUnit(),
-                    stock.getVersion() == null ? 0 : stock.getVersion()));
+                    stock.getVersion() == null ? 0 : stock.getVersion(),
+                    stock.getImageUrl()));
         }
         return new StockCheckResponse(record.requestId(), record.updatedAt(), items);
     }

@@ -16,7 +16,7 @@ import {
   type ShoeUnit,
   type WeightUnit,
 } from '../features/sranko/measurements';
-import { resizeImageForUpload } from '../features/sranko/resizeImageForUpload';
+import { resizeImageForUpload } from '../lib/resizeImageForUpload';
 import { SrankoFitMap } from '../features/sranko/SrankoFitMap';
 import { SrankoZoomableImage } from '../features/sranko/SrankoZoomableImage';
 import {

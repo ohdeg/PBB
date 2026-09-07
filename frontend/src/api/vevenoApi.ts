@@ -99,12 +99,26 @@ const vevenoLiveApi = {
     return apiClient.get<VevenoMenu[]>(`/api/v1/veveno/stores/${storeId}/menus`);
   },
 
-  createMenu(storeId: string, name: string) {
-    return apiClient.post<VevenoMenu>(`/api/v1/veveno/stores/${storeId}/menus`, { name });
+  uploadImage(storeId: string, kind: 'menu' | 'recipe' | 'stock', file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<{ url: string }>('/api/v1/veveno/uploads', form, {
+      params: { storeId, kind },
+    });
   },
 
-  updateMenu(menuId: string, name: string) {
-    return apiClient.patch<VevenoMenu>(`/api/v1/veveno/menus/${menuId}`, { name });
+  createMenu(storeId: string, name: string, imageUrl?: string | null) {
+    return apiClient.post<VevenoMenu>(`/api/v1/veveno/stores/${storeId}/menus`, {
+      name,
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
+    });
+  },
+
+  updateMenu(menuId: string, name: string, imageUrl?: string | null) {
+    return apiClient.patch<VevenoMenu>(`/api/v1/veveno/menus/${menuId}`, {
+      name,
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
+    });
   },
 
   deleteMenu(menuId: string) {
@@ -131,15 +145,17 @@ const vevenoLiveApi = {
     return apiClient.get<VevenoRecipe[]>(`/api/v1/veveno/menus/${menuId}/recipes`);
   },
 
-  createRecipe(menuId: string, contents: string) {
+  createRecipe(menuId: string, contents: string, imageUrl?: string | null) {
     return apiClient.post<VevenoRecipe>(`/api/v1/veveno/menus/${menuId}/recipes`, {
       contents,
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
     });
   },
 
-  updateRecipe(recipeId: string, contents: string) {
+  updateRecipe(recipeId: string, contents: string, imageUrl?: string | null) {
     return apiClient.patch<VevenoRecipe>(`/api/v1/veveno/recipes/${recipeId}`, {
       contents,
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
     });
   },
 
@@ -224,6 +240,7 @@ const vevenoLiveApi = {
       stockMinNum: number | null;
       unit: string;
       orderUrl: string | null;
+      imageUrl?: string | null;
     },
   ) {
     return apiClient.post<VevenoStock>(
@@ -242,6 +259,7 @@ const vevenoLiveApi = {
       categoryId?: number;
       unit?: string;
       orderUrl?: string | null;
+      imageUrl?: string | null;
     },
   ) {
     return apiClient.patch<VevenoStock>(`/api/v1/veveno/stocks/${stockId}`, payload);

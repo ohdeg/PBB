@@ -7,7 +7,9 @@ import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
 import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
 import com.studiobs.spring_backend.domain.brew.dto.MenuResponse;
+import com.studiobs.spring_backend.domain.brew.dto.MenuWriteRequest;
 import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
+import com.studiobs.spring_backend.domain.brew.dto.VevenoUploadResponse;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeContentsRequest;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.ReplaceSchedulesRequest;
@@ -20,23 +22,32 @@ import com.studiobs.spring_backend.domain.brew.dto.UpdateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.entity.BrewMenu;
 import com.studiobs.spring_backend.domain.brew.entity.BrewRecipe;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStore;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStock;
+import com.studiobs.spring_backend.domain.brew.entity.BrewStoreStockCategory;
 import com.studiobs.spring_backend.domain.brew.entity.BrewStoreSubscription;
 import com.studiobs.spring_backend.domain.brew.repository.BrewMenuRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewRecipeRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockCategoryRepository;
+import com.studiobs.spring_backend.domain.brew.repository.BrewStoreStockRepository;
 import com.studiobs.spring_backend.domain.brew.repository.BrewStoreSubscriptionRepository;
 import com.studiobs.spring_backend.domain.brew.support.BrewInviteCodes;
 import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.brew.support.CallBellSettings;
 import com.studiobs.spring_backend.domain.brew.support.PosAccess;
+import com.studiobs.spring_backend.domain.brew.support.VevenoImageUrls;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
+import com.studiobs.spring_backend.global.r2.JpegResize;
+import com.studiobs.spring_backend.global.r2.R2StorageService;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,6 +55,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +68,11 @@ public class BrewService {
     private final BrewStoreSubscriptionRepository subscriptionRepository;
     private final BrewRedisService brewRedisService;
     private final BrewScheduleService brewScheduleService;
+    private final BrewStoreStockCategoryRepository stockCategoryRepository;
+    private final BrewStoreStockRepository stockRepository;
+    private final R2StorageService r2StorageService;
+
+    private static final Set<String> IMAGE_KINDS = Set.of("menu", "recipe", "stock");
 
     @Transactional(readOnly = true)
     public BrewStatsResponse getStats() {
@@ -244,6 +261,24 @@ public class BrewService {
     public void deleteStore(String email, UUID storeId) {
         User user = requireUser(email);
         BrewStore store = requireOwnedStore(storeId, user.getId());
+        List<BrewMenu> menus = menuRepository.findByStoreIdOrderByCreatedAtAsc(storeId);
+        List<UUID> menuIds = menus.stream().map(BrewMenu::getId).toList();
+        if (!menuIds.isEmpty()) {
+            for (BrewRecipe recipe : recipeRepository.findByMenuIdIn(menuIds)) {
+                r2StorageService.deleteByPublicUrl(recipe.getImageUrl());
+            }
+        }
+        for (BrewMenu menu : menus) {
+            r2StorageService.deleteByPublicUrl(menu.getImageUrl());
+        }
+        List<BrewStoreStockCategory> categories =
+                stockCategoryRepository.findByStoreIdOrderByCategoryNameAsc(storeId);
+        if (!categories.isEmpty()) {
+            for (BrewStoreStock stock : stockRepository.findByCategoryIdInOrderByStockNameAsc(
+                    categories.stream().map(BrewStoreStockCategory::getId).toList())) {
+                r2StorageService.deleteByPublicUrl(stock.getImageUrl());
+            }
+        }
         storeRepository.delete(store);
     }
 
@@ -257,22 +292,28 @@ public class BrewService {
     }
 
     @Transactional
-    public MenuResponse createMenu(String email, UUID storeId, NameRequest request) {
+    public MenuResponse createMenu(String email, UUID storeId, MenuWriteRequest request) {
         User user = requireUser(email);
         requireOwnedStore(storeId, user.getId());
+        String imageUrl = VevenoImageUrls.resolve(r2StorageService, storeId, request.imageUrl(), null);
         BrewMenu menu = menuRepository.save(BrewMenu.builder()
                 .storeId(storeId)
                 .name(request.name().trim())
+                .imageUrl(imageUrl)
                 .build());
         return MenuResponse.from(menu);
     }
 
     @Transactional
-    public MenuResponse updateMenu(String email, UUID menuId, NameRequest request) {
+    public MenuResponse updateMenu(String email, UUID menuId, MenuWriteRequest request) {
         User user = requireUser(email);
         BrewMenu menu = requireMenu(menuId);
         requireOwnedStore(menu.getStoreId(), user.getId());
+        String nextImage = VevenoImageUrls.resolve(
+                r2StorageService, menu.getStoreId(), request.imageUrl(), menu.getImageUrl());
+        VevenoImageUrls.deleteIfReplaced(r2StorageService, menu.getImageUrl(), nextImage);
         menu.rename(request.name().trim());
+        menu.setImageUrl(nextImage);
         return MenuResponse.from(menuRepository.save(menu));
     }
 
@@ -281,7 +322,55 @@ public class BrewService {
         User user = requireUser(email);
         BrewMenu menu = requireMenu(menuId);
         requireOwnedStore(menu.getStoreId(), user.getId());
+        for (BrewRecipe recipe : recipeRepository.findByMenuIdOrderByCreatedAtAsc(menuId)) {
+            r2StorageService.deleteByPublicUrl(recipe.getImageUrl());
+        }
+        r2StorageService.deleteByPublicUrl(menu.getImageUrl());
         menuRepository.delete(menu);
+    }
+
+    @Transactional(readOnly = true)
+    public VevenoUploadResponse uploadImage(
+            String email,
+            UUID storeId,
+            String kindRaw,
+            MultipartFile file
+    ) {
+        PosAccess.forbidManagement();
+        User user = requireUser(email);
+        String kind = kindRaw == null ? "" : kindRaw.trim().toLowerCase(Locale.ROOT);
+        if (!IMAGE_KINDS.contains(kind)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "업로드 kind가 올바르지 않습니다.");
+        }
+        if ("menu".equals(kind) || "recipe".equals(kind)) {
+            requireOwnedStore(storeId, user.getId());
+        } else {
+            requireStockImageUploader(storeId, user.getId());
+        }
+        r2StorageService.requireEnabled();
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지 파일이 비어 있습니다.");
+        }
+        if (file.getSize() > JpegResize.MAX_UPLOAD_BYTES) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지는 8MB 이하여야 합니다.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다.");
+        }
+        byte[] raw;
+        try {
+            raw = file.getBytes();
+        } catch (Exception ex) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "이미지를 읽을 수 없습니다.");
+        }
+        byte[] jpeg = JpegResize.toJpeg(raw);
+        String objectKey = VevenoImageUrls.storePrefix(r2StorageService, storeId)
+                + kind
+                + "s/"
+                + UUID.randomUUID()
+                + ".jpg";
+        return new VevenoUploadResponse(r2StorageService.putObject(objectKey, jpeg, "image/jpeg"));
     }
 
     @Transactional(readOnly = true)
@@ -299,9 +388,12 @@ public class BrewService {
         User user = requireUser(email);
         BrewMenu menu = requireMenu(menuId);
         requireOwnedStore(menu.getStoreId(), user.getId());
+        String imageUrl = VevenoImageUrls.resolve(
+                r2StorageService, menu.getStoreId(), request.imageUrl(), null);
         BrewRecipe recipe = recipeRepository.save(BrewRecipe.builder()
                 .menuId(menuId)
                 .contents(request.contents())
+                .imageUrl(imageUrl)
                 .build());
         return RecipeResponse.from(recipe);
     }
@@ -312,7 +404,11 @@ public class BrewService {
         BrewRecipe recipe = requireRecipe(recipeId);
         BrewMenu menu = requireMenu(recipe.getMenuId());
         requireOwnedStore(menu.getStoreId(), user.getId());
+        String nextImage = VevenoImageUrls.resolve(
+                r2StorageService, menu.getStoreId(), request.imageUrl(), recipe.getImageUrl());
+        VevenoImageUrls.deleteIfReplaced(r2StorageService, recipe.getImageUrl(), nextImage);
         recipe.updateContents(request.contents());
+        recipe.setImageUrl(nextImage);
         return RecipeResponse.from(recipeRepository.save(recipe));
     }
 
@@ -322,6 +418,7 @@ public class BrewService {
         BrewRecipe recipe = requireRecipe(recipeId);
         BrewMenu menu = requireMenu(recipe.getMenuId());
         requireOwnedStore(menu.getStoreId(), user.getId());
+        r2StorageService.deleteByPublicUrl(recipe.getImageUrl());
         recipeRepository.delete(recipe);
     }
 
@@ -756,6 +853,29 @@ public class BrewService {
             throw new BusinessException(HttpStatus.FORBIDDEN, "OWNER_ONLY", "가게 소유자만 관리할 수 있습니다.");
         }
         return store;
+    }
+
+    private void requireStockImageUploader(UUID storeId, UUID userId) {
+        BrewStore store = requireStore(storeId);
+        if (store.getOwnerUserId().equals(userId)) {
+            return;
+        }
+        boolean canEdit = subscriptionRepository
+                .findBySubscriberUserIdAndStoreId(userId, storeId)
+                .map(BrewStoreSubscription::isCanEditStock)
+                .orElse(false);
+        if (!canEdit) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "STOCK_EDIT_FORBIDDEN", "재고 수정 권한이 없습니다.");
+        }
+        if (store.isStockEditOffDuty()) {
+            return;
+        }
+        if (!brewScheduleService.isCurrentlyOnDuty(storeId, userId)) {
+            throw new BusinessException(
+                    HttpStatus.FORBIDDEN,
+                    "STOCK_EDIT_OFF_DUTY",
+                    "근무 시간에만 재고를 수정할 수 있습니다.");
+        }
     }
 
     private BrewMenu requireMenu(UUID menuId) {

@@ -21,7 +21,9 @@ import { VevenoCard } from './VevenoCard';
 import { VevenoEmptyState } from './VevenoEmptyState';
 import { VevenoInput } from './VevenoInput';
 import { VevenoModal } from './VevenoModal';
+import { resolveUploadedImage } from '../../features/veveno/resolveUploadedImage';
 import { isVevenoPosKiosk } from '../../features/veveno/pos/session';
+import { VevenoImageField } from './VevenoImageField';
 import {
   setStockCheckWatchStore,
   useStockCheckRequestedIds,
@@ -207,6 +209,7 @@ export function VevenoStoreStocksPanel({
     unitKey: '개',
     customUnit: '',
     orderUrl: '',
+    imageFile: null as File | null,
   });
   const [creatingStock, setCreatingStock] = useState(false);
   const [updatingStockId, setUpdatingStockId] = useState<number | null>(null);
@@ -222,6 +225,9 @@ export function VevenoStoreStocksPanel({
     unitKey: '개',
     customUnit: '',
     orderUrl: '',
+    imageUrl: null as string | null,
+    imageFile: null as File | null,
+    imageCleared: false,
   });
   const [stockLogs, setStockLogs] = useState<VevenoStockLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -425,12 +431,19 @@ export function VevenoStoreStocksPanel({
         }
       }
 
+      const imageUrl = await resolveUploadedImage(
+        storeId,
+        'stock',
+        stockForm.imageFile,
+        false,
+      );
       const { data } = await vevenoApi.createStock(categoryId, {
         stockName: stockForm.stockName.trim(),
         stockNum: stockForm.stockNum,
         stockMinNum: stockForm.stockMinNum,
         unit,
         orderUrl: owned ? stockForm.orderUrl.trim() || null : null,
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
       });
 
       setStockCategories((prev) => {
@@ -453,6 +466,7 @@ export function VevenoStoreStocksPanel({
         unitKey: stockForm.unitKey,
         customUnit: '',
         orderUrl: '',
+        imageFile: null,
       });
       setStockCreateOpen(false);
     } catch (err: unknown) {
@@ -469,7 +483,7 @@ export function VevenoStoreStocksPanel({
     stockNum: number,
     stockMinNum: number | null,
     version: number,
-    extra?: { unit?: string; orderUrl?: string | null },
+    extra?: { unit?: string; orderUrl?: string | null; imageUrl?: string | null },
   ): Promise<boolean> => {
     if (updatingStockIdRef.current === stockId) {
       return false;
@@ -485,6 +499,7 @@ export function VevenoStoreStocksPanel({
         categoryId,
         ...(extra?.unit != null ? { unit: extra.unit } : {}),
         ...(extra && 'orderUrl' in extra ? { orderUrl: extra.orderUrl } : {}),
+        ...(extra && 'imageUrl' in extra ? { imageUrl: extra.imageUrl } : {}),
       });
       setStockCategories((prev) => placeStock(prev, data));
       return true;
@@ -580,6 +595,9 @@ export function VevenoStoreStocksPanel({
       unitKey: isPresetUnit(stock.unit) ? stock.unit : UNIT_CUSTOM,
       customUnit: isPresetUnit(stock.unit) ? '' : stock.unit || '',
       orderUrl: stock.orderUrl ?? '',
+      imageUrl: stock.imageUrl ?? null,
+      imageFile: null,
+      imageCleared: false,
     });
     setStockLogs([]);
     setEditTarget({ categoryId, stock });
@@ -620,6 +638,12 @@ export function VevenoStoreStocksPanel({
     }
     setSavingEdit(true);
     try {
+      const imageUrl = await resolveUploadedImage(
+        storeId,
+        'stock',
+        editForm.imageFile,
+        editForm.imageCleared,
+      );
       const ok = await handleUpdateStockQty(
         live.id,
         editForm.categoryId,
@@ -630,6 +654,7 @@ export function VevenoStoreStocksPanel({
         {
           unit,
           ...(owned ? { orderUrl: editForm.orderUrl.trim() || null } : {}),
+          ...(imageUrl !== undefined ? { imageUrl } : {}),
         },
       );
       if (ok) {
@@ -929,6 +954,9 @@ export function VevenoStoreStocksPanel({
                         >
                           <div className="veveno-stock-row__info">
                             <div className="veveno-stock-row__title">
+                              {stock.imageUrl ? (
+                                <img className="veveno-thumb" src={stock.imageUrl} alt="" />
+                              ) : null}
                               {selectMode ? (
                                 <input
                                   type="checkbox"
@@ -1162,6 +1190,25 @@ export function VevenoStoreStocksPanel({
               disabled={creatingStock}
             />
           ) : null}
+          {!isVevenoDemoRequest() ? (
+            <VevenoImageField
+              label={t('common.imageOptional')}
+              previewUrl={
+                stockForm.imageFile
+                  ? URL.createObjectURL(stockForm.imageFile)
+                  : null
+              }
+              disabled={creatingStock}
+              pickLabel={t('common.pickImage')}
+              clearLabel={t('common.removeImage')}
+              onPick={(file) =>
+                setStockForm((prev) => ({ ...prev, imageFile: file }))
+              }
+              onClear={() =>
+                setStockForm((prev) => ({ ...prev, imageFile: null }))
+              }
+            />
+          ) : null}
           {owned ? (
             <VevenoInput
               label={t('stocks.orderUrl')}
@@ -1345,6 +1392,34 @@ export function VevenoStoreStocksPanel({
                 placeholder={t('stocks.unitNamePh')}
                 maxLength={16}
                 disabled={savingEdit}
+              />
+            ) : null}
+            {!isVevenoDemoRequest() ? (
+              <VevenoImageField
+                label={t('common.imageOptional')}
+                previewUrl={
+                  editForm.imageFile
+                    ? URL.createObjectURL(editForm.imageFile)
+                    : editForm.imageUrl
+                }
+                disabled={savingEdit}
+                pickLabel={t('common.pickImage')}
+                clearLabel={t('common.removeImage')}
+                onPick={(file) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    imageFile: file,
+                    imageCleared: false,
+                  }))
+                }
+                onClear={() =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    imageFile: null,
+                    imageUrl: null,
+                    imageCleared: true,
+                  }))
+                }
               />
             ) : null}
             {owned ? (

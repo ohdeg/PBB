@@ -13,6 +13,7 @@ public record StockResponse(
         String unit,
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String orderUrl,
+        String imageUrl,
         int version,
         boolean lowStock,
         boolean soonLow,
@@ -41,6 +42,7 @@ public record StockResponse(
                 stock.getStockMinNum(),
                 stock.getUnit() == null || stock.getUnit().isBlank() ? "개" : stock.getUnit(),
                 includeOrderUrl ? stock.getOrderUrl() : null,
+                stock.getImageUrl(),
                 stock.getVersion() == null ? 0 : stock.getVersion(),
                 stock.isLowStock(),
                 soonLow,

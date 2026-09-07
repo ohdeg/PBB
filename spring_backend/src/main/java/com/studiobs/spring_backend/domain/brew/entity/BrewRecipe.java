@@ -39,6 +39,9 @@ public class BrewRecipe {
     @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String contents;
 
+    @Column(name = "image_url", length = 512)
+    private String imageUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -48,12 +51,17 @@ public class BrewRecipe {
     private LocalDateTime updatedAt;
 
     @Builder
-    public BrewRecipe(UUID menuId, String contents) {
+    public BrewRecipe(UUID menuId, String contents, String imageUrl) {
         this.menuId = menuId;
         this.contents = contents;
+        this.imageUrl = imageUrl;
     }
 
     public void updateContents(String contents) {
         this.contents = contents;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

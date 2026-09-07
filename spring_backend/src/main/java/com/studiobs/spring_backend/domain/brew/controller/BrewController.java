@@ -17,7 +17,9 @@ import com.studiobs.spring_backend.domain.brew.dto.CreateStoreRequest;
 import com.studiobs.spring_backend.domain.brew.dto.JoinRequestResponse;
 import com.studiobs.spring_backend.domain.brew.dto.LeaveDateRequest;
 import com.studiobs.spring_backend.domain.brew.dto.MenuResponse;
+import com.studiobs.spring_backend.domain.brew.dto.MenuWriteRequest;
 import com.studiobs.spring_backend.domain.brew.dto.NameRequest;
+import com.studiobs.spring_backend.domain.brew.dto.VevenoUploadResponse;
 import com.studiobs.spring_backend.domain.brew.dto.NoticeRequest;
 import com.studiobs.spring_backend.domain.brew.dto.NoticeResponse;
 import com.studiobs.spring_backend.domain.brew.dto.RecipeContentsRequest;
@@ -54,6 +56,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,6 +69,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping({"/api/v1/brew", "/api/v1/veveno"})
@@ -167,12 +171,24 @@ public class BrewController {
         return brewService.listMenus(storeId, accessTokenResolver.findEmail(request).orElse(null));
     }
 
+    @PostMapping(value = "/uploads", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public VevenoUploadResponse uploadImage(
+            HttpServletRequest request,
+            @RequestParam UUID storeId,
+            @RequestParam String kind,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return brewService.uploadImage(
+                accessTokenResolver.requireEmail(request), storeId, kind, file);
+    }
+
     @PostMapping("/stores/{storeId}/menus")
     @ResponseStatus(HttpStatus.CREATED)
     public MenuResponse createMenu(
             HttpServletRequest request,
             @PathVariable UUID storeId,
-            @Valid @RequestBody NameRequest body
+            @Valid @RequestBody MenuWriteRequest body
     ) {
         return brewService.createMenu(accessTokenResolver.requireEmail(request), storeId, body);
     }
@@ -181,7 +197,7 @@ public class BrewController {
     public MenuResponse updateMenu(
             HttpServletRequest request,
             @PathVariable UUID menuId,
-            @Valid @RequestBody NameRequest body
+            @Valid @RequestBody MenuWriteRequest body
     ) {
         return brewService.updateMenu(accessTokenResolver.requireEmail(request), menuId, body);
     }

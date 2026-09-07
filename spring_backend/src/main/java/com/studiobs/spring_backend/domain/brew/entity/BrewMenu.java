@@ -37,6 +37,9 @@ public class BrewMenu {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @Column(name = "image_url", length = 512)
+    private String imageUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -46,12 +49,17 @@ public class BrewMenu {
     private LocalDateTime updatedAt;
 
     @Builder
-    public BrewMenu(UUID storeId, String name) {
+    public BrewMenu(UUID storeId, String name, String imageUrl) {
         this.storeId = storeId;
         this.name = name;
+        this.imageUrl = imageUrl;
     }
 
     public void rename(String name) {
         this.name = name;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

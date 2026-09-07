@@ -62,6 +62,8 @@ class BrewServicePermissionTest {
     private BrewRedisService brewRedisService;
     @Mock
     private BrewScheduleService brewScheduleService;
+    @Mock
+    private com.studiobs.spring_backend.global.r2.R2StorageService r2StorageService;
 
     @InjectMocks
     private BrewService brewService;
@@ -144,7 +146,7 @@ class BrewServicePermissionTest {
         assertThatThrownBy(() -> brewStockService.createStock(
                         "staff@example.com",
                         categoryId,
-                        new StockRequest("Milk", 10, 2, null, null, null, null)))
+                        new StockRequest("Milk", 10, 2, null, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;

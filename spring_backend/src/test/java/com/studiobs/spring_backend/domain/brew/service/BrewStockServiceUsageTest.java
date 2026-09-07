@@ -59,6 +59,8 @@ class BrewStockServiceUsageTest {
     private BrewScheduleService brewScheduleService;
     @Mock
     private VevenoStockCheckService stockCheckService;
+    @Mock
+    private com.studiobs.spring_backend.global.r2.R2StorageService r2StorageService;
 
     @InjectMocks
     private BrewStockService brewStockService;
@@ -77,7 +79,7 @@ class BrewStockServiceUsageTest {
         brewStockService.updateStock(
                 "owner@example.com",
                 10,
-                new StockRequest("Milk", 3, 1, 0, 7, null, null));
+                new StockRequest("Milk", 3, 1, 0, 7, null, null, null));
 
         ArgumentCaptor<BrewStoreStockUsageDay> captor =
                 ArgumentCaptor.forClass(BrewStoreStockUsageDay.class);
@@ -94,7 +96,7 @@ class BrewStockServiceUsageTest {
         brewStockService.updateStock(
                 "owner@example.com",
                 10,
-                new StockRequest("Milk", 3, 1, 0, 7, null, null));
+                new StockRequest("Milk", 3, 1, 0, 7, null, null, null));
 
         verify(usageDayRepository, never()).save(any());
         verify(usageDayRepository, never()).findByStockIdAndUsedOn(any(), any());
@@ -109,7 +111,7 @@ class BrewStockServiceUsageTest {
         brewStockService.updateStock(
                 "owner@example.com",
                 10,
-                new StockRequest("Milk", 3, 1, 0, 7, null, null));
+                new StockRequest("Milk", 3, 1, 0, 7, null, null, null));
 
         ArgumentCaptor<BrewStoreStockLog> captor = ArgumentCaptor.forClass(BrewStoreStockLog.class);
         verify(stockLogRepository).save(captor.capture());
@@ -127,7 +129,7 @@ class BrewStockServiceUsageTest {
         brewStockService.updateStock(
                 "owner@example.com",
                 10,
-                new StockRequest("Milk", 10, 1, 0, 7, "봉지", "https://shop.example/milk"));
+                new StockRequest("Milk", 10, 1, 0, 7, "봉지", "https://shop.example/milk", null));
 
         verify(stockLogRepository, never()).save(any());
     }
@@ -242,7 +244,8 @@ class BrewStockServiceUsageTest {
                         0,
                         7,
                         null,
-                        "https://evil.example/steal"));
+                        "https://evil.example/steal",
+                        null));
 
         assertThat(stock.getOrderUrl()).isEqualTo("https://shop.example/milk");
         assertThat(result.orderUrl()).isNull();
@@ -272,12 +275,13 @@ class BrewStockServiceUsageTest {
         var result = brewStockService.updateStock(
                 "pos@example.com",
                 10,
-                new StockRequest("Hacked", 4, 99, 0, 99, "박스", "https://evil.example"));
+                new StockRequest("Hacked", 4, 99, 0, 99, "박스", "https://evil.example", "https://evil.example/img"));
 
         assertThat(result.stockNum()).isEqualTo(4);
         assertThat(stock.getStockName()).isEqualTo("Milk");
         assertThat(stock.getStockMinNum()).isEqualTo(1);
         assertThat(stock.getUnit()).isEqualTo("개");
+        assertThat(stock.getImageUrl()).isEqualTo("https://cdn.example/keep.jpg");
     }
 
     private void stubListStocks(UUID ownerId, UUID storeId, UUID viewerId, String email) {
@@ -389,6 +393,7 @@ class BrewStockServiceUsageTest {
                 .build();
         ReflectionTestUtils.setField(stock, "id", id);
         ReflectionTestUtils.setField(stock, "version", 0);
+        ReflectionTestUtils.setField(stock, "imageUrl", "https://cdn.example/keep.jpg");
         return stock;
     }
 }

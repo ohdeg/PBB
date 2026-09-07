@@ -142,7 +142,12 @@ export function VevenoStockCheckModal({
         <ul className="veveno-stock-check-list">
           {check.items.map((item) => (
             <li key={item.id} className="veveno-stock-check-row">
-              <span className="veveno-stock-check-row__name">{item.name}</span>
+              <span className="veveno-stock-check-row__label">
+                {item.imageUrl ? (
+                  <img className="veveno-thumb" src={item.imageUrl} alt="" />
+                ) : null}
+                <span className="veveno-stock-check-row__name">{item.name}</span>
+              </span>
               <div className="veveno-stock-check-row__qty">
                 {canEditQty && qtyDraft?.id === item.id ? (
                   <form

@@ -8,6 +8,7 @@ public record MenuResponse(
         UUID id,
         UUID storeId,
         String name,
+        String imageUrl,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -16,6 +17,7 @@ public record MenuResponse(
                 menu.getId(),
                 menu.getStoreId(),
                 menu.getName(),
+                menu.getImageUrl(),
                 menu.getCreatedAt(),
                 menu.getUpdatedAt()
         );

@@ -21,9 +21,11 @@ import com.studiobs.spring_backend.domain.brew.support.BrewShiftTimes;
 import com.studiobs.spring_backend.domain.brew.support.BrewStockUsageForecast;
 import com.studiobs.spring_backend.domain.brew.support.BrewStockUsageForecast.Forecast;
 import com.studiobs.spring_backend.domain.brew.support.PosAccess;
+import com.studiobs.spring_backend.domain.brew.support.VevenoImageUrls;
 import com.studiobs.spring_backend.domain.user.entity.User;
 import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
+import com.studiobs.spring_backend.global.r2.R2StorageService;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -50,6 +52,7 @@ public class BrewStockService {
     private final BrewStoreStockUsageDayRepository usageDayRepository;
     private final BrewScheduleService brewScheduleService;
     private final VevenoStockCheckService stockCheckService;
+    private final R2StorageService r2StorageService;
 
     private static final int UNIT_MAX_LEN = 16;
 
@@ -147,6 +150,10 @@ public class BrewStockService {
         User user = requireUser(email);
         BrewStoreStockCategory category = requireStockCategory(categoryId);
         requireStockMutator(category.getStoreId(), user.getId(), null);
+        List<BrewStoreStock> stocks = stockRepository.findByCategoryIdOrderByStockNameAsc(categoryId);
+        for (BrewStoreStock stock : stocks) {
+            r2StorageService.deleteByPublicUrl(stock.getImageUrl());
+        }
         stockCategoryRepository.delete(category);
     }
 
@@ -162,6 +169,8 @@ public class BrewStockService {
         if (stockRepository.existsByCategoryIdAndStockName(categoryId, name)) {
             throw new BusinessException(HttpStatus.CONFLICT, "STOCK_NAME_TAKEN", "이미 있는 재고 이름입니다.");
         }
+        String imageUrl = VevenoImageUrls.resolve(
+                r2StorageService, category.getStoreId(), request.imageUrl(), null);
         BrewStoreStock stock = stockRepository.save(BrewStoreStock.builder()
                 .categoryId(categoryId)
                 .stockName(name)
@@ -171,6 +180,7 @@ public class BrewStockService {
                 .orderUrl(includeOrderUrl
                         ? resolveOrderUrl(request.orderUrl() == null ? "" : request.orderUrl())
                         : null)
+                .imageUrl(imageUrl)
                 .build());
         recordQtyLog(stock.getId(), user.getId(), 0, stock.getStockNum());
         return StockResponse.from(stock, false, null, includeOrderUrl);
@@ -226,13 +236,21 @@ public class BrewStockService {
                         ? stock.getOrderUrl()
                         : resolveOrderUrl(request.orderUrl()))
                 : stock.getOrderUrl();
+        String imageUrl = posQtyOnly
+                ? stock.getImageUrl()
+                : VevenoImageUrls.resolve(
+                        r2StorageService, category.getStoreId(), request.imageUrl(), stock.getImageUrl());
+        if (!posQtyOnly) {
+            VevenoImageUrls.deleteIfReplaced(r2StorageService, stock.getImageUrl(), imageUrl);
+        }
         stock.update(
                 targetCategoryId,
                 name,
                 request.stockNum(),
                 posQtyOnly ? stock.getStockMinNum() : request.stockMinNum(),
                 unit,
-                posQtyOnly ? stock.getOrderUrl() : orderUrl);
+                posQtyOnly ? stock.getOrderUrl() : orderUrl,
+                imageUrl);
         BrewStoreStock saved = stockRepository.save(stock);
         stockRepository.flush();
         recordQtyLog(saved.getId(), user.getId(), previousNum, saved.getStockNum());
@@ -278,6 +296,7 @@ public class BrewStockService {
         BrewStoreStock stock = requireStock(stockId);
         BrewStoreStockCategory category = requireStockCategory(stock.getCategoryId());
         requireStockMutator(category.getStoreId(), user.getId(), null);
+        r2StorageService.deleteByPublicUrl(stock.getImageUrl());
         stockRepository.delete(stock);
     }
 

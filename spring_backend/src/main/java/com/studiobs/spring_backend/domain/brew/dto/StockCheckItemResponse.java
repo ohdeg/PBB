@@ -7,6 +7,7 @@ public record StockCheckItemResponse(
         int qty,
         Integer stockMinNum,
         String unit,
-        int version
+        int version,
+        String imageUrl
 ) {
 }

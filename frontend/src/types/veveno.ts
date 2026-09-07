@@ -31,6 +31,7 @@ export interface VevenoMenu {
   id: string;
   storeId: string;
   name: string;
+  imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +45,7 @@ export interface VevenoRecipe {
   id: string;
   menuId: string;
   contents: string;
+  imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +61,7 @@ export interface VevenoStock {
   stockMinNum: number | null;
   unit: string;
   orderUrl: string | null;
+  imageUrl?: string | null;
   /** JPA @Version — PATCH 시 필수 */
   version: number;
   lowStock: boolean;
@@ -322,6 +325,7 @@ export interface VevenoStockCheckItem {
   stockMinNum: number | null;
   unit: string;
   version: number;
+  imageUrl?: string | null;
 }
 
 /** ponytail: WS payload == REST GET current/done */

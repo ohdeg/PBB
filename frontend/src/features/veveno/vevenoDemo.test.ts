@@ -192,4 +192,26 @@ describe('veveno demo', () => {
     await vevenoDemoApi.ackStockCheckDone(VEVENO_DEMO_STORE_ID)
     expect((await vevenoDemoApi.getStockCheckDone(VEVENO_DEMO_STORE_ID)).data).toBeNull()
   })
+
+  it('keeps recipe photos on create and update', async () => {
+    const created = await vevenoDemoApi.createRecipe(
+      'menu-1',
+      '{"title":"샷","notes":""}',
+      'data:image/jpeg;base64,abc',
+    )
+    expect(created.data.imageUrl).toBe('data:image/jpeg;base64,abc')
+
+    const renamed = await vevenoDemoApi.updateRecipe(
+      created.data.id,
+      '{"title":"샷2","notes":""}',
+    )
+    expect(renamed.data.imageUrl).toBe('data:image/jpeg;base64,abc')
+
+    const cleared = await vevenoDemoApi.updateRecipe(
+      created.data.id,
+      '{"title":"샷2","notes":""}',
+      '',
+    )
+    expect(cleared.data.imageUrl).toBeNull()
+  })
 })

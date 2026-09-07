@@ -43,6 +43,9 @@ public class BrewStoreStock {
     @Column(name = "order_url", length = 512)
     private String orderUrl;
 
+    @Column(name = "image_url", length = 512)
+    private String imageUrl;
+
     @Version
     @Column(name = "version", nullable = false)
     private Integer version;
@@ -62,7 +65,8 @@ public class BrewStoreStock {
             int stockNum,
             Integer stockMinNum,
             String unit,
-            String orderUrl
+            String orderUrl,
+            String imageUrl
     ) {
         this.categoryId = categoryId;
         this.stockName = stockName;
@@ -70,6 +74,7 @@ public class BrewStoreStock {
         this.stockMinNum = stockMinNum;
         this.unit = unit == null || unit.isBlank() ? "개" : unit;
         this.orderUrl = orderUrl;
+        this.imageUrl = imageUrl;
     }
 
     public void update(
@@ -78,7 +83,8 @@ public class BrewStoreStock {
             int stockNum,
             Integer stockMinNum,
             String unit,
-            String orderUrl
+            String orderUrl,
+            String imageUrl
     ) {
         this.categoryId = categoryId;
         this.stockName = stockName;
@@ -86,6 +92,7 @@ public class BrewStoreStock {
         this.stockMinNum = stockMinNum;
         this.unit = unit == null || unit.isBlank() ? "개" : unit;
         this.orderUrl = orderUrl;
+        this.imageUrl = imageUrl;
     }
 
     public boolean isLowStock() {

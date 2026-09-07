@@ -1527,10 +1527,55 @@ html:not([data-theme='dark']) .global-nav__logo {
   }
 }
 
+.veveno-rail-item__main {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
 .veveno-rail-item__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.veveno-thumb {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+  background: var(--veveno-line);
+}
+
+.veveno-thumb--lg {
+  width: auto;
+  height: auto;
+  max-width: 16rem;
+  max-height: 12rem;
+}
+
+.veveno-file-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--veveno-line);
+  border-radius: 0.35rem;
+  background: var(--veveno-paper, #fff);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.veveno-file-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .veveno-rail-item__hint {
@@ -3477,6 +3522,13 @@ html:not([data-theme='dark']) .global-nav__logo {
   gap: 0.5rem;
   border-bottom: 1px solid var(--veveno-line);
   padding-bottom: 0.55rem;
+}
+
+.veveno-stock-check-row__label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .veveno-stock-check-row__name {

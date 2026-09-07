@@ -52,6 +52,8 @@ import {
 } from '../types/veveno';
 import { getVevenoErrorMessage } from '../features/veveno/i18n/error';
 import { useTranslation } from '../features/veveno/i18n/LanguageContext';
+import { resolveUploadedImage } from '../features/veveno/resolveUploadedImage';
+import { VevenoImageField } from '../components/veveno/VevenoImageField';
 import { VevenoLangSwitch } from '../components/veveno/VevenoLangSwitch';
 import { VevenoPosScanModal } from '../components/veveno/VevenoPosScanModal';
 import {
@@ -94,11 +96,20 @@ const TAB_HINT_KEYS: Record<
   settings: 'store.tabHints.settings',
 };
 
-const EMPTY_MENU_CREATE = {
+const EMPTY_MENU_CREATE: {
+  categoryKey: string;
+  customCategoryName: string;
+  title: string;
+  notes: string;
+  imageFile: File | null;
+  imageCleared: boolean;
+} = {
   categoryKey: '',
   customCategoryName: '',
   title: '',
   notes: '',
+  imageFile: null,
+  imageCleared: false,
 };
 
 function storeRoleKey(store: VevenoStore): 'owner' | 'staff' | 'guest' {
@@ -207,6 +218,10 @@ export function VevenoStorePage() {
   const [recipeViewOpen, setRecipeViewOpen] = useState(false);
   const [viewRecipeContent, setViewRecipeContent] =
     useState<VevenoRecipeContent>(EMPTY_RECIPE_CONTENT);
+  const [viewRecipeImageUrl, setViewRecipeImageUrl] = useState<string | null>(null);
+  const [recipeImageUrl, setRecipeImageUrl] = useState<string | null>(null);
+  const [recipeImageFile, setRecipeImageFile] = useState<File | null>(null);
+  const [recipeImageCleared, setRecipeImageCleared] = useState(false);
 
   const [menuName, setMenuName] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
@@ -627,6 +642,12 @@ export function VevenoStorePage() {
     setCreatingMenuRecipe(true);
     setError('');
     try {
+      const imageUrl = await resolveUploadedImage(
+        storeId,
+        'recipe',
+        menuCreateForm.imageFile,
+        menuCreateForm.imageCleared,
+      );
       let menuId: string;
       if (isCustom) {
         const name = menuCreateForm.customCategoryName.trim();
@@ -648,7 +669,7 @@ export function VevenoStorePage() {
         title,
         notes: menuCreateForm.notes,
       });
-      const { data } = await vevenoApi.createRecipe(menuId, contents);
+      const { data } = await vevenoApi.createRecipe(menuId, contents, imageUrl);
       if (selectedMenuId === menuId) {
         setRecipes((prev) => [...prev, data]);
       }
@@ -697,7 +718,10 @@ export function VevenoStorePage() {
     setSavingMenu(true);
     setError('');
     try {
-      const { data } = await vevenoApi.updateMenu(editingMenuId, editingMenuName.trim());
+      const { data } = await vevenoApi.updateMenu(
+        editingMenuId,
+        editingMenuName.trim(),
+      );
       setMenus((prev) => prev.map((m) => (m.id === data.id ? data : m)));
       setMenuEditOpen(false);
       setEditingMenuId(null);
@@ -736,13 +760,33 @@ export function VevenoStorePage() {
     if (!selectedMenuId || !store?.owned) return;
     const contents = stringifyRecipeContents(recipeForm);
     try {
+      const imageUrl = await resolveUploadedImage(
+        storeId,
+        'recipe',
+        recipeImageFile,
+        recipeImageCleared,
+      );
       if (selectedRecipeId) {
-        const { data } = await vevenoApi.updateRecipe(selectedRecipeId, contents);
+        const { data } = await vevenoApi.updateRecipe(
+          selectedRecipeId,
+          contents,
+          imageUrl,
+        );
         setRecipes((prev) => prev.map((r) => (r.id === data.id ? data : r)));
+        setRecipeImageUrl(data.imageUrl ?? null);
+        setRecipeImageFile(null);
+        setRecipeImageCleared(false);
       } else {
-        const { data } = await vevenoApi.createRecipe(selectedMenuId, contents);
+        const { data } = await vevenoApi.createRecipe(
+          selectedMenuId,
+          contents,
+          imageUrl,
+        );
         setRecipes((prev) => [...prev, data]);
         setSelectedRecipeId(data.id);
+        setRecipeImageUrl(data.imageUrl ?? null);
+        setRecipeImageFile(null);
+        setRecipeImageCleared(false);
       }
     } catch (err: unknown) {
       setError(getVevenoErrorMessage(err, t('errors.failSaveRecipe'), t));
@@ -757,6 +801,9 @@ export function VevenoStorePage() {
       setRecipes((prev) => prev.filter((r) => r.id !== selectedRecipeId));
       setSelectedRecipeId(null);
       setRecipeForm(EMPTY_RECIPE_CONTENT);
+      setRecipeImageUrl(null);
+      setRecipeImageFile(null);
+      setRecipeImageCleared(false);
     } catch (err: unknown) {
       setError(getVevenoErrorMessage(err, t('errors.failDeleteRecipe'), t));
     }
@@ -1283,7 +1330,9 @@ export function VevenoStorePage() {
                             }
                             onClick={() => openMenuEditModal(menu)}
                           >
-                            <span className="veveno-rail-item__name">{menu.name}</span>
+                            <span className="veveno-rail-item__main">
+                              <span className="veveno-rail-item__name">{menu.name}</span>
+                            </span>
                             {store.owned && menuEditMode ? (
                               <span className="veveno-rail-item__hint">{t('menus.hintEdit')}</span>
                             ) : null}
@@ -1314,6 +1363,9 @@ export function VevenoStorePage() {
                                   if (!next) {
                                     setSelectedRecipeId(null);
                                     setRecipeForm(EMPTY_RECIPE_CONTENT);
+                                    setRecipeImageUrl(null);
+                                    setRecipeImageFile(null);
+                                    setRecipeImageCleared(false);
                                   }
                                   return next;
                                 });
@@ -1364,13 +1416,24 @@ export function VevenoStorePage() {
                                   if (recipeEditMode && store.owned) {
                                     setSelectedRecipeId(recipe.id);
                                     setRecipeForm(parseRecipeContents(recipe.contents));
+                                    setRecipeImageUrl(recipe.imageUrl ?? null);
+                                    setRecipeImageFile(null);
+                                    setRecipeImageCleared(false);
                                     return;
                                   }
                                   setViewRecipeContent(parseRecipeContents(recipe.contents));
+                                  setViewRecipeImageUrl(recipe.imageUrl ?? null);
                                   setRecipeViewOpen(true);
                                 }}
                               >
                                 <div className="veveno-store-row__main">
+                                  {recipe.imageUrl ? (
+                                    <img
+                                      className="veveno-thumb"
+                                      src={recipe.imageUrl}
+                                      alt=""
+                                    />
+                                  ) : null}
                                   <p className="veveno-store-row__name">
                                     {parsed.title || t('menus.recipeFallback')}
                                   </p>
@@ -1403,6 +1466,25 @@ export function VevenoStorePage() {
                               }))
                             }
                             placeholder={t('menus.recipeTitlePh')}
+                          />
+                          <VevenoImageField
+                            label={t('common.imageOptional')}
+                            previewUrl={
+                              recipeImageFile
+                                ? URL.createObjectURL(recipeImageFile)
+                                : recipeImageUrl
+                            }
+                            pickLabel={t('common.pickImage')}
+                            clearLabel={t('common.removeImage')}
+                            onPick={(file) => {
+                              setRecipeImageFile(file);
+                              setRecipeImageCleared(false);
+                            }}
+                            onClear={() => {
+                              setRecipeImageFile(null);
+                              setRecipeImageUrl(null);
+                              setRecipeImageCleared(true);
+                            }}
                           />
                           <div className="veveno-field">
                             <span className="veveno-field__label" id="recipe-notes-label">
@@ -1949,6 +2031,33 @@ export function VevenoStorePage() {
               disabled={creatingMenuRecipe}
             />
           ) : null}
+          {store.owned ? (
+            <VevenoImageField
+              label={t('common.imageOptional')}
+              previewUrl={
+                menuCreateForm.imageFile
+                  ? URL.createObjectURL(menuCreateForm.imageFile)
+                  : null
+              }
+              disabled={creatingMenuRecipe}
+              pickLabel={t('common.pickImage')}
+              clearLabel={t('common.removeImage')}
+              onPick={(file) =>
+                setMenuCreateForm((prev) => ({
+                  ...prev,
+                  imageFile: file,
+                  imageCleared: false,
+                }))
+              }
+              onClear={() =>
+                setMenuCreateForm((prev) => ({
+                  ...prev,
+                  imageFile: null,
+                  imageCleared: true,
+                }))
+              }
+            />
+          ) : null}
           <VevenoInput
             label={t('common.title')}
             value={menuCreateForm.title}
@@ -2040,6 +2149,9 @@ export function VevenoStorePage() {
         onClose={() => setRecipeViewOpen(false)}
       >
         <div className="veveno-recipe-view">
+          {viewRecipeImageUrl ? (
+            <img className="veveno-thumb veveno-thumb--lg" src={viewRecipeImageUrl} alt="" />
+          ) : null}
           {viewRecipeContent.notes ? (
             <VevenoRecipeNotesView notes={viewRecipeContent.notes} />
           ) : (

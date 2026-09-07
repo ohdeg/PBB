@@ -30,6 +30,10 @@ public record StockRequest(
 
         /** 생성 시 생략하면 없음. PATCH에서 생략하면 기존 값, 빈 문자열이면 삭제. */
         @Size(max = 512)
-        String orderUrl
+        String orderUrl,
+
+        /** 생성 시 생략하면 없음. PATCH에서 생략하면 기존 값, 빈 문자열이면 삭제. */
+        @Size(max = 512)
+        String imageUrl
 ) {
 }

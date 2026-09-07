@@ -181,15 +181,16 @@ function seedState(): DemoState {
       updatedAt: CREATED,
     },
     menus: [
-      { id: 'menu-1', storeId: sid, name: '아메리카노', createdAt: CREATED, updatedAt: CREATED },
-      { id: 'menu-2', storeId: sid, name: '카페라떼', createdAt: CREATED, updatedAt: CREATED },
-      { id: 'menu-3', storeId: sid, name: '버터 크로와상', createdAt: CREATED, updatedAt: CREATED },
+      { id: 'menu-1', storeId: sid, name: '아메리카노', imageUrl: null, createdAt: CREATED, updatedAt: CREATED },
+      { id: 'menu-2', storeId: sid, name: '카페라떼', imageUrl: null, createdAt: CREATED, updatedAt: CREATED },
+      { id: 'menu-3', storeId: sid, name: '버터 크로와상', imageUrl: null, createdAt: CREATED, updatedAt: CREATED },
     ],
     recipes: [
       {
         id: 'recipe-1',
         menuId: 'menu-1',
         contents: recipe('아메리카노', '에스프레소 더블 추출 후 물 200ml.'),
+        imageUrl: null,
         createdAt: CREATED,
         updatedAt: CREATED,
       },
@@ -197,6 +198,7 @@ function seedState(): DemoState {
         id: 'recipe-2',
         menuId: 'menu-2',
         contents: recipe('카페라떼', '에스프레소 위에 스팀 밀크. 하트 라떼아트.'),
+        imageUrl: null,
         createdAt: CREATED,
         updatedAt: CREATED,
       },
@@ -204,6 +206,7 @@ function seedState(): DemoState {
         id: 'recipe-3',
         menuId: 'menu-3',
         contents: recipe('버터 크로와상', '180도 예열, 8분. 겉이 노릇하면 꺼낸다.'),
+        imageUrl: null,
         createdAt: CREATED,
         updatedAt: CREATED,
       },
@@ -345,6 +348,7 @@ function stockRow(
     stockMinNum,
     unit,
     orderUrl,
+    imageUrl: null,
     version: 0,
     lowStock: stockNum <= stockMinNum,
     soonLow: false,
@@ -579,6 +583,7 @@ function toCheckItems(ids: number[]): VevenoStockCheckItem[] {
         stockMinNum: row.stockMinNum,
         unit: row.unit,
         version: row.version,
+        imageUrl: row.imageUrl ?? null,
       },
     ]
   })
@@ -856,12 +861,13 @@ export const vevenoDemoApi = {
     return ok([...state().menus])
   },
 
-  createMenu(_storeId: string, name: string) {
+  createMenu(_storeId: string, name: string, imageUrl?: string | null) {
     const at = nowIso()
     const menu: VevenoMenu = {
       id: nextId('menu'),
       storeId: VEVENO_DEMO_STORE_ID,
       name,
+      imageUrl: imageUrl || null,
       createdAt: at,
       updatedAt: at,
     }
@@ -870,12 +876,15 @@ export const vevenoDemoApi = {
     return ok(menu)
   },
 
-  updateMenu(menuId: string, name: string) {
+  updateMenu(menuId: string, name: string, imageUrl?: string | null) {
     const menu = state().menus.find((row) => row.id === menuId)
     if (!menu) {
       return fail('MENU_NOT_FOUND', '메뉴를 찾을 수 없습니다.')
     }
     menu.name = name
+    if (imageUrl !== undefined) {
+      menu.imageUrl = imageUrl || null
+    }
     menu.updatedAt = nowIso()
     persist()
     return ok({ ...menu })
@@ -934,12 +943,13 @@ export const vevenoDemoApi = {
     return ok(state().recipes.filter((row) => row.menuId === menuId))
   },
 
-  createRecipe(menuId: string, contents: string) {
+  createRecipe(menuId: string, contents: string, imageUrl?: string | null) {
     const at = nowIso()
     const recipeRow: VevenoRecipe = {
       id: nextId('recipe'),
       menuId,
       contents,
+      imageUrl: imageUrl || null,
       createdAt: at,
       updatedAt: at,
     }
@@ -948,12 +958,15 @@ export const vevenoDemoApi = {
     return ok(recipeRow)
   },
 
-  updateRecipe(recipeId: string, contents: string) {
+  updateRecipe(recipeId: string, contents: string, imageUrl?: string | null) {
     const row = state().recipes.find((item) => item.id === recipeId)
     if (!row) {
       return fail('RECIPE_NOT_FOUND', '레시피를 찾을 수 없습니다.')
     }
     row.contents = contents
+    if (imageUrl !== undefined) {
+      row.imageUrl = imageUrl || null
+    }
     row.updatedAt = nowIso()
     persist()
     return ok({ ...row })
@@ -1133,6 +1146,7 @@ export const vevenoDemoApi = {
       stockMinNum: number | null
       unit: string
       orderUrl: string | null
+      imageUrl?: string | null
     },
   ) {
     const at = nowIso()
@@ -1145,6 +1159,7 @@ export const vevenoDemoApi = {
       stockMinNum: payload.stockMinNum,
       unit: payload.unit,
       orderUrl: owner ? payload.orderUrl : null,
+      imageUrl: null,
       version: 0,
       lowStock: false,
       soonLow: false,
@@ -1177,6 +1192,7 @@ export const vevenoDemoApi = {
       categoryId?: number
       unit?: string
       orderUrl?: string | null
+      imageUrl?: string | null
     },
   ) {
     const row = state().stocks.find((item) => item.id === stockId)

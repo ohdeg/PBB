@@ -8,6 +8,7 @@ public record RecipeResponse(
         UUID id,
         UUID menuId,
         String contents,
+        String imageUrl,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -16,6 +17,7 @@ public record RecipeResponse(
                 recipe.getId(),
                 recipe.getMenuId(),
                 recipe.getContents(),
+                recipe.getImageUrl(),
                 recipe.getCreatedAt(),
                 recipe.getUpdatedAt()
         );

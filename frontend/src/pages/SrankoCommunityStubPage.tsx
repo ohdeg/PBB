@@ -7,7 +7,7 @@ import {
   SRANKO_COMMUNITY_MINE,
   SRANKO_COMMUNITY_NEW,
 } from '../features/sranko/paths';
-import { resizeImageForUpload } from '../features/sranko/resizeImageForUpload';
+import { resizeImageForUpload } from '../lib/resizeImageForUpload';
 import {
   postImageUrls,
   SrankoImageCarousel,

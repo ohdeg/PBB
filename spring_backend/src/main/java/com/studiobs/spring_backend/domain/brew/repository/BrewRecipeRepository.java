@@ -1,6 +1,7 @@
 package com.studiobs.spring_backend.domain.brew.repository;
 
 import com.studiobs.spring_backend.domain.brew.entity.BrewRecipe;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,4 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BrewRecipeRepository extends JpaRepository<BrewRecipe, UUID> {
 
     List<BrewRecipe> findByMenuIdOrderByCreatedAtAsc(UUID menuId);
+
+    List<BrewRecipe> findByMenuIdIn(Collection<UUID> menuIds);
 }

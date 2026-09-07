@@ -2031,7 +2031,7 @@ export function VevenoStorePage() {
               disabled={creatingMenuRecipe}
             />
           ) : null}
-          {store.owned ? (
+          {store?.owned ? (
             <VevenoImageField
               label={t('common.imageOptional')}
               previewUrl={

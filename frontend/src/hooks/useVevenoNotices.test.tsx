@@ -33,6 +33,8 @@ const ownerStore: VevenoStore = {
   callBellPhrase: null,
   callBellRate: null,
   callBellPitch: null,
+  callBellChimeVolume: null,
+  callBellSpeechVolume: null,
   leaveDate: null,
   createdAt: '2026-07-27T00:00:00Z',
   updatedAt: '2026-07-27T00:00:00Z',

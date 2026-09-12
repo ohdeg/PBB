@@ -252,7 +252,12 @@ public class BrewService {
         assertMember(store, user.getId());
         store.updateCallBellPhrase(
                 CallBellSettings.fromRequest(
-                                request.phrase(), request.rate(), request.pitch(), request.style())
+                                request.phrase(),
+                                request.rate(),
+                                request.pitch(),
+                                request.style(),
+                                request.chimeVolume(),
+                                request.speechVolume())
                         .toStorage());
         return toStoreResponse(storeRepository.save(store), user.getId());
     }
@@ -698,6 +703,8 @@ public class BrewService {
                     bell.rate(),
                     bell.pitch(),
                     bell.style(),
+                    bell.chimeVolume(),
+                    bell.speechVolume(),
                     null,
                     store.getCreatedAt(),
                     store.getUpdatedAt());

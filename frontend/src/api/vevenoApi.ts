@@ -80,6 +80,8 @@ const vevenoLiveApi = {
       phrase: string | null;
       rate: number;
       pitch: number;
+      chimeVolume: number;
+      speechVolume: number;
     },
   ) {
     return apiClient.put<VevenoStore>(`/api/v1/veveno/stores/${storeId}/call-bell`, payload);

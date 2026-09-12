@@ -1,6 +1,7 @@
 export const DEFAULT_CALL_BELL_PHRASE = '고객님 주문하신 음료 나왔습니다';
 export const DEFAULT_CALL_BELL_RATE = 1;
 export const DEFAULT_CALL_BELL_PITCH = 1;
+export const DEFAULT_CALL_BELL_VOLUME = 1;
 
 const SINO_ONES = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
 
@@ -99,4 +100,11 @@ export function clampCallBellPitch(value: number): number {
     return DEFAULT_CALL_BELL_PITCH;
   }
   return Math.min(2, Math.max(0, value));
+}
+
+export function clampCallBellVolume(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_CALL_BELL_VOLUME;
+  }
+  return Math.min(1, Math.max(0, value));
 }

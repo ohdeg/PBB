@@ -24,6 +24,8 @@ public record StoreResponse(
         Double callBellRate,
         Double callBellPitch,
         String callBellStyle,
+        Double callBellChimeVolume,
+        Double callBellSpeechVolume,
         /** 열람자 본인의 퇴사 예정일(마지막 근무일). 없으면 null */
         LocalDate leaveDate,
         LocalDateTime createdAt,
@@ -55,6 +57,8 @@ public record StoreResponse(
                 bell.rate(),
                 bell.pitch(),
                 bell.style(),
+                bell.chimeVolume(),
+                bell.speechVolume(),
                 leaveDate,
                 store.getCreatedAt(),
                 store.getUpdatedAt()

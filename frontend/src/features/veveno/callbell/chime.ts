@@ -6,10 +6,11 @@ let current: HTMLAudioElement | null = null;
 let speakTimer = 0;
 
 /** Mixkit “Home standard ding dong” — cafe-style 띵-동, then `onDone`. */
-export function playCallBellChime(onDone: () => void): void {
+export function playCallBellChime(onDone: () => void, volume = 1): void {
   current?.pause();
   window.clearTimeout(speakTimer);
   const audio = new Audio(SRC);
+  audio.volume = Math.min(1, Math.max(0, volume));
   current = audio;
   let spoken = false;
   const speak = () => {

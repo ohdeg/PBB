@@ -1568,6 +1568,8 @@ export function VevenoStorePage() {
                     callBellPhrase={store.callBellPhrase}
                     callBellRate={store.callBellRate}
                     callBellPitch={store.callBellPitch}
+                    callBellChimeVolume={store.callBellChimeVolume}
+                    callBellSpeechVolume={store.callBellSpeechVolume}
                     onCallBellChange={(next) => {
                       setStore((prev) => (prev ? { ...prev, ...next } : prev));
                     }}

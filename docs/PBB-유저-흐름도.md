@@ -273,6 +273,7 @@ flowchart LR
     tools --> concentration[농도]
     tools --> timers[타이머]
     tools --> callbell[호출벨]
+    callbell --> bellSettings[설정 모달]
     tools --> compact[소형 창]
     compact --> pip[Chrome·Firefox 항상 위]
     compact --> pop[그 외 팝업]
@@ -304,13 +305,13 @@ flowchart LR
 
 ### 8-2b. 도구 (owner·구독자)
 
-단위·농도·타이머는 프론트 계산. 호출벨 멘트·속도·음높이는 가게에 저장. 탭 이동 중에도 타이머는 모듈 상태로 유지.
+단위·농도·타이머는 프론트 계산. 호출벨 멘트·속도·음높이·벨/멘트 음량은 가게에 저장. 탭 이동 중에도 타이머는 모듈 상태로 유지.
 
 - **단위 변환**: 무게(g/kg/oz/lb), 부피(ml/L/cup/fl oz/tbsp/tsp), 온도(°C↔°F), 배율
 - **타이머**: 단계 1개면 일반, 2개 이상이면 끝나면 다음 자동 시작. 타이머 여러 개 동시 실행 가능
 - 전체 종료 시 비프 패턴 최대 10회 반복. 카드의 **완료**를 누르면 즉시 알람 중단
 - **프리셋**: 계정(PERSONAL) / 가게 공용(STORE). owner·구독자 모두 가게 프리셋 CRUD 가능 (`brew_timer_presets`)
-- **호출벨**: 번호는 매번 입력(엔터=호출). 항상 띵–동 후 `{번호} {멘트}` TTS. 멘트는 비우면 null(번호만). 속도(0.5–2)·음높이(0–2)는 `brew_stores.call_bell_phrase` JSON `{phrase,rate,pitch}`. 구버전 값은 멘트 문자열. TTS는 브라우저 언어. `PUT /api/v1/veveno/stores/{id}/call-bell` (owner·구독자). 번호는 저장하지 않음. 체험은 이 기기 `localStorage`.
+- **호출벨**: 번호는 매번 입력(엔터=호출). 항상 띵–동 후 `{번호} {멘트}` TTS. 멘트는 비우면 null(번호만). 속도(0.5–2)·음높이(0–2)·벨/멘트 음량(0–1)은 도구 탭 호출벨의 **설정** 모달에서만 조절하고, 조작 후 약 0.4초 뒤 가게에 저장. **저장**은 멘트만. `brew_stores.call_bell_phrase` JSON `{phrase,rate,pitch,chimeVolume,speechVolume}`. 구버전 값은 멘트 문자열. TTS는 브라우저 언어. `PUT /api/v1/veveno/stores/{id}/call-bell` (owner·구독자). 번호는 저장하지 않음. 체험은 이 기기 `localStorage`. 가게 설정 탭에는 없음.
 - **소형 창**: Chromium/Firefox Document PiP. Safari 등은 `/tools` 팝업.
 
 ### 8-3. 재고 (수정 권한자만)

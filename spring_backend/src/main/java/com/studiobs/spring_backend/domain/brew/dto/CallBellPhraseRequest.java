@@ -14,6 +14,12 @@ public record CallBellPhraseRequest(
         @DecimalMax("2")
         Double pitch,
         @Size(max = 16)
-        String style
+        String style,
+        @DecimalMin("0")
+        @DecimalMax("1")
+        Double chimeVolume,
+        @DecimalMin("0")
+        @DecimalMax("1")
+        Double speechVolume
 ) {
 }

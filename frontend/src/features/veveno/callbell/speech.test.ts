@@ -4,6 +4,7 @@ import {
   callBellSpeech,
   clampCallBellPitch,
   clampCallBellRate,
+  clampCallBellVolume,
   DEFAULT_CALL_BELL_PHRASE,
   speakCallBellSlot,
   toSinoKorean,
@@ -64,5 +65,7 @@ describe('clampCallBell', () => {
     expect(clampCallBellRate(0.1)).toBe(0.5);
     expect(clampCallBellPitch(-1)).toBe(0);
     expect(clampCallBellPitch(9)).toBe(2);
+    expect(clampCallBellVolume(1.4)).toBe(1);
+    expect(clampCallBellVolume(-0.2)).toBe(0);
   });
 });

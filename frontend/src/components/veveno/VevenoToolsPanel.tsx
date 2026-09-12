@@ -20,6 +20,8 @@ interface VevenoToolsPanelProps {
   callBellPhrase?: string | null;
   callBellRate?: number | null;
   callBellPitch?: number | null;
+  callBellChimeVolume?: number | null;
+  callBellSpeechVolume?: number | null;
   onCallBellChange?: (next: VevenoCallBellSaved) => void;
 }
 
@@ -30,6 +32,8 @@ export function VevenoToolsPanel({
   callBellPhrase,
   callBellRate,
   callBellPitch,
+  callBellChimeVolume,
+  callBellSpeechVolume,
   onCallBellChange,
 }: VevenoToolsPanelProps) {
   const t = useTranslation();
@@ -41,6 +45,8 @@ export function VevenoToolsPanel({
     callBellPhrase: callBellPhrase ?? null,
     callBellRate: callBellRate ?? null,
     callBellPitch: callBellPitch ?? null,
+    callBellChimeVolume: callBellChimeVolume ?? null,
+    callBellSpeechVolume: callBellSpeechVolume ?? null,
   });
   const pipWinRef = useRef<Window | null>(null);
   const hasCallBellProps = callBellPhrase !== undefined;
@@ -53,8 +59,17 @@ export function VevenoToolsPanel({
       callBellPhrase: callBellPhrase ?? null,
       callBellRate: callBellRate ?? null,
       callBellPitch: callBellPitch ?? null,
+      callBellChimeVolume: callBellChimeVolume ?? null,
+      callBellSpeechVolume: callBellSpeechVolume ?? null,
     });
-  }, [hasCallBellProps, callBellPhrase, callBellRate, callBellPitch]);
+  }, [
+    hasCallBellProps,
+    callBellPhrase,
+    callBellRate,
+    callBellPitch,
+    callBellChimeVolume,
+    callBellSpeechVolume,
+  ]);
 
   useEffect(() => {
     if (hasCallBellProps) {
@@ -67,6 +82,8 @@ export function VevenoToolsPanel({
           callBellPhrase: data.callBellPhrase,
           callBellRate: data.callBellRate,
           callBellPitch: data.callBellPitch,
+          callBellChimeVolume: data.callBellChimeVolume,
+          callBellSpeechVolume: data.callBellSpeechVolume,
         });
       })
       .catch(() => {
@@ -184,6 +201,8 @@ export function VevenoToolsPanel({
           phrase={bell.callBellPhrase}
           rate={bell.callBellRate}
           pitch={bell.callBellPitch}
+          chimeVolume={bell.callBellChimeVolume}
+          speechVolume={bell.callBellSpeechVolume}
           onSaved={(next) => {
             setBell(next);
             onCallBellChange?.(next);

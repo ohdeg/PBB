@@ -17,6 +17,8 @@ export interface VevenoStore {
   callBellPhrase: string | null;
   callBellRate: number | null;
   callBellPitch: number | null;
+  callBellChimeVolume: number | null;
+  callBellSpeechVolume: number | null;
   leaveDate: string | null;
   createdAt: string;
   updatedAt: string;

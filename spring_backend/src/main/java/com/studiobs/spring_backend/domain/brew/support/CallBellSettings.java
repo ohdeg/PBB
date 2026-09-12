@@ -8,14 +8,21 @@ import tools.jackson.databind.json.JsonMapper;
 /** Stored in brew_stores.call_bell_phrase as JSON, or a legacy plain phrase. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record CallBellSettings(String phrase, Double rate, Double pitch, String style) {
+public record CallBellSettings(
+        String phrase,
+        Double rate,
+        Double pitch,
+        String style,
+        Double chimeVolume,
+        Double speechVolume
+) {
 
     public static final String STYLE_CHIME = "chime";
 
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
     public static CallBellSettings empty() {
-        return new CallBellSettings(null, null, null, null);
+        return new CallBellSettings(null, null, null, null, null, null);
     }
 
     public static CallBellSettings parse(String raw) {
@@ -28,14 +35,25 @@ public record CallBellSettings(String phrase, Double rate, Double pitch, String 
                 CallBellSettings parsed = MAPPER.readValue(trimmed, CallBellSettings.class);
                 return parsed == null ? empty() : parsed.normalized();
             } catch (Exception ignored) {
-                return new CallBellSettings(trimmed, null, null, null);
+                return new CallBellSettings(trimmed, null, null, null, null, null);
             }
         }
-        return new CallBellSettings(trimmed, null, null, null);
+        return new CallBellSettings(trimmed, null, null, null, null, null);
     }
 
     public static CallBellSettings fromRequest(String phrase, Double rate, Double pitch, String style) {
-        return new CallBellSettings(phrase, rate, pitch, style).normalized();
+        return fromRequest(phrase, rate, pitch, style, null, null);
+    }
+
+    public static CallBellSettings fromRequest(
+            String phrase,
+            Double rate,
+            Double pitch,
+            String style,
+            Double chimeVolume,
+            Double speechVolume
+    ) {
+        return new CallBellSettings(phrase, rate, pitch, style, chimeVolume, speechVolume).normalized();
     }
 
     public String toStorage() {
@@ -43,7 +61,9 @@ public record CallBellSettings(String phrase, Double rate, Double pitch, String 
         if (normalized.phrase() == null
                 && normalized.rate() == null
                 && normalized.pitch() == null
-                && normalized.style() == null) {
+                && normalized.style() == null
+                && normalized.chimeVolume() == null
+                && normalized.speechVolume() == null) {
             return null;
         }
         return MAPPER.writeValueAsString(normalized);
@@ -54,7 +74,9 @@ public record CallBellSettings(String phrase, Double rate, Double pitch, String 
                 blankToNull(phrase),
                 clampRate(rate),
                 clampPitch(pitch),
-                normalizeStyle(style));
+                normalizeStyle(style),
+                clampVolume(chimeVolume),
+                clampVolume(speechVolume));
     }
 
     private static String blankToNull(String value) {
@@ -84,5 +106,12 @@ public record CallBellSettings(String phrase, Double rate, Double pitch, String 
             return null;
         }
         return Math.min(2.0, Math.max(0.0, value));
+    }
+
+    static Double clampVolume(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return Math.min(1.0, Math.max(0.0, value));
     }
 }

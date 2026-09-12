@@ -142,15 +142,21 @@ describe('veveno demo', () => {
       phrase: '  픽업하세요  ',
       rate: 1.2,
       pitch: 0.8,
+      chimeVolume: 0.4,
+      speechVolume: 0.7,
     })
     expect(saved.callBellPhrase).toBe('픽업하세요')
     expect(saved.callBellRate).toBe(1.2)
     expect(saved.callBellPitch).toBe(0.8)
+    expect(saved.callBellChimeVolume).toBe(0.4)
+    expect(saved.callBellSpeechVolume).toBe(0.7)
     expect(applyDemoRole('staff').callBellPhrase).toBe('픽업하세요')
     const { data: cleared } = await vevenoDemoApi.updateCallBellPhrase(VEVENO_DEMO_STORE_ID, {
       phrase: '  ',
       rate: 1.2,
       pitch: 0.8,
+      chimeVolume: 0.4,
+      speechVolume: 0.7,
     })
     expect(cleared.callBellPhrase).toBeNull()
   })

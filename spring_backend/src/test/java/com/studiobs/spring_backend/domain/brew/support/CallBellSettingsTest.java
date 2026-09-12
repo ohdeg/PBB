@@ -47,4 +47,15 @@ class CallBellSettingsTest {
     void emptyBecomesNullStorage() {
         assertThat(CallBellSettings.fromRequest("  ", null, null, null).toStorage()).isNull();
     }
+
+    @Test
+    void persistsVolumesWithoutPhrase() {
+        String stored = CallBellSettings.fromRequest("  ", null, null, null, 0.4, 0.7).toStorage();
+        CallBellSettings parsed = CallBellSettings.parse(stored);
+        assertThat(parsed.chimeVolume()).isEqualTo(0.4);
+        assertThat(parsed.speechVolume()).isEqualTo(0.7);
+        assertThat(parsed.phrase()).isNull();
+        assertThat(CallBellSettings.clampVolume(1.4)).isEqualTo(1.0);
+        assertThat(CallBellSettings.clampVolume(-0.2)).isEqualTo(0.0);
+    }
 }

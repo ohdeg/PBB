@@ -106,6 +106,8 @@ interface DemoState {
     callBellPhrase: string | null
     callBellRate: number | null
     callBellPitch: number | null
+    callBellChimeVolume: number | null
+    callBellSpeechVolume: number | null
     inviteCode: string
     createdAt: string
     updatedAt: string
@@ -176,6 +178,8 @@ function seedState(): DemoState {
       callBellPhrase: null,
       callBellRate: null,
       callBellPitch: null,
+      callBellChimeVolume: null,
+      callBellSpeechVolume: null,
       inviteCode: 'DEMOCODE',
       createdAt: CREATED,
       updatedAt: CREATED,
@@ -503,6 +507,8 @@ function loadState(): DemoState {
         parsed.store.callBellPhrase = parsed.store.callBellPhrase ?? null
         parsed.store.callBellRate = parsed.store.callBellRate ?? null
         parsed.store.callBellPitch = parsed.store.callBellPitch ?? null
+        parsed.store.callBellChimeVolume = parsed.store.callBellChimeVolume ?? null
+        parsed.store.callBellSpeechVolume = parsed.store.callBellSpeechVolume ?? null
         parsed.stockCheck = parsed.stockCheck ?? null
         parsed.stockCheckDone = parsed.stockCheckDone ?? null
         return parsed
@@ -767,6 +773,8 @@ export function applyDemoRole(role: VevenoDemoRole): VevenoStore {
     callBellPhrase: store.callBellPhrase ?? null,
     callBellRate: store.callBellRate ?? null,
     callBellPitch: store.callBellPitch ?? null,
+    callBellChimeVolume: store.callBellChimeVolume ?? null,
+    callBellSpeechVolume: store.callBellSpeechVolume ?? null,
     leaveDate: null,
     createdAt: store.createdAt,
     updatedAt: store.updatedAt,
@@ -829,6 +837,8 @@ export const vevenoDemoApi = {
       phrase: string | null
       rate: number
       pitch: number
+      chimeVolume: number
+      speechVolume: number
     },
   ) {
     const s = state()
@@ -838,6 +848,8 @@ export const vevenoDemoApi = {
       callBellPhrase: next.length === 0 ? null : next,
       callBellRate: payload.rate,
       callBellPitch: payload.pitch,
+      callBellChimeVolume: payload.chimeVolume,
+      callBellSpeechVolume: payload.speechVolume,
       updatedAt: nowIso(),
     }
     persist()

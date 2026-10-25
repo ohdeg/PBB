@@ -7786,11 +7786,129 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
   order: 2;
 }
 
+.lotto-history__notice {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.lotto-history__notice p {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.lotto-history__notice-action--archive {
+  background: #fff;
+  color: #1d4ed8;
+}
+
+.lotto-history__notice-action--archive:hover {
+  background: #eff6ff;
+}
+
+.lotto-history__notice-action--dismiss:hover {
+  background: #fef3c7;
+}
+
+.lotto-history__error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.lotto-history__error-action {
+  background: #fff;
+  color: #991b1b;
+}
+
+.lotto-history__error-action:hover {
+  background: #fee2e2;
+}
+
+.lotto-history__export {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.lotto-history__export:hover {
+  background: #dbeafe;
+}
+
+.lotto-history__delete {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.lotto-history__delete:hover {
+  background: #fee2e2;
+}
+
+.lotto-history__card {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'select round actions'
+    'numbers numbers numbers'
+    'meta meta meta';
+}
+
+.lotto-history__select { grid-area: select; }
+.lotto-history__round { grid-area: round; }
+.lotto-history__actions { grid-area: actions; }
+.lotto-history__numbers { grid-area: numbers; }
+.lotto-history__meta { grid-area: meta; }
+.lotto-history__icon { grid-area: icon; }
+
+.lotto-history__body { display: contents; }
+
+.lotto-history__card[data-status='won'] .lotto-history__round {
+  color: #92400e;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__notice {
+  border-color: #854d0e;
+  background: #33230b;
+  color: #fde68a;
+}
+
+.lotto-history__card {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
+@media (min-width: 640px) {
+  .lotto-history__card {
+    grid-template-columns: 44px 40px minmax(0, 1fr) auto;
+    grid-template-areas: 'select icon body actions';
+  }
+
+  .lotto-history__body {
+    display: grid;
+    grid-area: body;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'round' 'numbers' 'meta';
+    min-width: 0;
+    gap: 0.5rem;
+  }
+
+  .lotto-history__card {
+    box-shadow: none;
+  }
+}
+
+.lotto-page :is(button, input, summary):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.lotto-page .lotto-settings-launcher {
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  right: calc(1rem + env(safe-area-inset-right));
+}
+
 [data-theme='dark'] .lotto-page :is(.bg-white, .bg-white\/95):not(#lotto-hidden-export-container, #lotto-hidden-export-container *) {
   background-color: var(--bg-elevated);
 }
 
-[data-theme='dark'] .lotto-page :is(.text-gray-900, .text-slate-900, .text-slate-800, .text-slate-700):not(#lotto-hidden-export-container *) {
+[data-theme='dark'] .lotto-page :is(.text-gray-900, .text-slate-900, .text-slate-800, .text-slate-700):not(.lotto-ball):not(#lotto-hidden-export-container *) {
   color: var(--text);
 }
 
@@ -7823,6 +7941,50 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 
 [data-theme='dark'] .lotto-page :is(.text-blue-700, .text-blue-600):not(#lotto-hidden-export-container *) {
   color: #64b5ff;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__notice-action--archive {
+  background: #1e293b;
+  color: #93c5fd;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__notice-action--archive:hover,
+[data-theme='dark'] .lotto-page .lotto-history__notice-action--dismiss:hover {
+  background: #3b2c13;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__error {
+  border-color: #7f1d1d;
+  background: #351717;
+  color: #fecaca;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__error-action {
+  background: #422020;
+  color: #fecaca;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__error-action:hover,
+[data-theme='dark'] .lotto-page .lotto-history__delete:hover {
+  background: #5b2626;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__export {
+  background: #172f4a;
+  color: #93c5fd;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__export:hover {
+  background: #1e4166;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__delete {
+  background: #3b1b1b;
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .lotto-page .lotto-history__card[data-status='won'] .lotto-history__round {
+  color: #fbbf24;
 }
 
 @media (prefers-reduced-motion: reduce) {

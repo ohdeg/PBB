@@ -49,7 +49,13 @@ export function hotColdWindowToApiKey(window: HotColdWindowKey): string {
   return window === 'all' ? 'all' : String(window);
 }
 
+export type LottoPrizeRank = 1 | 2 | 3 | 4 | 5;
+
 export interface LottoHistoryItem {
+  targetRound?: number | null;
+  status?: 'pending' | 'won';
+  prizeRank?: LottoPrizeRank;
+  winAcknowledged?: boolean;
   id: number;
   name: string;
   category: string;

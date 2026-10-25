@@ -1,5 +1,4 @@
 import {
-  Fragment,
   Suspense,
   lazy,
   useState,
@@ -8,13 +7,15 @@ import {
   useMemo,
   useCallback,
   type ChangeEvent,
-  type MouseEvent,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toPng } from 'html-to-image';
 import { lottoApi } from '../api/lottoApi';
 import { LottoButton as Button } from '../features/lotto/components/LottoButton';
 import { SixPickSplashScreen } from '../features/lotto/components/SixPickSplashScreen';
+import { LottoHistoryPanel } from '../features/lotto/components/LottoHistoryPanel';
+import { getLottoHistoryOwner, useLottoHistory } from '../features/lotto/hooks/useLottoHistory';
+import { getWinNoticeMessage } from '../features/lotto/utils/lottoHistory';
 import {
   DEFAULT_HOT_COLD_WINDOW,
   getDrawsForHotColdWindow,
@@ -183,24 +184,38 @@ function getHistoryDateLabel(item: LottoHistoryItem): string {
   return item.reviews
 }
 
-function LottoHistoryMetaBadges({ item }: { item: LottoHistoryItem }) {
+function LottoHistoryMetaBadges({
+  item,
+  showRound = true,
+}: {
+  item: LottoHistoryItem
+  showRound?: boolean
+}) {
   const hotColdLabel = getHotColdBadgeLabel(item)
 
   return (
     <div className="mb-1 flex flex-wrap items-center gap-1.5">
+      {showRound && (
+        <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-blue-700">
+          {item.targetRound != null ? `${item.targetRound}회` : '회차 미확인'}
+          {item.status === 'won' && item.prizeRank != null
+            ? ` · ${item.prizeRank}등`
+            : ' · 결과 대기'}
+        </span>
+      )}
       {item.sixSetOrdinal != null && item.sixSetGameIndex != null && (
-        <span className="rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-black text-blue-700 ring-1 ring-sky-100">
+        <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-sky-100">
           세트 {item.sixSetOrdinal} · {item.sixSetGameIndex}/6
         </span>
       )}
       {item.isSixSetComplementGame && (
-        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-100">
+        <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100">
           미출현 번호 (비중복)
         </span>
       )}
       {hotColdLabel && (
         <span
-          className={`rounded-md px-2 py-0.5 text-[10px] font-black ring-1 ${
+          className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${
             item.hotColdApplied
               ? 'bg-orange-50 text-orange-800 ring-orange-100'
               : 'bg-slate-100 text-slate-600 ring-slate-200'
@@ -425,7 +440,7 @@ const LottoBall = ({
   const getBallColor = (n: number) => {
     if (n <= 10) return 'bg-[#fbc400] text-yellow-900'
     if (n <= 20) return 'bg-[#69c8f2] text-blue-900'
-    if (n <= 30) return 'bg-[#ff7272] text-red-900'
+    if (n <= 30) return 'bg-[#ff7272] text-red-950'
     if (n <= 40) return 'bg-[#aaa] text-gray-900'
     return 'bg-[#b0d840] text-green-900'
   }
@@ -445,9 +460,9 @@ const LottoBall = ({
 
   const interactive = displayOnly
     ? ''
-    : 'transition-all duration-300 transform hover:scale-110 active:scale-95'
+    : 'transform transition-transform duration-200 hover:scale-110 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none'
 
-  const className = `relative ${dim} rounded-full inline-flex items-center justify-center font-black shadow-sm ${interactive} ${getBallColor(number)} border-2 ${borderRing}`
+  const className = `lotto-ball relative ${dim} rounded-full inline-flex items-center justify-center font-black tabular-nums shadow-sm ${interactive} ${getBallColor(number)} border-2 ${borderRing}`
 
   const inner = (
     <>
@@ -483,7 +498,13 @@ const LottoBall = ({
   }
 
   return (
-    <button type="button" onClick={onClick} className={className}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`번호 ${number}${isSelected ? ' 선택됨' : ''}`}
+      aria-pressed={Boolean(isSelected)}
+      className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2`}
+    >
       {inner}
     </button>
   )
@@ -978,6 +999,9 @@ export function LottoPage() {
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
   const userClass = useAuthStore((s) => s.userClass);
+  const userId = useAuthStore((s) => s.userId);
+  const email = useAuthStore((s) => s.email);
+  const historyOwner = getLottoHistoryOwner({ accessToken, userId, email });
   const isLottoAdmin = userClass === 'dev';
   const [showSplash, setShowSplash] = useState(true);
 
@@ -985,12 +1009,7 @@ export function LottoPage() {
     setShowSplash(false);
   }, []);
 
-  const [history, setHistory] = useState<LottoHistoryItem[]>([])
-  const [historyTargetRound, setHistoryTargetRound] = useState<number | null>(
-    null,
-  )
   const [activeTab, setActiveTab] = useState<LottoMainTab>('draw')
-  const [selectedItems, setSelectedItems] = useState<number[]>([])
   const [preferredNumbers, setPreferredNumbers] = useState<number[]>([])
   const [usedDrawNumbers, setUsedDrawNumbers] = useState<Set<number>>(
     () => new Set(),
@@ -1023,11 +1042,15 @@ export function LottoPage() {
     useState<HotColdWindowKey>(DEFAULT_HOT_COLD_WINDOW)
 
   const [drawHistory, setDrawHistory] = useState<LottoDraw[]>([])
+  const pickHistory = useLottoHistory(historyOwner, drawHistory)
   const [patternProfiles, setPatternProfiles] = useState<Record<
     string,
     LottoPatternProfileDto
   > | null>(null)
   const [drawsLoading, setDrawsLoading] = useState(false)
+  const [drawsReady, setDrawsReady] = useState(false)
+  const [drawsError, setDrawsError] = useState('')
+  const [drawsRetry, setDrawsRetry] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [isSavingDraw, setIsSavingDraw] = useState(false)
   const [newDrawRound, setNewDrawRound] = useState('')
@@ -1050,11 +1073,37 @@ export function LottoPage() {
   const [isAddingNewDraw, setIsAddingNewDraw] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const skipRef = useRef(false)
-  const isHydratingPicksRef = useRef(false)
-  const prevAccessTokenRef = useRef<string | null>(accessToken)
+  const generationEpochRef = useRef(0)
+  const captureEpochRef = useRef(0)
   const [exportItems, setExportItems] = useState<LottoHistoryItem[]>([])
 
-  const isSelecting = selectedItems.length > 0
+  useEffect(() => {
+    const unsubscribe = useAuthStore.subscribe((auth, previous) => {
+      if (getLottoHistoryOwner(auth) !== getLottoHistoryOwner(previous)) {
+        generationEpochRef.current++
+        captureEpochRef.current++
+        setExportItems([])
+        setCurrentBalls([])
+        setIsRolling(false)
+        setMonteCarloAppearance(null)
+        setUsedDrawNumbers(new Set())
+        skipRef.current = true
+      }
+    })
+    return () => {
+      generationEpochRef.current++
+      captureEpochRef.current++
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    setCurrentBalls([])
+    setIsRolling(false)
+    setMonteCarloAppearance(null)
+    setUsedDrawNumbers(new Set())
+    skipRef.current = true
+  }, [historyOwner])
 
   const resolvedMonteCarloIterations = useMemo(
     () =>
@@ -1160,28 +1209,6 @@ export function LottoPage() {
     applyHotColdFromDraws(drawHistory, hotColdWindow)
   }, [drawHistory, hotColdWindow])
 
-  const clearHistoryIfTargetRoundPublished = useCallback(
-    (draws: LottoDraw[]) => {
-      if (historyTargetRound == null) return
-
-      const isPublished = draws.some(
-        (draw) =>
-          draw.round === historyTargetRound &&
-          draw.mainNumbers.length === 6,
-      )
-      if (!isPublished) return
-
-      setHistory([])
-      setHistoryTargetRound(null)
-      setSelectedItems([])
-      setMonteCarloAppearance(null)
-      if (useAuthStore.getState().accessToken) {
-        void lottoApi.clearPicks().catch(console.error)
-      }
-    },
-    [historyTargetRound],
-  )
-
   const syncSuggestedRound = (draws: LottoDraw[]) => {
     setNewDrawRound(
       String(getNextSuggestedRoundFromLatest(getLatestDraw(draws))),
@@ -1193,15 +1220,19 @@ export function LottoPage() {
     let cancelled = false
     void (async () => {
       setDrawsLoading(true)
+      setDrawsReady(false)
+      setDrawsError('')
       try {
         const { data } = await lottoApi.listDraws()
         if (cancelled) return
         applyStoredDraws(data)
+        setDrawsReady(true)
         syncSuggestedRound(data)
-        clearHistoryIfTargetRoundPublished(data)
         void refreshPatternProfiles()
       } catch (e) {
-        console.error(e)
+        if (!cancelled) {
+          setDrawsError(getErrorMessage(e, '회차 정보를 불러오지 못했습니다. 다시 시도해 주세요.'))
+        }
       } finally {
         if (!cancelled) setDrawsLoading(false)
       }
@@ -1209,80 +1240,7 @@ export function LottoPage() {
     return () => {
       cancelled = true
     }
-  }, [accessToken, clearHistoryIfTargetRoundPublished, refreshPatternProfiles])
-
-  // 로그인 시 저장된 추첨 내역 불러오기
-  useEffect(() => {
-    if (!accessToken) return
-
-    let cancelled = false
-    isHydratingPicksRef.current = true
-
-    void (async () => {
-      try {
-        const { targetRound, items } = await lottoApi.getPicks()
-        if (cancelled) return
-        if (items.length > 0) {
-          setHistory(items)
-          setHistoryTargetRound(targetRound)
-        }
-      } catch (error) {
-        console.error('추첨 내역 불러오기 실패', error)
-      } finally {
-        if (!cancelled) isHydratingPicksRef.current = false
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      isHydratingPicksRef.current = false
-    }
-  }, [accessToken])
-
-  // 로그인 상태에서 추첨 내역 변경 시 서버에 저장(디바운스)
-  useEffect(() => {
-    if (!accessToken) return
-    if (isHydratingPicksRef.current) return
-
-    const handle = window.setTimeout(() => {
-      void (async () => {
-        try {
-          if (history.length === 0) {
-            await lottoApi.clearPicks()
-            return
-          }
-          await lottoApi.savePicks(historyTargetRound, history)
-        } catch (error) {
-          console.error('추첨 내역 저장 실패', error)
-        }
-      })()
-    }, 600)
-
-    return () => window.clearTimeout(handle)
-  }, [history, historyTargetRound, accessToken])
-
-  // 로그아웃 시 세션 추첨 내역 정리
-  useEffect(() => {
-    const prev = prevAccessTokenRef.current
-    if (prev && !accessToken) {
-      setHistory([])
-      setHistoryTargetRound(null)
-      setSelectedItems([])
-      setMonteCarloAppearance(null)
-    }
-    prevAccessTokenRef.current = accessToken
-  }, [accessToken])
-
-  useEffect(() => {
-    if (history.length === 0 && historyTargetRound != null) {
-      setHistoryTargetRound(null)
-    }
-  }, [history.length, historyTargetRound])
-
-  useEffect(() => {
-    if (history.length === 0) return
-    clearHistoryIfTargetRoundPublished(drawHistory)
-  }, [drawHistory, history.length, clearHistoryIfTargetRoundPublished])
+  }, [historyOwner, refreshPatternProfiles, drawsRetry])
 
   // 창 포커스 복귀 시 회차 목록 새로고침
   useEffect(() => {
@@ -1291,7 +1249,6 @@ export function LottoPage() {
         .listDraws()
         .then(({ data }) => {
           applyStoredDraws(data)
-          clearHistoryIfTargetRoundPublished(data)
           void refreshPatternProfiles()
         })
         .catch(console.error)
@@ -1309,7 +1266,7 @@ export function LottoPage() {
       window.removeEventListener('focus', refreshDraws)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [clearHistoryIfTargetRoundPublished])
+  }, [refreshPatternProfiles])
 
   const loadDrawIntoEditor = (draw: LottoDraw) => {
     setNewDrawRound(String(draw.round))
@@ -1572,12 +1529,18 @@ export function LottoPage() {
   }
 
   const generateLottoNumbers = async () => {
-    if (isRolling) return
+    if (isRolling || !drawsReady) return
     if (preferredNumbers.length >= 6) {
       alert('고정 번호는 최대 5개까지 선택할 수 있습니다.')
       return
     }
 
+    const generationEpoch = generationEpochRef.current
+    const generationOwner = historyOwner
+    const isGenerationCurrent = () => (
+      generationEpochRef.current === generationEpoch &&
+      getLottoHistoryOwner(useAuthStore.getState()) === generationOwner
+    )
     const gameCount = resolvedDrawCount
     const isMonteCarlo = generationMode === 'montecarlo'
     setIsRolling(true)
@@ -1601,7 +1564,6 @@ export function LottoPage() {
     const newEntries: LottoHistoryItem[] = []
     const batchBaseId = Date.now()
     const targetRound = getNextSuggestedRoundFromLatest(latestStoredDraw)
-    setHistoryTargetRound(targetRound)
     const drawnAt = new Date().toISOString()
     const drawnLabel = formatLottoDrawnDateTime(drawnAt)
     let usedPool = new Set(usedDrawNumbers)
@@ -1658,6 +1620,8 @@ export function LottoPage() {
 
       newEntries.push({
         id: batchBaseId + gameIndex,
+        targetRound,
+        status: 'pending',
         name: finalNumbers.join(', '),
         numbers: finalNumbers,
         category: `${modeMeta.category}${poolResetSuffix}`,
@@ -1677,65 +1641,41 @@ export function LottoPage() {
         for (let i = 0; i < finalNumbers.length; i++) {
           if (skipRef.current) break
           await new Promise((r) => setTimeout(r, 400))
+          if (!isGenerationCurrent()) return
           setCurrentBalls((prev) => [...prev, finalNumbers[i] as number])
         }
         if (!skipRef.current && gameIndex < gameCount - 1) {
           await new Promise((r) => setTimeout(r, 400))
+          if (!isGenerationCurrent()) return
         } else if (!skipRef.current) {
           await new Promise((r) => setTimeout(r, 600))
+          if (!isGenerationCurrent()) return
         }
       }
     }
 
-    setHistory((prev) => [...newEntries.reverse(), ...prev])
+    if (!isGenerationCurrent()) return
+    pickHistory.append(newEntries.reverse())
     setUsedDrawNumbers(usedPool)
     setIsRolling(false)
     setCurrentBalls([])
     skipRef.current = false
   }
 
-  const toggleItemSelection = (id: number) =>
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id],
-    )
-
-  const toggleSelectAll = () =>
-    setSelectedItems(
-      selectedItems.length === history.length
-        ? []
-        : history.map((item) => item.id),
-    )
-
-  const handleDeleteAction = () => {
-    if (selectedItems.length > 0) {
-      if (
-        window.confirm(
-          `선택한 ${selectedItems.length}개의 내역을 삭제하시겠습니까?`,
-        )
-      ) {
-        setHistory((prev) => prev.filter((item) => !selectedItems.includes(item.id)))
-        setSelectedItems([])
-      }
-    } else {
-      if (window.confirm('추첨된 모든 번호 내역을 삭제하시겠습니까?')) {
-        setHistory([])
-        setSelectedItems([])
-      }
-    }
-  }
-
-  const handleDeleteIndividual = (e: MouseEvent, id: number) => {
-    e.stopPropagation()
-    setHistory((prev) => prev.filter((item) => item.id !== id))
-    setSelectedItems((prev) => prev.filter((itemId) => itemId !== id))
-  }
-
   const executeImageCapture = async (
     itemsToExport: LottoHistoryItem[],
     filename: string,
   ) => {
+    const captureOwner = historyOwner
+    const captureEpoch = ++captureEpochRef.current
+    const isCaptureCurrent = () => (
+      captureEpochRef.current === captureEpoch &&
+      getLottoHistoryOwner(useAuthStore.getState()) === captureOwner
+    )
+    if (!isCaptureCurrent()) return
     setExportItems(itemsToExport)
     setTimeout(async () => {
+      if (!isCaptureCurrent()) return
       const element = document.getElementById('lotto-hidden-export-container')
       if (!element) return
       try {
@@ -1743,43 +1683,26 @@ export function LottoPage() {
           backgroundColor: '#f8fafc',
           pixelRatio: 3,
         })
+        if (!isCaptureCurrent()) return
         const link = document.createElement('a')
         link.download = filename
         link.href = dataUrl
         link.click()
       } catch (error) {
+        if (!isCaptureCurrent()) return
         console.error('이미지 저장 실패:', error)
         alert('이미지 저장에 실패했습니다.')
       }
     }, 150)
   }
 
-  const handleDownloadAction = () => {
-    if (history.length === 0) return
-    const targetData =
-      selectedItems.length > 0
-        ? history.filter((item) => selectedItems.includes(item.id))
-        : history
-    executeImageCapture(
-      targetData,
-      `6PICK_${selectedItems.length > 0 ? '선택저장' : '전체저장'}_${new Date().getTime()}.png`,
-    )
-  }
-
-  const handleDownloadIndividual = (e: MouseEvent, item: LottoHistoryItem) => {
-    e.stopPropagation()
-    executeImageCapture(
-      [item],
-      `로또번호_${item.name.replace(/, /g, '_')}.png`,
-    )
-  }
 
   return (
     <div className="lotto-page relative min-h-screen w-full max-w-full overflow-x-clip bg-[var(--bg)] pb-20 font-sans">
       {showSplash ? (
         <SixPickSplashScreen onFinish={handleSplashFinish} />
       ) : null}
-      <div className="fixed -left-[9999px] -top-[9999px]">
+      <div aria-hidden="true" className="fixed -left-[9999px] -top-[9999px]">
         <div
           id="lotto-hidden-export-container"
           className="w-[420px] bg-[#F5F5F7] p-6 space-y-4"
@@ -1844,7 +1767,7 @@ export function LottoPage() {
       </div>
 
       <header className="page-x sticky top-0 z-10 border-b border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] py-4 backdrop-blur-md">
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="mx-auto w-full max-w-4xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <button
@@ -1868,7 +1791,7 @@ export function LottoPage() {
               <h1 className="text-xl font-extrabold leading-tight tracking-wide text-gray-900 sm:text-2xl">
                 6PICK
               </h1>
-              <p className="truncate text-[10px] font-bold text-slate-500 sm:text-[11px] sm:whitespace-normal">
+              <p className="truncate text-xs font-medium text-slate-500 sm:whitespace-normal">
                 {activeTab === 'draw'
                   ? '번호를 추첨합니다.'
                   : '당첨금 세금을 반영한 실수령액을 계산합니다.'}
@@ -1898,7 +1821,8 @@ export function LottoPage() {
             <button
               type="button"
               onClick={() => setActiveTab('draw')}
-              className={`min-w-0 flex-1 rounded-lg px-2 py-2.5 text-[11px] font-black transition-all sm:px-4 sm:text-xs ${
+              aria-pressed={activeTab === 'draw'}
+              className={`min-w-0 flex-1 rounded-lg px-2 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
                 activeTab === 'draw'
                   ? 'bg-white text-blue-700 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
@@ -1908,20 +1832,21 @@ export function LottoPage() {
             </button>
             <button
               type="button"
+              aria-pressed={activeTab === 'payout'}
               onClick={() => setActiveTab('payout')}
-              className={`min-w-0 flex-1 rounded-lg px-2 py-2.5 text-[11px] font-black transition-all sm:px-4 sm:text-xs ${
+              className={`min-w-0 flex-1 rounded-lg px-2 py-2.5 text-sm font-bold transition-colors sm:px-4 ${
                 activeTab === 'payout'
                   ? 'bg-white text-blue-700 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              실수령
+              실수령 계산
             </button>
           </nav>
         </div>
       </header>
 
-      <main className="page-x mx-auto w-full max-w-3xl py-4 sm:py-6">
+      <main className="page-x mx-auto w-full max-w-4xl py-4 sm:py-6">
         {activeTab === 'payout' ? (
           <Suspense
             fallback={
@@ -2316,7 +2241,7 @@ export function LottoPage() {
             aria-hidden
           />
         )}
-        <div className="fixed bottom-5 right-4 z-40 flex flex-col items-end gap-3 sm:right-5">
+        <div className="lotto-settings-launcher fixed bottom-5 right-4 z-40 flex flex-col items-end gap-3 sm:right-5">
           {showSettings && (
             <div
               role="dialog"
@@ -2635,7 +2560,7 @@ export function LottoPage() {
             type="button"
             onClick={() => setShowSettings((v) => !v)}
             aria-expanded={showSettings}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-br from-sky-500 to-fuchsia-600 px-5 py-3.5 font-black text-white shadow-[0_14px_30px_-8px_rgba(0,102,204,0.75)] transition-transform hover:from-blue-600 hover:to-fuchsia-700 active:scale-95"
+            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3.5 font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
             <Icons.Settings />
             <span className="text-xs">{showSettings ? '닫기' : '추첨 설정'}</span>
@@ -2662,11 +2587,26 @@ export function LottoPage() {
         </div>
 
         <div className="mb-4">
+          <div aria-live="polite" className="mb-2 text-sm text-slate-600">
+            {!drawsReady && !drawsError && <p>회차 정보를 확인하는 중…</p>}
+            {drawsError && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-3 text-red-800">
+                <p>{drawsError}</p>
+                <button
+                  type="button"
+                  onClick={() => setDrawsRetry((attempt) => attempt + 1)}
+                  className="rounded-lg bg-white px-3 py-2 font-bold hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  회차 다시 불러오기
+                </button>
+              </div>
+            )}
+          </div>
           <Button
-            disabled={isRolling}
+            disabled={isRolling || !drawsReady}
             onClick={() => void generateLottoNumbers()}
-            className={`w-full rounded-2xl py-4 text-lg font-black transition-all ${
-              isRolling
+            className={`w-full rounded-2xl py-4 text-lg font-black transition-[transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none ${
+              isRolling || !drawsReady
                 ? 'cursor-not-allowed bg-slate-200 text-slate-400 shadow-none'
                 : 'bg-gradient-to-br from-sky-500 to-fuchsia-600 text-white shadow-[0_12px_28px_-10px_rgba(0,102,204,0.7)] hover:from-blue-600 hover:to-fuchsia-700 active:scale-[0.98]'
             }`}
@@ -2728,207 +2668,39 @@ export function LottoPage() {
           <MonteCarloFrequencyChart snapshot={monteCarloAppearance} />
         )}
 
-        <div className="space-y-4">
-          <div className="mb-2 space-y-2 px-1">
-            <div className="flex min-w-0 items-center justify-between gap-2">
-              <h3 className="flex min-w-0 items-center gap-2 text-sm font-black text-slate-800">
-                <span className="h-4 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                <span
-                  className="flex shrink-0 items-center text-blue-600 sm:hidden"
-                  title="최근 생성 결과"
-                  aria-label="최근 생성 결과"
-                >
-                  <Icons.History />
-                </span>
-                <span className="hidden whitespace-nowrap sm:inline">최근 생성 결과</span>
-                {accessToken && historyTargetRound != null && history.length > 0 && (
-                  <span className="shrink-0 rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                    {historyTargetRound}회
-                  </span>
-                )}
-              </h3>
-              {accessToken && (
-                <p className="hidden text-right text-[10px] font-bold text-slate-400 sm:block">
-                  로그인 시 다른 기기에서도 동일하게 보입니다
-                </p>
-              )}
+        <LottoHistoryPanel
+          key={historyOwner ?? 'guest'}
+          items={pickHistory.history}
+          currentRound={getNextSuggestedRoundFromLatest(latestStoredDraw)}
+          onRemove={pickHistory.remove}
+          onExport={(items) => void executeImageCapture(
+            items, `6PICK_추첨내역_${Date.now()}.png`,
+          )}
+          renderMeta={(item) => <LottoHistoryMetaBadges item={item} showRound={false} />}
+          renderNumbers={(item) => item.numbers?.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {item.numbers.map((number) => (
+                <LottoBall
+                  key={number}
+                  number={number}
+                  displayOnly
+                  size="sm"
+                  complementHighlight={Boolean(item.isSixSetComplementGame)}
+                />
+              ))}
             </div>
-
-            {history.length > 0 && (
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={toggleSelectAll}
-                  title="전체 선택"
-                  aria-label="전체 선택"
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg p-2 text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:px-0 sm:py-0 sm:hover:bg-transparent"
-                >
-                  <div
-                    className={`flex h-4 w-4 items-center justify-center rounded-full border-2 transition-colors ${selectedItems.length === history.length ? 'border-blue-500 bg-blue-500' : 'border-slate-300 bg-white'}`}
-                  >
-                    {selectedItems.length === history.length && <Icons.Check />}
-                  </div>
-                  <span className="hidden whitespace-nowrap sm:inline">전체 선택</span>
-                </button>
-
-                <div className="flex shrink-0 gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDownloadAction}
-                    title={
-                      isSelecting
-                        ? `${selectedItems.length}개 선택 저장`
-                        : '전체 저장'
-                    }
-                    aria-label={
-                      isSelecting
-                        ? `${selectedItems.length}개 선택 저장`
-                        : '전체 저장'
-                    }
-                    className="flex items-center justify-center gap-1 rounded-lg bg-blue-50 p-2 text-blue-600 transition-colors hover:bg-blue-100 sm:px-3 sm:py-1.5"
-                  >
-                    <Icons.Download />
-                    <span className="hidden whitespace-nowrap text-[11px] font-bold sm:inline">
-                      {isSelecting
-                        ? `${selectedItems.length}개 선택 저장`
-                        : '전체 저장'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteAction}
-                    title={
-                      isSelecting
-                        ? `${selectedItems.length}개 선택 삭제`
-                        : '전체 삭제'
-                    }
-                    aria-label={
-                      isSelecting
-                        ? `${selectedItems.length}개 선택 삭제`
-                        : '전체 삭제'
-                    }
-                    className="flex items-center justify-center gap-1 rounded-lg bg-red-50 p-2 text-red-500 transition-colors hover:bg-red-100 sm:px-3 sm:py-1.5"
-                  >
-                    <Icons.Trash />
-                    <span className="hidden whitespace-nowrap text-[11px] font-bold sm:inline">
-                      {isSelecting
-                        ? `${selectedItems.length}개 선택 삭제`
-                        : '전체 삭제'}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3 pb-2 pt-1 -mx-2 px-2">
-            {history.length > 0 ? (
-              history.map((item) => (
-                <Fragment key={item.id}>
-                  {item.isNumberPoolResetStart && (
-                    <div
-                      className="flex items-center gap-3 py-2 text-[10px] font-black uppercase tracking-widest text-amber-800"
-                      aria-hidden
-                    >
-                      <span className="h-px min-w-[1rem] flex-1 bg-amber-200" />
-                      <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[9px] ring-1 ring-amber-200">
-                        번호 풀 초기화 지점
-                      </span>
-                      <span className="h-px min-w-[1rem] flex-1 bg-amber-200" />
-                    </div>
-                  )}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => toggleItemSelection(item.id)}
-                    onKeyDown={(ev) => {
-                      if (ev.key === 'Enter' || ev.key === ' ') {
-                        ev.preventDefault()
-                        toggleItemSelection(item.id)
-                      }
-                    }}
-                    className={`bg-white p-4 sm:p-5 rounded-2xl border shadow-sm flex items-center transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer ${selectedItems.includes(item.id) ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-100'} ${item.isNumberPoolResetStart ? 'ring-1 ring-amber-200/80 border-amber-100' : ''} ${item.isSetBlockStart ? 'ring-1 ring-indigo-200/80 border-sky-100' : ''}`}
-                  >
-                  <div className="mr-3 sm:mr-4">
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedItems.includes(item.id) ? 'bg-blue-500 border-blue-500' : 'border-slate-200 bg-[#F5F5F7]'}`}
-                    >
-                      {selectedItems.includes(item.id) && <Icons.Check />}
-                    </div>
-                  </div>
-                  <div
-                    className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center text-xl shadow-inner ${item.color}`}
-                  >
-                    {item.icon}
-                  </div>
-                  <div className="flex-1 ml-3 sm:ml-4 min-w-0">
-                    <LottoHistoryMetaBadges item={item} />
-                    <p className="mb-1 text-[10px] font-bold text-slate-500">
-                      {getHistoryDateLabel(item)}
-                    </p>
-                    {item.numbers && item.numbers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {item.numbers.map((n) => (
-                          <LottoBall
-                            key={`${item.id}-ball-${n}`}
-                            number={n}
-                            displayOnly
-                            size="sm"
-                            complementHighlight={Boolean(
-                              item.isSixSetComplementGame,
-                            )}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <h4 className="text-base sm:text-lg font-black tracking-wider text-gray-900">
-                        {item.name}
-                      </h4>
-                    )}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 pl-2 sm:pl-3 border-l border-slate-100 ml-2">
-                    <button
-                      type="button"
-                      onClick={(e) => handleDownloadIndividual(e, item)}
-                      className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[#F5F5F7] text-slate-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
-                      title="이 번호만 저장"
-                    >
-                      <Icons.Download />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteIndividual(e, item.id)}
-                      className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[#F5F5F7] text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      title="기록 삭제"
-                    >
-                      <Icons.Trash />
-                    </button>
-                  </div>
-                </div>
-                  {item.isSetBlockStart && (
-                    <div
-                      className="flex items-center gap-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-800"
-                      aria-hidden
-                    >
-                      <span className="h-px min-w-[1rem] flex-1 bg-indigo-200" />
-                      <span className="shrink-0 rounded-full bg-sky-100 px-2.5 py-1 text-[9px] ring-1 ring-indigo-200">
-                        {item.sixSetOrdinal != null
-                          ? `세트 ${item.sixSetOrdinal}(6게임) 시작`
-                          : '1세트(6게임) 세트 시작'}
-                      </span>
-                      <span className="h-px min-w-[1rem] flex-1 bg-indigo-200" />
-                    </div>
-                  )}
-                </Fragment>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
-                <Icons.Empty />
-                <p className="text-sm font-bold">아직 생성된 번호가 없습니다.</p>
-              </div>
-            )}
-          </div>
-        </div>
+          ) : <p className="text-base font-black text-gray-900">{item.name}</p>}
+          error={pickHistory.error}
+          loading={pickHistory.loading}
+          saving={pickHistory.saving}
+          onRetry={() => void pickHistory.retry()}
+          noticeMessage={pickHistory.noticeItems.length
+            ? getWinNoticeMessage(pickHistory.noticeItems, drawHistory)
+            : ''}
+          onAcknowledge={() => pickHistory.acknowledge(
+            pickHistory.noticeItems.map((item) => item.id),
+          )}
+        />
           </div>
           </div>
         )}

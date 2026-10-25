@@ -12,15 +12,15 @@ interface LottoUserPicksApiResponse {
 }
 
 function parseItems(itemsJson: string): LottoHistoryItem[] {
-  try {
-    const parsed: unknown = JSON.parse(itemsJson);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed as LottoHistoryItem[];
-  } catch {
-    return [];
+  const parsed: unknown = JSON.parse(itemsJson);
+  if (!Array.isArray(parsed) || !parsed.every((item) =>
+    item && typeof item === 'object' && Number.isSafeInteger(item.id) &&
+    ['name', 'category', 'reviews', 'icon', 'color'].every((key) => typeof item[key] === 'string') &&
+    (item.numbers === undefined || (Array.isArray(item.numbers) && item.numbers.every(Number.isInteger)))
+  )) {
+    throw new Error('저장된 추첨 내역을 읽을 수 없습니다.');
   }
+  return parsed as LottoHistoryItem[];
 }
 
 export const lottoApi = {
@@ -66,12 +66,13 @@ export const lottoApi = {
     return apiClient.put<LottoDraw[]>('/api/v1/lotto/draws/replace', { draws });
   },
 
-  async getPicks(): Promise<{
+  async getPicks(signal?: AbortSignal): Promise<{
     targetRound: number | null;
     items: LottoHistoryItem[];
   }> {
     const { data } = await apiClient.get<LottoUserPicksApiResponse>(
       '/api/v1/lotto/picks',
+      { signal },
     );
     return {
       targetRound: data.targetRound,
@@ -79,14 +80,14 @@ export const lottoApi = {
     };
   },
 
-  async savePicks(targetRound: number | null, items: LottoHistoryItem[]) {
-    const trimmed = items.slice(0, 200);
+  async savePicks(targetRound: number | null, items: LottoHistoryItem[], signal?: AbortSignal) {
     const { data } = await apiClient.put<LottoUserPicksApiResponse>(
       '/api/v1/lotto/picks',
       {
         targetRound,
-        itemsJson: JSON.stringify(trimmed),
+        itemsJson: JSON.stringify(items),
       },
+      { signal },
     );
     return {
       targetRound: data.targetRound,

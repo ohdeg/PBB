@@ -24,6 +24,13 @@ export default function LottoPayoutCalculator({
     return calculateLottoPayoutTax(grossAmount)
   }, [grossAmount])
 
+  const bracketLabelParts = breakdown?.bracketLabel.split(' (')
+  const bracketRange = bracketLabelParts?.length === 2 ? bracketLabelParts[0] : null
+  const bracketCondition =
+    bracketLabelParts?.length === 2
+      ? bracketLabelParts[1].replace(/\)$/, '')
+      : null
+
   useEffect(() => {
     const amount = latestDraw?.firstPrizeAmount
     if (amount == null || amount <= 0) return
@@ -91,8 +98,17 @@ export default function LottoPayoutCalculator({
             <p className="mb-2 text-center text-[10px] font-bold text-slate-500">
               적용 구간
             </p>
-            <p className="text-center text-xs font-black text-slate-800">
-              {breakdown.bracketLabel}
+            <p className="text-center text-xs font-black text-black">
+              {bracketRange && bracketCondition ? (
+                <>
+                  {bracketRange}{' '}
+                  <span className="inline-block whitespace-nowrap tracking-normal">
+                    ({bracketCondition})
+                  </span>
+                </>
+              ) : (
+                breakdown.bracketLabel
+              )}
             </p>
           </div>
 

@@ -16,6 +16,7 @@ import {
   resetScrollAnchorCache,
   scrollToAnchoredMeasure,
 } from '../utils/scrollAnchor';
+import { getScoreViewport } from '../utils/scoreViewport';
 
 interface PlaybackMetronomeParams {
   enabled: boolean;
@@ -53,7 +54,7 @@ interface ScrollDecision {
 const PLAYBACK_STATE_PUBLISH_INTERVAL_MS = 50;
 
 function getViewportHeight(): number {
-  return window.visualViewport?.height ?? window.innerHeight;
+  return getScoreViewport().height;
 }
 
 function getLineScrollTargetY(
@@ -203,6 +204,7 @@ export default function TemporiAutoScroller({
 }: TemporiAutoScrollerProps) {
   const frameIdRef = useRef<number | null>(null);
   const lastScrolledUnitIndexRef = useRef<number>(-1);
+  const lastScrolledViewportRef = useRef<string>('');
   const initialElapsedMsRef = useRef(initialElapsedMs);
   const metronomeCursorRef = useRef(initialElapsedMs + 1);
   const metronomeFiredKeysRef = useRef<Set<string>>(new Set());
@@ -234,6 +236,8 @@ export default function TemporiAutoScroller({
     if (!autoScrollEnabled || measureOffsets.length === 0 || !isPlaying) return;
 
     const measureIndex = getMeasureIndexByElapsed(windows, initialElapsedMsRef.current);
+    const viewport = getScoreViewport();
+    lastScrolledViewportRef.current = `${viewport.top}:${viewport.height}`;
     const scrollDecision = shouldAutoScroll(
       measureIndex,
       measureLayouts,
@@ -303,6 +307,12 @@ export default function TemporiAutoScroller({
       publishPlaybackState(elapsedMs, measureIndex, elapsedMs >= playbackLimitMs);
 
       if (autoScrollEnabled) {
+        const viewport = getScoreViewport();
+        const viewportKey = `${viewport.top}:${viewport.height}`;
+        if (lastScrolledViewportRef.current !== viewportKey) {
+          lastScrolledUnitIndexRef.current = -1;
+          lastScrolledViewportRef.current = viewportKey;
+        }
         const scrollDecision = shouldAutoScroll(
           measureIndex,
           measureLayouts,

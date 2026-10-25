@@ -1,6 +1,8 @@
 import { prefersNativeAutoScroll } from './platform';
+import { getScoreViewport } from './scoreViewport';
 
 let cachedViewportAnchorPx: number | null = null;
+let cachedViewportAnchorKey: string | null = null;
 let activeScrollAnimation: number | null = null;
 let programmaticScrollTimer: number | null = null;
 let activeScrollTargetTop: number | null = null;
@@ -10,6 +12,7 @@ const LINE_SCROLL_DURATION_MS = 520;
 
 export function resetScrollAnchorCache(): void {
   cachedViewportAnchorPx = null;
+  cachedViewportAnchorKey = null;
 }
 
 export function cancelScrollAnimation(): void {
@@ -40,16 +43,15 @@ export function isAutoScrollAnimating(): boolean {
   return isProgrammaticScroll;
 }
 
-function getViewportHeight(): number {
-  return window.visualViewport?.height ?? window.innerHeight;
-}
-
 function getViewportAnchorPx(anchorRatio = 0.33): number {
-  if (cachedViewportAnchorPx !== null) {
+  const { top, height } = getScoreViewport();
+  const key = `${top}:${height}:${anchorRatio}`;
+  if (cachedViewportAnchorPx !== null && cachedViewportAnchorKey === key) {
     return cachedViewportAnchorPx;
   }
 
-  cachedViewportAnchorPx = getViewportHeight() * anchorRatio;
+  cachedViewportAnchorKey = key;
+  cachedViewportAnchorPx = top + height * anchorRatio;
   return cachedViewportAnchorPx;
 }
 
@@ -155,14 +157,7 @@ export function scrollToAnchoredMeasure(
   behavior: ScrollBehavior = 'smooth',
   options?: { lockAnchor?: boolean; durationMs?: number; anchorRatio?: number },
 ): void {
-  if (options?.lockAnchor && cachedViewportAnchorPx === null) {
-    cachedViewportAnchorPx = getViewportHeight() * (options.anchorRatio ?? 0.33);
-  }
-
-  const targetTop =
-    options?.anchorRatio === 0
-      ? Math.max(0, measureY)
-      : getAnchoredScrollTop(measureY, options?.anchorRatio);
+  const targetTop = getAnchoredScrollTop(measureY, options?.anchorRatio);
 
   if (behavior === 'auto') {
     cancelScrollAnimation();

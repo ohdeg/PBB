@@ -8,7 +8,6 @@ import TemporiAutoScroller from './components/TemporiAutoScroller';
 import TemporiMetronome from './components/TemporiMetronome';
 import MetronomeBeatIndicator from './components/MetronomeBeatIndicator';
 import FloatingPlaybackButton from './components/FloatingPlaybackButton';
-import ScrollToTopTapZone from './components/ScrollToTopTapZone';
 import TemporiAnnotationToolbar, {
   dispatchAnnotationClear,
   dispatchAnnotationUndo,
@@ -908,7 +907,6 @@ export function Tempori({ temporiId }: TemporiProps) {
 
   return (
     <div className={`tempori${isImmersive ? ' tempori--immersive' : ''}`}>
-      <ScrollToTopTapZone />
       <TemporiAnnotationToolbar
         visible={isIpad && !isLoading && !error && Boolean(musicXml)}
         tool={annotationTool}

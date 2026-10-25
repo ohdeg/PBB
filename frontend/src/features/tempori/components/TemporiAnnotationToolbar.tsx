@@ -1,6 +1,7 @@
 import type { AnnotationBrushSizes, AnnotationToolMode } from '../types/temporiAnnotation';
 import { ANNOTATION_BRUSH_SIZE_LIMITS } from '../constants/annotationBrush';
 import { useTranslation } from '../i18n/LanguageContext';
+import { TemporiDockSlot } from '../../../components/TemporiViewerDock';
 
 interface TemporiAnnotationToolbarProps {
   tool: AnnotationToolMode;
@@ -44,6 +45,7 @@ export default function TemporiAnnotationToolbar({
   const activeSize = activeSizeKey ? brushSizes[activeSizeKey] : null;
 
   return (
+    <TemporiDockSlot slot="annotation">
     <div className="tempori-annotation-toolbar" aria-label={t('annotation.toolbarLabel')}>
       <div className="tempori-annotation-tool-group" role="tablist" aria-label={t('annotation.modeLabel')}>
         {toolOptions.map((option) => (
@@ -84,6 +86,7 @@ export default function TemporiAnnotationToolbar({
         </button>
       </div>
     </div>
+    </TemporiDockSlot>
   );
 }
 

@@ -1,5 +1,6 @@
 import { Button } from '../../../components/ui/Button';
 import { useTranslation } from '../i18n/LanguageContext';
+import { TemporiDockSlot } from '../../../components/TemporiViewerDock';
 
 interface FloatingPlaybackButtonProps {
   visible: boolean;
@@ -32,6 +33,7 @@ export default function FloatingPlaybackButton({
       : t('playback.play');
 
   return (
+    <TemporiDockSlot slot="playback">
     <div className="floating-playback" role="toolbar" aria-label={t('floating.playbackToolbar')}>
       {isCountingIn && <span className="floating-playback-countin">{t('floating.countInOneMeasure')}</span>}
       <span className="floating-playback-measure">
@@ -44,5 +46,6 @@ export default function FloatingPlaybackButton({
         {buttonLabel}
       </Button>
     </div>
+    </TemporiDockSlot>
   );
 }

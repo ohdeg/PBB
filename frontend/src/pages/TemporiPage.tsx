@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Tempori } from '../features/tempori/Tempori';
 import { TemporiI18nProvider, useTranslation } from '../features/tempori/i18n/LanguageContext';
@@ -40,12 +40,10 @@ function TemporiPageInner() {
 
   return (
     <main className="tempori-main viewer-page">
-      <Link to="/hobbies/tempori/library" className="back-link">
-        {t('viewer.backToLibrary')}
-      </Link>
-      <p className="page-kicker">음악</p>
-      <h1>{tempori?.title ?? t('viewer.pageTitle')}</h1>
-      {isLoading ? <p className="tempori-lead">{t('viewer.loadingSubtitle')}</p> : tempori?.artist ? <p className="tempori-lead">{tempori.artist}</p> : null}
+      <header className="tempori-score-heading">
+        <h1>{tempori?.title ?? t('viewer.pageTitle')}</h1>
+        {isLoading ? <p className="tempori-lead">{t('viewer.loadingSubtitle')}</p> : tempori?.artist ? <p className="tempori-lead">{tempori.artist}</p> : null}
+      </header>
 
       {isLoading && <p className="tempori-status" role="status">{t('viewer.loadingTempori')}</p>}
       {error && <div><p className="tempori-error" role="alert">{error}</p><Button onClick={() => setRetryKey((key) => key + 1)}>{t('viewer.retry')}</Button></div>}

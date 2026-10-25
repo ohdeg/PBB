@@ -8,6 +8,8 @@ import { isVevenoToolsPopPath } from '../features/veveno/tools/compact';
 import { useAuthStore } from '../stores/authStore';
 import { toast } from '../stores/toastStore';
 import { getErrorMessage } from '../utils/error';
+import { isTemporiViewerPath } from '../features/tempori/utils/focusMode';
+import { TemporiViewerFrame } from './TemporiViewerDock';
 
 function readReturnPath(state: unknown): string | undefined {
   if (
@@ -53,6 +55,7 @@ export function AppShell() {
   const isHome = location.pathname === '/';
   const isSranko = location.pathname.startsWith('/hobbies/sranko');
   const isToolsPop = isVevenoToolsPopPath(location.pathname);
+  const isTemporiScore = isTemporiViewerPath(location.pathname);
 
   useEffect(() => {
     if (!useAuthStore.getState().suppressLoginRedirect) {
@@ -88,9 +91,9 @@ export function AppShell() {
 
   return (
     <div
-      className={`app-shell${isHome || isSranko || isToolsPop ? ' app-shell--flush' : ''}${isToolsPop ? ' app-shell--tools-pop' : ''}`}
+      className={`app-shell${isHome || isSranko || isToolsPop || isTemporiScore ? ' app-shell--flush' : ''}${isToolsPop ? ' app-shell--tools-pop' : ''}${isTemporiScore ? ' app-shell--tempori-score' : ''}`}
     >
-      {isToolsPop ? null : (
+      {isToolsPop || isTemporiScore ? null : (
       <header className="global-nav">
         <div className="global-nav__inner">
           <Link to="/" className="global-nav__brand" aria-label="PBB 홈">
@@ -214,7 +217,7 @@ export function AppShell() {
       </header>
       )}
 
-      <Outlet />
+      {isTemporiScore ? <TemporiViewerFrame key={location.pathname}><Outlet /></TemporiViewerFrame> : <Outlet />}
       <VevenoStockCheckHost />
     </div>
   );

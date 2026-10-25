@@ -6176,15 +6176,202 @@ button.practice-btn {
   padding: 0 1.25rem 5.5rem;
 }
 
+/* Score mode keeps paper continuous beneath translucent browser chrome. */
+html.tempori-score-mode,
+html.tempori-score-mode body {
+  background: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.tempori-score-mode { scroll-behavior: auto; }
+}
+
+.app-shell--tempori-score {
+  --canvas: #fff;
+  --ink: #000;
+  --primary: #000;
+  --primary-focus: #000;
+  --on-primary: #fff;
+  --surface-soft: #f7f7f5;
+  --hairline: #e6e6e6;
+  --hairline-soft: #f1f1f1;
+  --text-muted: #666;
+  --text-muted-strong: #333;
+  /* Rebind aliases here: inherited root aliases already resolved the saved theme. */
+  --bg: #fff;
+  --bg-soft: #f7f7f5;
+  --bg-elevated: #fff;
+  --bg-card: #fff;
+  --bg-card-soft: #f7f7f5;
+  --surface: #fff;
+  --surface-hover: #f7f7f5;
+  --border: #f1f1f1;
+  --border-strong: #e6e6e6;
+  --text: #000;
+  --text-primary: #000;
+  --text-secondary: #666;
+  --accent: #000;
+  --accent-hover: #000;
+  --accent-on: #fff;
+  --accent-soft: rgba(0, 0, 0, 0.08);
+  --focus-ring: 0 0 0 2px #000;
+  --border-soft: rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --header-h: 0px;
+  padding-top: var(--safe-area-top);
+  background: #fff;
+  color: #000;
+  animation: none;
+}
+
+.tempori-viewer-frame {
+  --tempori-dock-height: 4.5rem;
+  min-height: calc(100dvh - var(--safe-area-top));
+  padding-bottom: calc(var(--tempori-dock-height) + 1.5rem + var(--safe-area-bottom));
+}
+
+.app-shell--tempori-score .viewer-page {
+  max-width: 1100px;
+  padding: 0.75rem max(0.75rem, var(--safe-area-right)) 0.5rem max(0.75rem, var(--safe-area-left));
+}
+
+.tempori-score-heading {
+  margin-bottom: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.tempori-score-heading h1 {
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+}
+
+.tempori-score-heading .tempori-lead { margin-bottom: 0; }
+
+.tempori-viewer-dock {
+  position: fixed;
+  inset-inline: max(0.75rem, var(--safe-area-left)) max(0.75rem, var(--safe-area-right));
+  bottom: calc(0.75rem + var(--safe-area-bottom));
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.tempori-viewer-dock-annotation:empty,
+.tempori-viewer-dock-beat:empty,
+.tempori-viewer-dock-playback:empty { display: none; }
+
+.tempori-viewer-dock-row {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tempori-viewer-dock-playback {
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tempori-viewer-exit,
+.tempori-viewer-top {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #d0d0d0;
+  border-radius: var(--r-pill);
+  background: #fff;
+  color: #222;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  pointer-events: auto;
+}
+
+.tempori-viewer-exit:hover,
+.tempori-viewer-top:hover { background: #f1f1f1; color: #000; }
+
+.tempori-viewer-dock :is(a, button, input):focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 3px;
+}
+
+.tempori-viewer-dock .floating-playback,
+.tempori-viewer-dock .metronome-beat-indicator,
+.tempori-viewer-dock .tempori-annotation-toolbar {
+  position: static;
+  max-width: 100%;
+  background: #fff;
+  color: #222;
+  border-color: #d0d0d0;
+  backdrop-filter: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.tempori-viewer-dock .floating-playback {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem 0.35rem 0.8rem;
+  pointer-events: auto;
+}
+
+.tempori-viewer-dock .floating-playback button { min-height: 44px; }
+.tempori-viewer-dock .floating-playback-countin { color: #8a4b00; }
+.tempori-viewer-dock .floating-playback-measure { color: #555; overflow-wrap: anywhere; }
+.tempori-viewer-dock .metronome-beat-indicator { max-width: 100%; justify-content: flex-start; }
+.tempori-viewer-dock .metronome-beat-dots { flex-wrap: wrap; }
+.tempori-viewer-dock .metronome-beat-indicator-tag.is-countin { color: #8a4b00; }
+.tempori-viewer-dock-annotation,
+.tempori-viewer-dock-beat { max-width: 100%; }
+.tempori-viewer-dock .tempori-annotation-toolbar { pointer-events: auto; }
+.tempori-viewer-dock .tempori-annotation-tool-group,
+.tempori-viewer-dock .tempori-annotation-tool-actions { flex-wrap: wrap; }
+.tempori-viewer-dock .tempori-annotation-size-control {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.tempori-viewer-dock .tempori-annotation-size-control span {
+  min-width: 0;
+  grid-column: 1;
+  grid-row: 1;
+  overflow-wrap: anywhere;
+}
+.tempori-viewer-dock .tempori-annotation-size-control strong {
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
+}
+.tempori-viewer-dock .tempori-annotation-size-control input[type='range'] {
+  min-width: 0;
+  max-width: 100%;
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.tempori-viewer-dock .tempori-annotation-tool-btn,
+.tempori-viewer-dock .tempori-annotation-action-btn { min-height: 44px; }
+.tempori-viewer-dock .tempori-annotation-tool-btn.active { background: #4f46e5; color: #fff; }
+.tempori-viewer-dock .tempori-annotation-action-btn.danger { color: #b91c1c; }
+
+.app-shell--tempori-score .tempori-canvas-wrap {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0.5rem 0;
+}
+
 .tempori {
   padding: 0.5rem 0 2rem;
 }
 
-/* Immersive playback: hide chrome, focus on the tempori */
-body.tempori-immersive .viewer-page .page-shell-header {
-  display: none;
-}
-
+/* Playback retains the document heading position to keep score offsets stable. */
 body.tempori-immersive .viewer-page {
   padding-top: 0.25rem;
 }

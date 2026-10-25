@@ -1,5 +1,6 @@
 import { useTranslation } from '../i18n/LanguageContext';
 import type { BeatStrengthLevel } from '../utils/beatStrength';
+import { TemporiDockSlot } from '../../../components/TemporiViewerDock';
 
 interface MetronomeBeatIndicatorProps {
   visible: boolean;
@@ -24,6 +25,7 @@ export default function MetronomeBeatIndicator({
   }
 
   return (
+    <TemporiDockSlot slot="beat">
     <div className="metronome-beat-indicator" role="status" aria-label={t('metronomePanel.beatIndicatorAria')}>
       <span className={`metronome-beat-indicator-tag${isCountingIn ? ' is-countin' : ''}`}>
         {isCountingIn
@@ -47,5 +49,6 @@ export default function MetronomeBeatIndicator({
         })}
       </div>
     </div>
+    </TemporiDockSlot>
   );
 }

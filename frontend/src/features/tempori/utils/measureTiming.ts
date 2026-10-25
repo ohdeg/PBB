@@ -392,17 +392,6 @@ const NOTE_CONTENT_SELECTORS = [
     '.vf-ghostnote',
     'g.vf-note',
 ].join(', ');
-const HEADER_SELECTORS = [
-    '.vf-clef',
-    '.vf-clefs',
-    '.vf-keysignature',
-    '.vf-keysignatures',
-    '.vf-keySig',
-    '.vf-timesignature',
-    '.vf-timesignatures',
-    '.vf-timeSig',
-    '.vf-repeat',
-].join(', ');
 const STAVE_DOM_SELECTOR = '.vf-stave';
 const MIN_MEASURE_HIGHLIGHT_WIDTH_PX = 12;
 
@@ -1089,28 +1078,38 @@ const getLineStartMeasureIndices = (layouts: MeasureLayoutInContainer[]): Set<nu
     return indices;
 };
 
-const findMeasureElement = (
+const findMeasureElements = (
     container: HTMLElement,
     measureIndex: number,
-): SVGGraphicsElement | null => {
-    const candidates = collectMeasureDomCandidates(container);
+): SVGGraphicsElement[] => {
+    const parts = collectMeasureDomCandidates(container)
+        .filter((element) => parseMeasureIndexFromElement(element) === measureIndex)
+        .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+        .filter(({ element, rect }) => isMeasureLayoutCandidate(element, rect));
+    if (parts.length <= 1) return parts.map(({ element }) => element);
 
-    for (const element of candidates) {
-        if (parseMeasureIndexFromElement(element) === measureIndex) {
-            return element;
-        }
-    }
-
-    return null;
+    // Keep the same raw horizontal cluster chosen during extraction, before width
+    // clamping. Same-ID staves belong together; distant duplicate groups do not.
+    const cluster = mergeMeasureLayoutParts(parts.map(({ rect }) => ({
+        measureIndex,
+        topPx: rect.top,
+        leftPx: rect.left,
+        widthPx: rect.width,
+        heightPx: rect.height,
+    })));
+    const clusterRight = cluster.leftPx + cluster.widthPx;
+    return parts
+        .filter(({ rect }) => rect.right > cluster.leftPx && rect.left < clusterRight)
+        .map(({ element }) => element);
 };
 
 const computePlayheadBounds = (
-    measureElement: Element,
+    measureElements: Element[],
     containerRect: DOMRect,
     layout: MeasureLayoutInContainer,
 ): { playheadLeftPx: number; playheadWidthPx: number } => {
     const measureRightPx = layout.leftPx + layout.widthPx;
-    const contentStartPx = getContentStartAfterHeaders(measureElement, containerRect, layout.leftPx);
+    const contentStartPx = getMeasureContentStart(measureElements, containerRect, layout.leftPx);
     const maxStartPx = layout.leftPx + layout.widthPx * 0.85;
     const playheadLeftPx = Math.min(Math.max(contentStartPx, layout.leftPx), maxStartPx);
     const playheadWidthPx = Math.max(measureRightPx - playheadLeftPx, 1);
@@ -1118,36 +1117,27 @@ const computePlayheadBounds = (
     return { playheadLeftPx, playheadWidthPx };
 };
 
-const getContentStartAfterHeaders = (
-    measureElement: Element,
+const getMeasureContentStart = (
+    measureElements: Element[],
     containerRect: DOMRect,
     layoutLeftPx: number,
 ): number => {
-    let contentStartPx = layoutLeftPx;
-
-    measureElement.querySelectorAll(HEADER_SELECTORS).forEach((header) => {
-        const rect = header.getBoundingClientRect();
-        if (rect.width > 0) {
-            contentStartPx = Math.max(contentStartPx, rect.right - containerRect.left);
-        }
-    });
-
     let minNoteLeftPx = Infinity;
-    measureElement.querySelectorAll(NOTE_CONTENT_SELECTORS).forEach((note) => {
-        const rect = note.getBoundingClientRect();
-        if (rect.width < 2) return;
-        minNoteLeftPx = Math.min(minNoteLeftPx, rect.left - containerRect.left);
+    measureElements.forEach((measureElement) => {
+        measureElement.querySelectorAll(NOTE_CONTENT_SELECTORS).forEach((note) => {
+            const rect = note.getBoundingClientRect();
+            if (rect.width < 2) return;
+            minNoteLeftPx = Math.min(minNoteLeftPx, rect.left - containerRect.left);
+        });
     });
 
-    if (Number.isFinite(minNoteLeftPx)) {
-        contentStartPx = Math.max(contentStartPx, minNoteLeftPx);
-    }
-
-    return contentStartPx;
+    // Clefs can also occur inside or at the end of a measure. The first note/rest
+    // across its staves identifies content without mistaking those clefs for headers.
+    return Number.isFinite(minNoteLeftPx) ? Math.max(layoutLeftPx, minNoteLeftPx) : layoutLeftPx;
 };
 
-const computeHighlightBoundsFromMeasureElement = (
-    measureElement: Element,
+const computeHighlightBoundsFromMeasureElements = (
+    measureElements: Element[],
     containerRect: DOMRect,
     layout: MeasureLayoutInContainer,
     isLineStart: boolean,
@@ -1155,7 +1145,7 @@ const computeHighlightBoundsFromMeasureElement = (
     const measureRightPx = layout.leftPx + layout.widthPx;
     let rightPx = measureRightPx;
 
-    const staves = measureElement.querySelectorAll(STAVE_DOM_SELECTOR);
+    const staves = measureElements.flatMap((element) => Array.from(element.querySelectorAll(STAVE_DOM_SELECTOR)));
     if (staves.length > 0) {
         let staveRight = -Infinity;
 
@@ -1173,7 +1163,7 @@ const computeHighlightBoundsFromMeasureElement = (
     let leftPx = layout.leftPx;
 
     if (isLineStart) {
-        const contentStartPx = getContentStartAfterHeaders(measureElement, containerRect, layout.leftPx);
+        const contentStartPx = getMeasureContentStart(measureElements, containerRect, layout.leftPx);
         const maxStartPx = layout.leftPx + layout.widthPx * 0.85;
         leftPx = Math.min(Math.max(contentStartPx, layout.leftPx), maxStartPx);
     } else if (staves.length > 0) {
@@ -1241,10 +1231,10 @@ const refineMeasureVerticalBounds = (
     const containerRect = container.getBoundingClientRect();
 
     return layouts.map((layout) => {
-        const measureElement = findMeasureElement(container, layout.measureIndex);
-        if (!measureElement) return layout;
+        const measureElements = findMeasureElements(container, layout.measureIndex);
+        if (measureElements.length === 0) return layout;
 
-        const staves = measureElement.querySelectorAll(STAVE_DOM_SELECTOR);
+        const staves = measureElements.flatMap((element) => Array.from(element.querySelectorAll(STAVE_DOM_SELECTOR)));
         if (staves.length === 0) return layout;
 
         let topPx = Infinity;
@@ -1276,8 +1266,8 @@ const refineMeasureHighlightLayouts = (
     const lineStartIndices = getLineStartMeasureIndices(layouts);
     const containerRect = container.getBoundingClientRect();
     const withHighlight = layouts.map((layout) => {
-        const measureElement = findMeasureElement(container, layout.measureIndex);
-        if (!measureElement) {
+        const measureElements = findMeasureElements(container, layout.measureIndex);
+        if (measureElements.length === 0) {
             return {
                 ...layout,
                 highlightLeftPx: layout.leftPx,
@@ -1285,8 +1275,8 @@ const refineMeasureHighlightLayouts = (
             };
         }
 
-        const bounds = computeHighlightBoundsFromMeasureElement(
-            measureElement,
+        const bounds = computeHighlightBoundsFromMeasureElements(
+            measureElements,
             containerRect,
             layout,
             lineStartIndices.has(layout.measureIndex),
@@ -1323,12 +1313,12 @@ const refinePlayheadLayouts = (
             return layout;
         }
 
-        const measureElement = findMeasureElement(container, layout.measureIndex);
-        if (!measureElement) {
+        const measureElements = findMeasureElements(container, layout.measureIndex);
+        if (measureElements.length === 0) {
             return layout;
         }
 
-        const bounds = computePlayheadBounds(measureElement, containerRect, layout);
+        const bounds = computePlayheadBounds(measureElements, containerRect, layout);
         return {
             ...layout,
             playheadLeftPx: bounds.playheadLeftPx,

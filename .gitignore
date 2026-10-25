@@ -55,6 +55,7 @@ secrets/
 
 # Logs & debug
 logs/
+.playwright-mcp/
 *.log
 npm-debug.log*
 yarn-debug.log*

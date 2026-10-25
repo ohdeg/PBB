@@ -15,6 +15,11 @@ export interface HobbyApp {
   path: string | null;
   /** 홈「열기」— 앱 메인 진입 (없으면 path와 동일 → 소개 링크 숨김) */
   startPath?: string;
+  /** 최근 사용을 기록할 실행 경로. App.tsx의 실제 라우트와 함께 갱신한다. */
+  usagePaths?: readonly string[];
+  /** 홈에서만 사용하는 짧은 기능명·설명 (랜딩 문구는 유지). */
+  homeTitle?: string;
+  homeDescription?: string;
   accent: string;
   available: boolean;
   /** 홈 color-block 파스텔 톤 */
@@ -40,6 +45,13 @@ export type HobbyCategory = (typeof HOBBY_CATEGORIES)[number];
 export const HOBBY_APPS: HobbyApp[] = [
   {
     id: 'veveno',
+    homeTitle: '가게 관리',
+    homeDescription: '메뉴·재고·근무를 한곳에서',
+    usagePaths: [
+      '/hobbies/veveno/hub', '/hobbies/veveno/pos',
+      '/hobbies/veveno/stores/:storeId', '/hobbies/veveno/stores/:storeId/tools',
+      '/hobbies/veveno/pos/store/:storeId', '/hobbies/veveno/pos/store/:storeId/tools',
+    ],
     name: 'Veveno',
     subtitle: '가게 노트',
     description: '메뉴·재고·근무를 한곳에 남기는 손안의 가벼운 매장 노트',
@@ -56,6 +68,12 @@ export const HOBBY_APPS: HobbyApp[] = [
   },
   {
     id: 'sranko',
+    homeTitle: '디지털 옷장',
+    homeDescription: '옷과 코디를 차곡차곡',
+    usagePaths: [
+      '/hobbies/sranko/closet', '/hobbies/sranko/looks', '/hobbies/sranko/looks/:lookId',
+      '/hobbies/sranko/community', '/hobbies/sranko/community/:postId',
+    ],
     name: 'Sranko',
     subtitle: '디지털 옷장',
     description: '옷·치수·룩을 모으고 스타일 커뮤니티에 공유하는 옷장 앱',
@@ -72,6 +90,9 @@ export const HOBBY_APPS: HobbyApp[] = [
   },
   {
     id: 'tempori',
+    homeTitle: '악보 연습',
+    homeDescription: '악보와 메트로놈으로 연습',
+    usagePaths: ['/hobbies/tempori/library', '/hobbies/tempori/:id'],
     name: 'Tempori',
     subtitle: '악보 뷰어',
     description: '악보를 열고 메트로놈·조옮김·자동 스크롤로 연습',
@@ -88,6 +109,8 @@ export const HOBBY_APPS: HobbyApp[] = [
   },
   {
     id: '6pick',
+    homeTitle: '로또 번호 분석',
+    homeDescription: '번호와 패턴을 살펴보세요',
     name: '6PICK',
     subtitle: '로또 번호',
     description: '빈출 번호를 분석 및 기간 별 패턴을 분석해 번호 분석',
@@ -106,6 +129,12 @@ export const HOBBY_APPS: HobbyApp[] = [
   },
   {
     id: 'dieta',
+    homeTitle: '체중 코칭',
+    homeDescription: '체중·식사·활동을 기록하세요',
+    usagePaths: [
+      '/hobbies/dieta/onboarding', '/hobbies/dieta/home', '/hobbies/dieta/meals',
+      '/hobbies/dieta/activity', '/hobbies/dieta/check-in', '/hobbies/dieta/settings',
+    ],
     name: 'Dieta',
     subtitle: '체중 코칭',
     description: '체중·섭취·활동량으로 한 주씩 부드럽게 조절하는 코칭 노트',

@@ -517,7 +517,63 @@ html:not([data-theme='dark']) .global-nav__logo {
   }
 }
 
-/* Figma home — hero + marquee + color blocks */
+/* Home-only navigation; other app shells retain their existing header. */
+.app-shell.app-shell--home { padding: 0; }
+.global-nav--home .global-nav__inner {
+  gap: 16px;
+}
+.home-nav__skip {
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  z-index: 70;
+  padding: 10px 16px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 8px;
+  transform: translateY(-200%);
+}
+.home-nav__skip:focus { transform: translateY(0); color: var(--on-primary); }
+.home-nav__apps {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  min-width: 44px;
+  justify-content: center;
+  border-bottom: 2px solid var(--ink);
+  font-weight: 550;
+}
+.home-nav__signup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--text-muted-strong);
+  border-radius: 8px;
+}
+.home-nav__signup:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.global-nav--home .figma-pill--nav { min-height: 44px; }
+.global-nav--home .global-nav__drawer-link { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; }
+.home-nav__app-description { color: var(--text-muted-strong); font-size: 14px; }
+.global-nav--home :is(a, button, summary):focus-visible { outline: 2px solid var(--primary-focus); outline-offset: 3px; }
+.global-nav--home .global-nav__account summary { display: flex; align-items: center; min-height: 44px; min-width: 44px; }
+.global-nav--home .global-nav__menu-btn:hover { background: var(--surface-soft); border-radius: 8px; }
+@media (min-width: 960px) {
+  .global-nav--home .global-nav__inner { grid-template-columns: auto minmax(0, 1fr) auto; gap: 40px; }
+  .global-nav--home .global-nav__tabs { justify-self: start; }
+  .global-nav--home .global-nav__account { display: block; }
+  .global-nav--home .global-nav__account-wide,
+  .global-nav--home .global-nav__actions .global-nav__logout { display: none; }
+}
+@media (max-width: 479px) {
+  .global-nav--home .global-nav__inner { padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); gap: 8px; }
+  .global-nav--home .global-nav__actions { gap: 4px; }
+  .global-nav--home .global-nav__account summary { max-width: 6rem; display: block; line-height: 44px; padding-block: 0; }
+}
+
+/* Figma home — shared legacy landing styles */
 .figma-home {
   width: 100%;
   background: var(--canvas);

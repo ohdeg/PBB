@@ -1,3 +1,4 @@
+import { LegacyTemporiRedirect, TemporiStorageBoundary } from './components/TemporiStorageBoundary';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import { VevenoI18nProvider } from './features/veveno/i18n/LanguageContext';
@@ -56,19 +57,19 @@ const SixPickLandingPage = lazy(() =>
     default: module.SixPickLandingPage,
   })),
 );
-const ScoreLibraryPage = lazy(() =>
-  import('./pages/ScoreLibraryPage').then((module) => ({
-    default: module.ScoreLibraryPage,
+const TemporiLibraryPage = lazy(() =>
+  import('./pages/TemporiLibraryPage').then((module) => ({
+    default: module.TemporiLibraryPage,
   })),
 );
-const ScoreViewerLandingPage = lazy(() =>
-  import('./pages/ScoreViewerLandingPage').then((module) => ({
-    default: module.ScoreViewerLandingPage,
+const TemporiLandingPage = lazy(() =>
+  import('./pages/TemporiLandingPage').then((module) => ({
+    default: module.TemporiLandingPage,
   })),
 );
-const ScoreViewerPage = lazy(() =>
-  import('./pages/ScoreViewerPage').then((module) => ({
-    default: module.ScoreViewerPage,
+const TemporiPage = lazy(() =>
+  import('./pages/TemporiPage').then((module) => ({
+    default: module.TemporiPage,
   })),
 );
 const DietaLandingPage = lazy(() =>
@@ -299,9 +300,12 @@ export default function App() {
                 <Route path="/hobbies/dieta/settings" element={<DietaSettingsPage />} />
               </Route>
               </Route>
-              <Route path="/hobbies/score-viewer" element={<ScoreViewerLandingPage />} />
-              <Route path="/hobbies/score-viewer/library" element={<ScoreLibraryPage />} />
-              <Route path="/hobbies/score-viewer/:id" element={<ScoreViewerPage />} />
+              <Route path="/hobbies/score-viewer/*" element={<LegacyTemporiRedirect />} />
+              <Route path="/hobbies/tempori" element={<TemporiLandingPage />} />
+              <Route element={<TemporiStorageBoundary />}>
+              <Route path="/hobbies/tempori/library" element={<TemporiLibraryPage />} />
+              <Route path="/hobbies/tempori/:id" element={<TemporiPage />} />
+              </Route>
               <Route path="/hobbies/sranko" element={<SrankoLandingPage />} />
               <Route element={<SrankoLayout />}>
                 <Route path="/hobbies/sranko/closet" element={<SrankoClosetPage />} />

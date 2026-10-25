@@ -13,7 +13,7 @@ export default defineConfig({
         'src/features/lotto/utils/**/*.ts',
         'src/features/dieta/utils/dietaMath.ts',
         'src/api/dietaMappers.ts',
-        'src/features/score/hooks/useScorePlaybackDerived.ts',
+        'src/features/tempori/hooks/useTemporiPlaybackDerived.ts',
         'src/components/veveno/VevenoStoreStocksPanel.tsx',
         'src/hooks/useVevenoNotices.ts',
       ],

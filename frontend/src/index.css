@@ -101,7 +101,7 @@
   --space-xxl: 48px;
   --content-max: 1280px;
 
-  /* Score Viewer (ported) — aliases so fixed controls keep valid positions */
+  /* Tempori (ported) — aliases so fixed controls keep valid positions */
   --border-soft: rgba(0, 0, 0, 0.08);
   --text-primary: var(--text);
   --text-secondary: var(--text-muted);
@@ -5566,18 +5566,18 @@ button.veveno-stock-num--action:disabled {
   }
 }
 
-.score-main {
+.tempori-main {
   max-width: none;
   width: 100%;
 }
 
-.score-main h1 {
+.tempori-main h1 {
   margin: 0 0 0.45rem;
   font-family: var(--font-display);
   font-size: clamp(1.75rem, 4vw, 2.3rem);
 }
 
-.score-lead {
+.tempori-lead {
   margin: 0 0 1.5rem;
   color: var(--text-muted);
 }
@@ -5596,7 +5596,7 @@ button.veveno-stock-num--action:disabled {
   font-size: 1.05rem;
 }
 
-.score-list-section-head {
+.tempori-list-section-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -5604,7 +5604,7 @@ button.veveno-stock-num--action:disabled {
   margin-bottom: 0.75rem;
 }
 
-.score-list-meta {
+.tempori-list-meta {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
@@ -5615,7 +5615,7 @@ button.veveno-stock-num--action:disabled {
 }
 
 
-/* ===== Score Viewer (ported from NonBackendScoreProject) ===== */
+/* ===== Tempori (ported from NonBackendTemporiProject) ===== */
 
 /* ---------- Buttons ---------- */
 button {
@@ -5725,12 +5725,12 @@ button.practice-btn {
   text-underline-offset: 0.15em;
 }
 
-.score-list-item--link {
+.tempori-list-item--link {
   border-left: 3px solid color-mix(in srgb, #5e5ce6 55%, transparent);
 }
 
 .upload-section,
-.score-list-section {
+.tempori-list-section {
   padding: 1.5rem;
   margin-top: 1.1rem;
 }
@@ -5827,7 +5827,7 @@ button.practice-btn {
   font-size: 0.86rem;
 }
 
-.score-storage-badge {
+.tempori-storage-badge {
   display: inline-flex;
   margin-top: 0.25rem;
   padding: 0.15rem 0.45rem;
@@ -5836,17 +5836,17 @@ button.practice-btn {
   font-weight: 600;
 }
 
-.score-storage-badge--device {
+.tempori-storage-badge--device {
   color: var(--mint);
   background: rgba(45, 212, 191, 0.12);
 }
 
-.score-storage-badge--cloud {
+.tempori-storage-badge--cloud {
   color: var(--accent);
   background: rgba(99, 179, 237, 0.12);
 }
 
-.score-storage-badge--synced {
+.tempori-storage-badge--synced {
   color: #c4b5fd;
   background: rgba(139, 92, 246, 0.14);
 }
@@ -5884,7 +5884,7 @@ button.practice-btn {
   min-height: 2.5rem;
 }
 
-.score-entry-ad-backdrop,
+.tempori-entry-ad-backdrop,
 .subscription-backdrop {
   position: fixed;
   inset: 0;
@@ -5897,7 +5897,7 @@ button.practice-btn {
   backdrop-filter: blur(4px);
 }
 
-.score-entry-ad-card,
+.tempori-entry-ad-card,
 .subscription-card {
   width: min(560px, 100%);
   max-height: min(90vh, 760px);
@@ -5912,7 +5912,7 @@ button.practice-btn {
   gap: 0.85rem;
 }
 
-.score-entry-ad-kicker,
+.tempori-entry-ad-kicker,
 .subscription-kicker {
   margin: 0;
   font-size: 0.7rem;
@@ -5921,7 +5921,7 @@ button.practice-btn {
   color: var(--accent);
 }
 
-.score-entry-ad-placeholder {
+.tempori-entry-ad-placeholder {
   min-height: 180px;
   display: grid;
   place-items: center;
@@ -5930,7 +5930,7 @@ button.practice-btn {
   color: var(--text-secondary);
 }
 
-.score-entry-ad-desc,
+.tempori-entry-ad-desc,
 .subscription-desc,
 .subscription-footnote,
 .subscription-dev-note {
@@ -6088,7 +6088,7 @@ button.practice-btn {
   font-size: 0.86rem;
 }
 
-.score-list {
+.tempori-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -6097,37 +6097,37 @@ button.practice-btn {
   gap: 0.6rem;
 }
 
-.score-list-row {
+.tempori-list-row {
   display: flex;
   align-items: stretch;
   gap: 0.55rem;
 }
 
-.score-list-row .score-list-item--link {
+.tempori-list-row .tempori-list-item--link {
   flex: 1;
   min-width: 0;
   text-decoration: none;
 }
 
-.score-list-actions {
+.tempori-list-actions {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 0.45rem;
 }
 
-.score-list-cloud-upload {
+.tempori-list-cloud-upload {
   min-width: 6.5rem;
 }
 
-.score-list-delete {
+.tempori-list-delete {
   flex-shrink: 0;
   align-self: center;
   min-width: 4.5rem;
 }
 
-.score-list li a,
-.score-list-item {
+.tempori-list li a,
+.tempori-list-item {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -6143,66 +6143,66 @@ button.practice-btn {
   transition: border-color 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
 }
 
-.score-list li a:hover,
-.score-list-item:hover {
+.tempori-list li a:hover,
+.tempori-list-item:hover {
   border-color: rgba(124, 132, 255, 0.5);
   background: #20263200;
   background: rgba(99, 102, 241, 0.08);
   transform: translateX(2px);
 }
 
-.score-list li a strong,
-.score-list-item strong {
+.tempori-list li a strong,
+.tempori-list-item strong {
   font-size: 0.98rem;
   font-weight: 600;
 }
 
-.score-list li span,
-.score-list-item span {
+.tempori-list li span,
+.tempori-list-item span {
   color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
-.score-artist {
+.tempori-artist {
   margin: 0.25rem 0 0;
   color: var(--text-secondary);
 }
 
 
-/* ---------- Score viewer ---------- */
+/* ---------- Tempori viewer ---------- */
 .viewer-page {
   width: min(1100px, 100%);
   margin: 0 auto;
   padding: 0 1.25rem 5.5rem;
 }
 
-.score-viewer {
+.tempori {
   padding: 0.5rem 0 2rem;
 }
 
-/* Immersive playback: hide chrome, focus on the score */
-body.score-immersive .viewer-page .page-shell-header {
+/* Immersive playback: hide chrome, focus on the tempori */
+body.tempori-immersive .viewer-page .page-shell-header {
   display: none;
 }
 
-body.score-immersive .viewer-page {
+body.tempori-immersive .viewer-page {
   padding-top: 0.25rem;
 }
 
-.score-viewer--immersive {
+.tempori--immersive {
   padding-top: 0;
 }
 
-.score-viewer--immersive .score-viewer-canvas-wrap {
+.tempori--immersive .tempori-canvas-wrap {
   margin-top: 0.25rem;
 }
 
-.score-viewer-status,
-.score-viewer-error {
+.tempori-status,
+.tempori-error {
   padding: 0.5rem 0;
 }
 
-.score-viewer-error {
+.tempori-error {
   color: var(--danger);
 }
 
@@ -6241,7 +6241,7 @@ body.score-immersive .viewer-page {
   font-variant-numeric: tabular-nums;
 }
 
-.score-viewer-toolbar {
+.tempori-toolbar {
   margin-bottom: 0.9rem;
 }
 
@@ -6258,7 +6258,7 @@ body.score-immersive .viewer-page {
   cursor: pointer;
 }
 
-.score-viewer-canvas-wrap {
+.tempori-canvas-wrap {
   position: relative;
   background: #fff;
   border-radius: var(--r-md);
@@ -6270,7 +6270,7 @@ body.score-immersive .viewer-page {
   touch-action: pan-y;
 }
 
-.score-viewer-canvas {
+.tempori-canvas {
   background: #fff;
   border-radius: var(--r-sm);
   padding: 1rem;
@@ -7071,16 +7071,16 @@ body.score-immersive .viewer-page {
   min-height: 200px;
 }
 
-.osmd-viewer-stage:has(.score-annotation-layer--active) {
+.osmd-viewer-stage:has(.tempori-annotation-layer--active) {
   touch-action: none;
 }
 
-body.score-annotation-active,
-body.score-annotation-active .score-viewer,
-body.score-annotation-active .score-viewer-canvas-wrap,
-body.score-annotation-active .osmd-viewer,
-body.score-annotation-active .osmd-viewer-stage,
-body.score-annotation-active .osmd-viewer-canvas {
+body.tempori-annotation-active,
+body.tempori-annotation-active .tempori,
+body.tempori-annotation-active .tempori-canvas-wrap,
+body.tempori-annotation-active .osmd-viewer,
+body.tempori-annotation-active .osmd-viewer-stage,
+body.tempori-annotation-active .osmd-viewer-canvas {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -7147,7 +7147,7 @@ body.score-annotation-active .osmd-viewer-canvas {
   pointer-events: none;
 }
 
-.score-highlight-layer {
+.tempori-highlight-layer {
   pointer-events: none;
   position: absolute;
   top: 0;
@@ -7157,12 +7157,12 @@ body.score-annotation-active .osmd-viewer-canvas {
   overflow: visible;
 }
 
-.score-highlight-line-wrap {
+.tempori-highlight-line-wrap {
   position: absolute;
   overflow: hidden;
 }
 
-.score-highlight-measure {
+.tempori-highlight-measure {
   position: absolute;
   top: 0;
   height: 100%;
@@ -7174,13 +7174,13 @@ body.score-annotation-active .osmd-viewer-canvas {
   pointer-events: none;
 }
 
-.score-highlight-measure--selection {
+.tempori-highlight-measure--selection {
   border-color: rgba(45, 212, 191, 0.95);
   background: rgba(45, 212, 191, 0.12);
   box-shadow: 0 0 14px rgba(45, 212, 191, 0.35);
 }
 
-.score-measure-overlay {
+.tempori-measure-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -7191,7 +7191,7 @@ body.score-annotation-active .osmd-viewer-canvas {
   pointer-events: none;
 }
 
-.score-measure-hit {
+.tempori-measure-hit {
   position: absolute;
   margin: 0;
   padding: 0;
@@ -7207,35 +7207,35 @@ body.score-annotation-active .osmd-viewer-canvas {
   -webkit-appearance: none;
 }
 
-.score-measure-hit:focus,
-.score-measure-hit:focus-visible,
-.score-measure-hit:active {
+.tempori-measure-hit:focus,
+.tempori-measure-hit:focus-visible,
+.tempori-measure-hit:active {
   background: transparent;
   border-color: transparent;
   outline: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .score-measure-hit:hover {
+  .tempori-measure-hit:hover {
     background: rgba(99, 102, 241, 0.1);
     border-color: rgba(99, 102, 241, 0.35);
   }
 }
 
-/* ---------- Score annotations (iPad) ---------- */
-.score-annotation-layer {
+/* ---------- Tempori annotations (iPad) ---------- */
+.tempori-annotation-layer {
   position: absolute;
   top: 0;
   left: 0;
   pointer-events: none;
 }
 
-.score-annotation-layer--active {
+.tempori-annotation-layer--active {
   pointer-events: auto;
   touch-action: none;
 }
 
-.score-annotation-canvas {
+.tempori-annotation-canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -7245,7 +7245,7 @@ body.score-annotation-active .osmd-viewer-canvas {
   -webkit-tap-highlight-color: transparent;
 }
 
-.score-eraser-indicator {
+.tempori-eraser-indicator {
   position: absolute;
   top: 0;
   left: 0;
@@ -7257,12 +7257,12 @@ body.score-annotation-active .osmd-viewer-canvas {
   transition: background-color 0.08s ease, border-color 0.08s ease;
 }
 
-.score-eraser-indicator.pressing {
+.tempori-eraser-indicator.pressing {
   border-color: rgba(248, 113, 113, 0.95);
   background: rgba(248, 113, 113, 0.24);
 }
 
-.score-annotation-size-control {
+.tempori-annotation-size-control {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -7271,19 +7271,19 @@ body.score-annotation-active .osmd-viewer-canvas {
   color: var(--text-secondary);
 }
 
-.score-annotation-size-control input[type='range'] {
+.tempori-annotation-size-control input[type='range'] {
   width: 100%;
   accent-color: #818cf8;
 }
 
-.score-annotation-size-control strong {
+.tempori-annotation-size-control strong {
   min-width: 2.8rem;
   text-align: right;
   color: var(--text-primary);
   font-size: 0.78rem;
 }
 
-.score-annotation-toolbar {
+.tempori-annotation-toolbar {
   position: fixed;
   left: calc(1rem + var(--safe-area-left));
   bottom: calc(6.5rem + var(--safe-area-bottom));
@@ -7299,13 +7299,13 @@ body.score-annotation-active .osmd-viewer-canvas {
   box-shadow: var(--shadow-md);
 }
 
-.score-annotation-tool-group {
+.tempori-annotation-tool-group {
   display: flex;
   gap: 0.35rem;
 }
 
-.score-annotation-tool-btn,
-.score-annotation-action-btn {
+.tempori-annotation-tool-btn,
+.tempori-annotation-action-btn {
   border: 1px solid var(--border-soft);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
@@ -7316,18 +7316,18 @@ body.score-annotation-active .osmd-viewer-canvas {
   touch-action: manipulation;
 }
 
-.score-annotation-tool-btn.active {
+.tempori-annotation-tool-btn.active {
   border-color: rgba(99, 102, 241, 0.85);
   background: rgba(99, 102, 241, 0.22);
   color: #fff;
 }
 
-.score-annotation-tool-actions {
+.tempori-annotation-tool-actions {
   display: flex;
   gap: 0.35rem;
 }
 
-.score-annotation-action-btn.danger {
+.tempori-annotation-action-btn.danger {
   color: #fecaca;
   border-color: rgba(248, 113, 113, 0.45);
 }
@@ -7420,8 +7420,8 @@ body.score-annotation-active .osmd-viewer-canvas {
 /* ---------- Modals (shared) ---------- */
 
 .first-use-guide-backdrop,
-.score-upload-confirm-backdrop,
-.score-delete-confirm-backdrop,
+.tempori-upload-confirm-backdrop,
+.tempori-delete-confirm-backdrop,
 .library-settings-backdrop,
 .music-xml-guide-backdrop,
 .account-settings-backdrop {
@@ -7458,8 +7458,8 @@ body.score-annotation-active .osmd-viewer-canvas {
 }
 
 .first-use-guide-card,
-.score-upload-confirm-card,
-.score-delete-confirm-card,
+.tempori-upload-confirm-card,
+.tempori-delete-confirm-card,
 .library-settings-card,
 .music-xml-guide-card,
 .account-settings-card {
@@ -7476,8 +7476,8 @@ body.score-annotation-active .osmd-viewer-canvas {
 }
 
 .first-use-guide-kicker,
-.score-upload-confirm-kicker,
-.score-delete-confirm-kicker,
+.tempori-upload-confirm-kicker,
+.tempori-delete-confirm-kicker,
 .library-settings-kicker,
 .music-xml-guide-kicker,
 .account-settings-kicker {
@@ -7489,8 +7489,8 @@ body.score-annotation-active .osmd-viewer-canvas {
 }
 
 .first-use-guide-card h3,
-.score-upload-confirm-card h3,
-.score-delete-confirm-card h3,
+.tempori-upload-confirm-card h3,
+.tempori-delete-confirm-card h3,
 .library-settings-card h3,
 .music-xml-guide-card h3,
 .account-settings-card h3 {
@@ -7499,8 +7499,8 @@ body.score-annotation-active .osmd-viewer-canvas {
 }
 
 .first-use-guide-description,
-.score-upload-confirm-desc,
-.score-delete-confirm-desc,
+.tempori-upload-confirm-desc,
+.tempori-delete-confirm-desc,
 .library-settings-desc,
 .music-xml-guide-desc,
 .account-settings-desc {
@@ -7540,8 +7540,8 @@ body.score-annotation-active .osmd-viewer-canvas {
 }
 
 .first-use-guide-actions,
-.score-upload-confirm-actions,
-.score-delete-confirm-actions,
+.tempori-upload-confirm-actions,
+.tempori-delete-confirm-actions,
 .library-settings-actions,
 .music-xml-guide-actions {
   display: flex;
@@ -7551,7 +7551,7 @@ body.score-annotation-active .osmd-viewer-canvas {
   margin-top: 0.4rem;
 }
 
-/* ===== Score Viewer responsive overrides ===== */
+/* ===== Tempori responsive overrides ===== */
 
 @media (min-width: 768px) {
   .playback-controls {
@@ -7592,7 +7592,7 @@ html[data-orientation='landscape'] .viewer-quick-stat strong {
   font-size: 0.95rem;
 }
 
-html[data-orientation='landscape'] .score-viewer-toolbar {
+html[data-orientation='landscape'] .tempori-toolbar {
   margin-bottom: 0.55rem;
 }
 
@@ -8000,4 +8000,43 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Practice edits remain reviewable while scrolling a long settings body. */
+.floating-settings-panel { max-height: min(78dvh, 760px); }
+.floating-settings-body { min-height: 0; overscroll-behavior: contain; }
+.floating-settings-footer {
+  flex-shrink: 0;
+  padding: 0.85rem 1.25rem max(0.85rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-card);
+}
+.practice-settings-footer-actions, .tempori-range-toolbar, .tempori-recovery-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem;
+}
+.practice-settings-footer-actions > button { flex: 1 1 auto; min-height: 44px; }
+.floating-settings-close { width: 44px; height: 44px; }
+.floating-settings-trigger, .floating-playback button, .tempori-range-toolbar button,
+.playback-controls button, .practice-advanced-settings > summary { min-height: 44px; touch-action: manipulation; }
+.practice-advanced-settings { width: 100%; min-width: 0; }
+.practice-advanced-settings > summary { cursor: pointer; padding-block: 0.7rem; font-weight: 600; }
+.practice-advanced-settings[open] > summary { margin-bottom: 0.65rem; }
+.tempori-range-toolbar { margin-block: 0.85rem; }
+.floating-settings button:focus-visible, .practice-advanced-settings > summary:focus-visible,
+.tempori-range-toolbar button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+@media (max-width: 480px) {
+  .floating-settings-panel { max-height: 80dvh; }
+  .floating-settings-footer { padding-inline: 0.85rem; }
+  .practice-settings-footer-actions { gap: 0.5rem; }
+  .practice-settings-footer-actions > button { flex-basis: calc(50% - 0.5rem); }
+  .practice-settings-footer-actions > button:last-child { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floating-settings-panel { animation: none; }
+}
+
+.tempori-measure-hit:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -3px;
+  background: rgba(99, 102, 241, 0.1);
 }

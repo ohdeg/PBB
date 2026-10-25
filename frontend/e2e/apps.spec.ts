@@ -30,9 +30,9 @@ test('dieta is hidden without DEV', async ({ page }) => {
   await expect(page).toHaveURL(/\/$/)
 })
 
-test('score viewer landing shows brand', async ({ page }) => {
-  await page.goto('/hobbies/score-viewer')
+test('Tempori landing shows brand', async ({ page }) => {
+  await page.goto('/hobbies/tempori')
   await expect(
-    page.getByRole('heading', { name: 'Score Viewer', level: 1 }),
+    page.getByRole('heading', { name: 'Tempori', level: 1 }),
   ).toBeVisible()
 })

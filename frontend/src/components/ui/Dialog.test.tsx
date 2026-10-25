@@ -86,3 +86,14 @@ describe('Dialog', () => {
     await waitFor(() => expect(opener).toHaveFocus());
   });
 });
+
+it('wraps keyboard navigation from an explicitly focused panel', async () => {
+  render(<Dialog open title="Panel focus" initialFocus="panel" onClose={vi.fn()} backdropClassName="backdrop" panelClassName="panel"><button>First</button><button>Last</button></Dialog>);
+  const panel = screen.getByRole('dialog');
+  await waitFor(() => expect(panel).toHaveFocus());
+  fireEvent.keyDown(panel, { key: 'Tab', shiftKey: true });
+  expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
+  panel.focus();
+  fireEvent.keyDown(panel, { key: 'Tab' });
+  expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
+});

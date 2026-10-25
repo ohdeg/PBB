@@ -4,9 +4,9 @@
 FigJam: [PBB 유저 흐름도](https://www.figma.com/board/7VmuTicHtscXPF1VJ91B9J/PBB-%EC%9C%A0%EC%A0%80-%ED%9D%90%EB%A6%84%EB%8F%84)
 
 > FigJam은 Design처럼 페이지가 없어 **기능별 섹션**으로 분리해 두었습니다.  
-> 좌측 레이어/섹션 목록에서 `0.~8.` · Score Viewer · **13. Dieta** · **14. 슈란코** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
+> 좌측 레이어/섹션 목록에서 `0.~8.` · Tempori · **13. Dieta** · **14. 슈란코** 등 섹션을 클릭하면 해당 흐름으로 이동합니다.
 
-> 취미 앱(Score Viewer 랜딩/본체)과 **Veveno·슈란코·Score Viewer 소개 랜딩**은 **비로그인 진입 가능**.
+> 취미 앱(Tempori 랜딩/본체)과 **Veveno·슈란코·Tempori 소개 랜딩**은 **비로그인 진입 가능**.
 > **6PICK·Dieta**는 DEV 회원만 홈·탭·URL 진입. 그 외는 `/`로 보냄.
 > Veveno **실가게**·슈란코 **옷장·룩**·**프로필**은 Access Token 필요 (없으면 `/login` 리다이렉트).
 > Veveno **허브** `/hobbies/veveno/hub`는 비로그인 가능(「로그인 전」·계산대 QR 모달). **로컬 체험** `/hobbies/veveno/stores/demo`도 비로그인(이 기기 `localStorage`).
@@ -23,7 +23,7 @@ flowchart LR
     ready --> home[홈]
 
     home --> brew[Veveno]
-    home --> score[Score Viewer]
+    home --> score[Tempori]
     home --> sranko[Sranko]
     home --> authCheck{로그인 상태?}
     authCheck -->|"비로그인"| loginEntry[로그인 / 회원가입]
@@ -166,7 +166,7 @@ flowchart LR
     apps --> lotto[/hobbies/6pick]
     apps --> dieta[/hobbies/dieta]
     apps --> sranko[/hobbies/sranko]
-    apps --> score[/hobbies/score-viewer]
+    apps --> score[/hobbies/tempori]
     tabs --> target[선택된 앱 경로]
     order --> apps
 ```
@@ -175,7 +175,7 @@ flowchart LR
 - **상단 탭**: 흰 글로벌 내비에 공개 취미 앱 링크 + 계정(로그인/가입. 960px 이상은 닉네임/로그아웃, 미만은 닉네임 메뉴에서 설정/로그아웃). 960px 미만은 햄버거 드로어.
 - **히어로**: 고정 브랜드 카피 + CTA「취미 둘러보기」(`#apps` 앵커)·「가입하기». 앱 자동 로테이션 없음.
 - **marquee**: 검정 스트립에 공개 앱 이름.
-- **color-block**: 앱별 파스텔 블록. 공개는 Veveno / Sranko / Score Viewer. 6PICK·Dieta는 DEV만.「시작하기」→ `startPath`.「소개 보기」→ `path`.
+- **color-block**: 앱별 파스텔 블록. 공개는 Veveno / Sranko / Tempori. 6PICK·Dieta는 DEV만.「시작하기」→ `startPath`.「소개 보기」→ `path`.
 
 ---
 
@@ -480,17 +480,17 @@ flowchart LR
 
 ---
 
-## 10. Score Viewer
+## 10. Tempori
 
-공개 소개 랜딩 `/hobbies/score-viewer` → **시작하기**로 보관함 `/library`. 연습 뷰어는 `/hobbies/score-viewer/:id`.
+공개 소개 랜딩 `/hobbies/tempori` → **시작하기**로 보관함 `/library`. 연습 뷰어는 `/hobbies/tempori/:id`.
 
 ```mermaid
 flowchart LR
-    landing([랜딩 /hobbies/score-viewer]) --> library[보관함 /library]
+    landing([랜딩 /hobbies/tempori]) --> library[보관함 /library]
     library --> import[MusicXML/MXL 가져오기]
     import --> save[IndexedDB 저장]
     save --> list[목록]
-    list --> open["/hobbies/score-viewer/:id"]
+    list --> open["/hobbies/tempori/:id"]
     open --> render[OSMD 렌더]
     render --> play[재생 / 일시정지]
     render --> metronome[메트로놈·BPM]
@@ -803,9 +803,9 @@ flowchart LR
 | `/hobbies/6pick` | 6PICK 소개 랜딩 | **DEV** |
 | `/hobbies/6pick/play` | 6PICK (로또 번호·세금·회차) | **DEV** |
 | `/hobbies/lotto` | → `/hobbies/6pick` 리다이렉트 | **DEV** |
-| `/hobbies/score-viewer` | Score Viewer 소개 랜딩 | 선택 |
-| `/hobbies/score-viewer/library` | 악보 보관함 | 선택 |
-| `/hobbies/score-viewer/:id` | 악보 연습 뷰어 | 선택 |
+| `/hobbies/tempori` | Tempori 소개 랜딩 | 선택 |
+| `/hobbies/tempori/library` | 악보 보관함 | 선택 |
+| `/hobbies/tempori/:id` | 악보 연습 뷰어 | 선택 |
 | `/hobbies/dieta` | Dieta 랜딩 | **DEV** |
 | `/hobbies/dieta/onboarding` | Dieta 온보딩 | **필수** |
 | `/hobbies/dieta/home` | Dieta 홈 | **필수** |

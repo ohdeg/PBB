@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 Allow: /hobbies/6pick
-Allow: /hobbies/score-viewer
+Allow: /hobbies/tempori
 Allow: /hobbies/veveno
 Allow: /hobbies/dieta
 Allow: /hobbies/sranko

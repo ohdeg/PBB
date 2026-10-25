@@ -16,7 +16,7 @@ Java · Spring Boot · React · MySQL로 설계·구현·배포까지 1인이 �
 | 정합성 | Veveno 재고는 JPA `@Version`. 동시 수정은 덮어쓰지 않고 **409** |
 | 검증 | GitHub Actions — JUnit, Testcontainers, Vitest, Playwright |
 
-같은 계정으로 Score Viewer · Sranko도 붙였습니다.
+같은 계정으로 Tempori · Sranko도 붙였습니다.
 
 ### 미리보기
 
@@ -334,7 +334,7 @@ LoginPage → POST /api/v1/auth/login → AuthService.login
 
 6PICK과 Dieta는 DEV 계정에만 보입니다. 6PICK 회차는 토요일 밤 스케줄러가 락을 잡고 외부 회차를 넣습니다. Dieta 낮 식사는 Redis 큐에 두었다가 마감할 때 Gemini로 넘기고 MySQL 섭취 로그에 씁니다.
 
-Score Viewer는 API가 없습니다. 악보는 이 기기 IndexedDB에 있고, 보기는 `frontend/src/features/score/`입니다.
+Tempori는 API가 없습니다. 악보는 이 기기 IndexedDB에 있고, 보기는 `frontend/src/features/tempori/`입니다.
 
 ---
 
@@ -344,7 +344,7 @@ Score Viewer는 API가 없습니다. 악보는 이 기기 IndexedDB에 있고, �
 |----|------|------|
 | Veveno | `/hobbies/veveno` | 가게 노트. 허브 `/hub` · 실가게 `/stores/:id`(로그인) · POS `/pos` · 로컬 체험 `/stores/demo` · UI 한/영/일 |
 | Sranko | `/hobbies/sranko` | 디지털 옷장 · 상품 사진 rembg · Gemini 입어보기 · 룩 · 커뮤니티 |
-| Score Viewer | `/hobbies/score-viewer` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
+| Tempori | `/hobbies/tempori` | MusicXML/MXL 악보 보관함·연습 뷰어 (OSMD) |
 
 그 외 앱은 DEV 로그인 후에만 홈·탭·URL로 열립니다.
 
@@ -354,9 +354,9 @@ Score Viewer는 API가 없습니다. 악보는 이 기기 IndexedDB에 있고, �
 
 ### 미리보기 나머지
 
-| 슈란코 | Score Viewer |
+| 슈란코 | Tempori |
 |:--:|:--:|
-| ![슈란코](docs/screenshots/sranko.png) | ![Score Viewer](docs/screenshots/score-viewer.png) |
+| ![슈란코](docs/screenshots/sranko.png) | ![Tempori 브랜드명 편집 이미지](docs/screenshots/tempori.png) |
 | **로그인** | **회원가입** |
 | ![로그인](docs/screenshots/login.png) | ![회원가입](docs/screenshots/signup.png) |
 

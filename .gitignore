@@ -37,15 +37,21 @@ nbproject/private/
 .dev.vars
 *.pem
 *.p12
+*.pfx
 *.jks
 *.key
 credentials.json
 **/service-account*.json
+**/service_account*.json
 **/google-credentials*.json
+.secrets
 secrets/
 **/application-local.yaml
+**/application-local.yml
 **/application-secret.yaml
+**/application-secret.yml
 **/application-prod-local.yaml
+**/application-prod-local.yml
 
 # Logs & debug
 logs/
@@ -61,6 +67,15 @@ hs_err_pid*
 *.sql.gz
 *.dump
 backup_*.sql
+dump_*.sql
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
 **/backups/
 
 # =========================
@@ -132,7 +147,11 @@ venv/
 # Local docker / bind mounts
 # =========================
 docker-compose.override.yml
+docker-compose.override.yaml
+compose.override.yml
+compose.override.yaml
 infra/mysql/data/
+infra/redis/data/
 
 # =========================
 # Misc

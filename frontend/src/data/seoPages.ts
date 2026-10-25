@@ -23,8 +23,8 @@ export const INDEXABLE_PAGE_SEO: readonly IndexablePageSeo[] = [
       '몬테카를로·Hot/Cold로 로또 번호를 만들고 히스토리를 저장하는 앱',
   },
   {
-    path: '/hobbies/score-viewer',
-    title: 'Score Viewer · PBB',
+    path: '/hobbies/tempori',
+    title: 'Tempori · PBB',
     description:
       'MusicXML/MXL 악보를 열고 메트로놈·조옮김·자동 스크롤로 연습',
   },

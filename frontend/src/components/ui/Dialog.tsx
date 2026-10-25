@@ -31,6 +31,7 @@ interface DialogProps {
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
   description?: boolean;
+  initialFocus?: 'first-control' | 'panel';
 }
 
 export function Dialog({
@@ -43,6 +44,7 @@ export function Dialog({
   closeOnBackdrop = true,
   closeOnEscape = true,
   description = false,
+  initialFocus = 'first-control',
 }: DialogProps) {
   const titleId = useId();
   const descriptionId = useId();
@@ -79,7 +81,7 @@ export function Dialog({
 
     const frame = window.requestAnimationFrame(() => {
       const panel = panelRef.current;
-      const firstFocusable = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      const firstFocusable = initialFocus === 'panel' ? null : panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
       (firstFocusable ?? panel)?.focus();
     });
 
@@ -99,7 +101,7 @@ export function Dialog({
         window.requestAnimationFrame(() => opener.focus());
       }
     };
-  }, [open]);
+  }, [open, initialFocus]);
 
   if (!open) {
     return null;
@@ -132,7 +134,10 @@ export function Dialog({
 
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
+    if (document.activeElement === panel) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && document.activeElement === last) {

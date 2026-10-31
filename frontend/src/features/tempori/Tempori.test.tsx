@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useEffect, type ComponentProps } from 'react';
+import { useEffect, useImperativeHandle, type ComponentProps } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Tempori } from './Tempori';
@@ -10,7 +10,7 @@ import type { TemporiRenderSnapshot } from './components/OsmdViewer';
 import { fetchTemporiMusicXml } from './utils/temporiLoader';
 import { useTemporiPlaybackStore } from './store/temporiPlaybackStore';
 
-const boundary = vi.hoisted(() => ({ resume: vi.fn() }));
+const boundary = vi.hoisted(() => ({ resume: vi.fn(), flush: vi.fn(() => true), restore: vi.fn() }));
 vi.mock('./utils/temporiLoader', () => ({ fetchTemporiMusicXml: vi.fn() }));
 vi.mock('./utils/scrollAnchor', () => ({ cancelScrollAnimation: vi.fn(), scrollToAnchoredMeasure: vi.fn() }));
 vi.mock('./utils/metronomeAudio', () => ({ MetronomeAudio: class { resume = boundary.resume; dispose() {} playClick() {} } }));
@@ -18,12 +18,14 @@ vi.mock('./components/TemporiAutoScroller', () => ({ default: () => null }));
 vi.mock('./components/TemporiMetronome', () => ({ default: (props: ComponentProps<typeof TemporiMetronome>) => <output data-testid="audio-context" data-bpm={props.bpm} data-counting={String(props.isCountingIn)} data-duration={props.windows?.[0]?.durationMs} /> }));
 vi.mock('./components/OsmdViewer', () => ({
   default: function RenderBoundary(props: ComponentProps<typeof OsmdViewer>) {
+    useImperativeHandle(props.ref, () => ({ flush: boundary.flush, restoreMeasure: boundary.restore }), []);
     useEffect(() => { props.onRenderStatusChange?.('loading', props.renderRevision ?? 0); }, [props.renderRevision]);
     const snapshot: TemporiRenderSnapshot = {
       timings: Array.from({ length: 8 }, (_, measureIndex) => ({ measureIndex, measureNumber: measureIndex + 1, divisions: 1, durationSum: 4, expectedDurationDivisions: 4, beatsPerMeasure: 4, beatType: 4, tempoBpm: 120, fermataFactor: 1, isPickup: false })),
       playbackSequence: [0, 1, 2, 3, 4, 5, 6, 7], measureOffsets: [], measureLayoutsInContainer: [],
     };
-    return <div>
+    return <div data-testid="score-view" data-mode={props.viewMode} data-follow={String(props.followEnabled)}>
+      <button onClick={props.onManualNavigation}>Manual navigation</button>
       <button onClick={() => { props.onSnapshot?.(snapshot); props.onRenderStatusChange?.('ready', props.renderRevision ?? 0); }}>Finish render</button>
       <button onClick={() => props.onRenderStatusChange?.('error', props.renderRevision ?? 0)}>Fail render</button>
       {Array.from({ length: 8 }, (_, index) => <button key={index} disabled={!props.measureClickEnabled} onClick={() => props.onMeasureClick?.(index)}>Measure {index + 1}</button>)}
@@ -32,7 +34,7 @@ vi.mock('./components/OsmdViewer', () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks(); localStorage.clear();
+  vi.clearAllMocks(); boundary.flush.mockReturnValue(true); localStorage.clear();
   localStorage.setItem('tempori:guide:tempori-seen', '1');
   useTemporiPlaybackStore.setState({ bpm: 120, measuresPerLine: 4, beatsPerMeasure: 4, beatType: 4, isPlaying: false, elapsedMs: 0, currentMeasureIndex: 0 });
   vi.mocked(fetchTemporiMusicXml).mockResolvedValue('<score-partwise><part><measure><attributes><time><beats>4</beats><beat-type>4</beat-type></time></attributes></measure></part></score-partwise>');
@@ -152,5 +154,84 @@ describe('score practice flow', () => {
     finishRender();
     await act(async () => resolveOld('invalid old response'));
     expect(screen.getByRole('button', { name: '재생' })).toBeEnabled();
+  });
+});
+
+
+describe('view mode session and persistence', () => {
+  it('offers both modes on desktop, preserves physical position and settings across mode/resize, and restores the preference next score', async () => {
+    await openTempori(); finishRender();
+    fireEvent.click(screen.getByRole('button', { name: 'Measure 5' }));
+    openSettings();
+    expect(screen.getByRole('radio', { name: '여러 줄' })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: '한 줄' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'horizontal');
+    expect(localStorage.getItem('tempori:view-mode')).toBe('horizontal');
+    expect(useTemporiPlaybackStore.getState().currentMeasureIndex).toBe(4);
+    expect(screen.queryByRole('spinbutton', { name: '줄당 마디 수' })).toBeNull();
+    finishRender(); fireEvent(window, new Event('orientationchange')); fireEvent(window, new Event('resize'));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'horizontal');
+    expect(useTemporiPlaybackStore.getState().currentMeasureIndex).toBe(4);
+    cleanup(); await openTempori();
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'horizontal');
+  });
+  it('keeps mode, source render and preference when annotation flush fails; explicit retry completes switching', async () => {
+    await openTempori(); finishRender(); openSettings(); boundary.flush.mockReturnValue(false);
+    fireEvent.click(screen.getByRole('radio', { name: '한 줄' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'wrapped');
+    expect(localStorage.getItem('tempori:view-mode')).toBeNull();
+    boundary.flush.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: '보기 전환 다시 시도' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'horizontal');
+  });
+  it('suspends following until explicit resume or a new playback, without changing the selected mode', async () => {
+    localStorage.setItem('tempori:view-mode', 'horizontal'); await openTempori(); finishRender();
+    fireEvent.click(screen.getByRole('button', { name: 'Manual navigation' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-follow', 'false');
+    fireEvent.click(screen.getByRole('button', { name: '현재 마디로' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-follow', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Manual navigation' }));
+    fireEvent.click(screen.getByRole('button', { name: '재생' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-follow', 'true');
+  });
+  it('keeps manual following suspended across automatic loop restarts', async () => {
+    localStorage.setItem('tempori:view-mode', 'horizontal'); await openTempori(); finishRender(); openSettings();
+    fireEvent.click(screen.getByRole('checkbox', { name: '반복 재생 (구간 반복)' }));
+    fireEvent.click(screen.getByRole('button', { name: '적용' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Manual navigation' }));
+    act(() => useTemporiPlaybackStore.setState({ isPlaying: true, elapsedMs: 16000 }));
+    expect(screen.getByTestId('audio-context')).toHaveAttribute('data-counting', 'true');
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-follow', 'false');
+  });
+  it('restores the selected physical measure when returning to wrapped after the matching render and closing settings', async () => {
+    localStorage.setItem('tempori:view-mode', 'horizontal'); await openTempori(); finishRender();
+    fireEvent.click(screen.getByRole('button', { name: 'Measure 5' })); openSettings();
+    fireEvent.click(screen.getByRole('radio', { name: '여러 줄' }));
+    expect(boundary.restore).not.toHaveBeenCalled(); finishRender();
+    expect(boundary.restore).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '취소' }));
+    expect(boundary.restore).toHaveBeenCalledWith(4);
+  });
+  it.each(['settings', 'retry'])('carries wrapped position restoration through a newer %s render revision', async (kind) => {
+    localStorage.setItem('tempori:view-mode', 'horizontal'); await openTempori(); finishRender();
+    fireEvent.click(screen.getByRole('button', { name: 'Measure 5' })); openSettings();
+    fireEvent.click(screen.getByRole('radio', { name: '여러 줄' }));
+    if (kind === 'settings') {
+      fireEvent.click(screen.getByRole('button', { name: '키 업 (반음 올림)' }));
+      fireEvent.click(screen.getByRole('button', { name: '적용' }));
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: '취소' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Fail render' }));
+      fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    }
+    expect(boundary.restore).not.toHaveBeenCalled(); finishRender();
+    expect(boundary.restore).toHaveBeenCalledWith(4);
+  });
+  it('falls back to wrapped after a render error without replacing the saved horizontal preference', async () => {
+    localStorage.setItem('tempori:view-mode', 'horizontal'); await openTempori();
+    fireEvent.click(screen.getByRole('button', { name: 'Fail render' }));
+    fireEvent.click(screen.getByRole('button', { name: '여러 줄로 돌아가기' }));
+    expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'wrapped');
+    expect(localStorage.getItem('tempori:view-mode')).toBe('horizontal');
   });
 });

@@ -52,6 +52,8 @@ export function memoryIndexedDb(initial = {}) {
             return r;
           };
           const store = {
+            index: field => ({ getAll: value => request(() => structuredClone([...snapshot.values()].filter(row => row[field] === value)), 'read') }),
+            delete: id => request(() => { snapshot.delete(id); }, 'write'),
             getAll: () => request(() => structuredClone([...snapshot.values()]), 'read'),
             get: id => request(() => structuredClone(snapshot.get(id)), 'read'),
             put: row => request(() => { snapshot.set(row.id, structuredClone(row)); return row.id; }, 'write'),

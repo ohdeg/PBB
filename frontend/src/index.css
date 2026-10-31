@@ -8313,3 +8313,17 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 [data-theme='dark'] .lotto-ticket-info { background: #172554; color: #dbeafe; }
 [data-theme='dark'] .lotto-ticket-error { color: #fca5a5; }
 [data-theme='dark'] .lotto-ticket-result { color: #93c5fd; }
+
+/* View mode changes scroll geometry, while the existing score/dock visual system stays shared. */
+.osmd-score-viewport { min-width: 0; }
+.osmd-score-viewport--horizontal { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x pan-y pinch-zoom; }
+.osmd-viewer--horizontal .osmd-viewer-stage { min-width: 100%; touch-action: pan-x pan-y pinch-zoom; }
+.osmd-viewer--horizontal .tempori-measure-hit { touch-action: pan-x pan-y pinch-zoom; }
+.osmd-score-viewport--horizontal:focus-visible, .tempori-measure-hit:focus-visible { outline: 2px solid #6366f1; outline-offset: -2px; }
+.osmd-viewer--horizontal .osmd-viewer-canvas svg { max-width: none; }
+.tempori-view-mode { border: 0; padding: 0; margin: 0 0 1rem; }
+.tempori-view-mode legend { font-weight: 600; margin-bottom: .5rem; }
+.tempori-view-mode-options { display: flex; gap: .75rem; flex-wrap: wrap; }
+.tempori-view-mode-options label { display: inline-flex; gap: .5rem; align-items: center; min-height: 44px; cursor: pointer; }
+.tempori-view-notice { margin: .75rem 0; font-size: .875rem; overflow-wrap: anywhere; }
+.tempori-follow-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin: .75rem 0; }

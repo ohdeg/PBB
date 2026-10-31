@@ -1,3 +1,4 @@
+import type { TemporiViewMode } from './viewMode';
 import { DEFAULT_MEASURES_PER_LINE, clampMeasuresPerLine } from '../constants/temporiLayout';
 
 const withXmlDeclaration = (musicXmlText: string): string => {
@@ -32,6 +33,7 @@ const ensureNewSystemAtMeasure = (measure: Element): void => {
 export const normalizeMusicXmlLayout = (
   musicXmlText: string,
   measuresPerLine: number = DEFAULT_MEASURES_PER_LINE,
+  viewMode: TemporiViewMode = 'wrapped',
 ): string => {
   const targetMeasuresPerLine = clampMeasuresPerLine(measuresPerLine);
 
@@ -46,7 +48,7 @@ export const normalizeMusicXmlLayout = (
     const measures = getMeasureElements(part);
     measures.forEach((measure, measureIndex) => {
       stripLayoutBreakAttributes(measure);
-      if (measureIndex > 0 && measureIndex % targetMeasuresPerLine === 0) {
+      if (viewMode === 'wrapped' && measureIndex > 0 && measureIndex % targetMeasuresPerLine === 0) {
         ensureNewSystemAtMeasure(measure);
       }
     });
@@ -63,6 +65,7 @@ export const normalizeMusicXmlLayout = (
 export function normalizeMusicXmlForOsmd(
   musicXmlText: string,
   measuresPerLine: number = DEFAULT_MEASURES_PER_LINE,
+  viewMode: TemporiViewMode = 'wrapped',
 ): string {
-  return normalizeMusicXmlLayout(withXmlDeclaration(musicXmlText), measuresPerLine);
+  return normalizeMusicXmlLayout(withXmlDeclaration(musicXmlText), measuresPerLine, viewMode);
 }

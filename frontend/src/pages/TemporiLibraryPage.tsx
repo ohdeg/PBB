@@ -16,6 +16,7 @@ import {
 } from '../features/tempori/utils/musicXmlMetadata';
 import { resolveErrorMessage } from '../features/tempori/utils/resolveErrorMessage';
 import { filterLibraryTemporiItemsByQuery } from '../features/tempori/utils/temporiSearch';
+import { AnnotationCleanupError, cleanupDeletedTemporiAnnotations } from '../features/tempori/utils/temporiAnnotations';
 import { Button } from '../components/ui/Button';
 
 function TemporiLibraryPageInner() {
@@ -34,6 +35,7 @@ function TemporiLibraryPageInner() {
   const [isMusicXmlGuideOpen, setIsMusicXmlGuideOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<LibraryTemporiItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [cleanupIds, setCleanupIds] = useState<string[]>([]);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadTemporiItems = async () => {
@@ -133,7 +135,11 @@ function TemporiLibraryPageInner() {
       setPendingDelete(null);
       await loadTemporiItems();
     } catch (err) {
-      setDeleteError(resolveErrorMessage(t, err, 'library.deleteFailed'));
+      if (err instanceof AnnotationCleanupError) {
+        setCleanupIds((previous) => [...new Set([...previous, ...err.temporiIds])]);
+        setPendingDelete(null);
+        await loadTemporiItems();
+      } else setDeleteError(resolveErrorMessage(t, err, 'library.deleteFailed'));
     } finally {
       setIsDeleting(false);
     }
@@ -202,6 +208,13 @@ function TemporiLibraryPageInner() {
       )}
 
       {error && <p className="form-error tempori-error" role="alert">{error}</p>}
+      {cleanupIds.length > 0 && <div className="tempori-view-notice" role="alert">
+        <p>{t('viewer.annotationCleanupFailed')}</p>
+        <Button onClick={() => {
+          try { cleanupDeletedTemporiAnnotations(cleanupIds); setCleanupIds([]); }
+          catch (error) { if (error instanceof AnnotationCleanupError) setCleanupIds(error.temporiIds); }
+        }}>{t('viewer.retryAnnotationCleanup')}</Button>
+      </div>}
 
       {pendingFile && (
         <TemporiUploadConfirm

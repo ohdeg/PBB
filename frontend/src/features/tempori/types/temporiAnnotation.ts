@@ -25,3 +25,25 @@ export interface TemporiAnnotationDocument {
   version: 1;
   strokes: AnnotationStroke[];
 }
+
+/** Physical measure anchors; y intentionally may extend outside the staff rectangle. */
+export interface HorizontalAnnotationSegment {
+  measureIndex: number;
+  points: AnnotationPoint[];
+}
+export interface HorizontalAnnotationStroke {
+  id: string;
+  tool: AnnotationTool;
+  color: string;
+  widthStaffRatio: number;
+  segments: HorizontalAnnotationSegment[];
+}
+export interface HorizontalAnnotationDocument {
+  version: 2;
+  strokes: HorizontalAnnotationStroke[];
+}
+/** A failed flush retains the current document and prevents view teardown. */
+export interface AnnotationLayerHandle {
+  flush: () => boolean;
+  retryLoad?: () => boolean;
+}

@@ -1,3 +1,4 @@
+import type { TemporiViewMode } from '../utils/viewMode';
 import type { AnnotationBrushSizes, AnnotationToolMode } from '../types/temporiAnnotation';
 import { ANNOTATION_BRUSH_SIZE_LIMITS } from '../constants/annotationBrush';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -90,10 +91,10 @@ export default function TemporiAnnotationToolbar({
   );
 }
 
-export function dispatchAnnotationClear(temporiId: string): void {
-  window.dispatchEvent(new CustomEvent('tempori-annotations-clear', { detail: { temporiId } }));
+export function dispatchAnnotationClear(temporiId: string, viewMode: TemporiViewMode = 'wrapped'): void {
+  window.dispatchEvent(new CustomEvent('tempori-annotations-clear', { detail: { temporiId, viewMode } }));
 }
 
-export function dispatchAnnotationUndo(temporiId: string): void {
-  window.dispatchEvent(new CustomEvent('tempori-annotations-undo', { detail: { temporiId } }));
+export function dispatchAnnotationUndo(temporiId: string, viewMode: TemporiViewMode = 'wrapped'): void {
+  window.dispatchEvent(new CustomEvent('tempori-annotations-undo', { detail: { temporiId, viewMode } }));
 }

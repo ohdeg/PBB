@@ -1,3 +1,4 @@
+import type { TemporiViewMode } from './viewMode';
 import type { MeasureTiming } from '../types/temporiPractice';
 import {
     getActiveTempoChangeForMeasure,
@@ -1331,10 +1332,14 @@ export const resolveMeasureLayoutsInContainer = (
     container: HTMLElement,
     measureCount: number,
     measuresPerLine: number = DEFAULT_MEASURES_PER_LINE,
+    viewMode: TemporiViewMode = 'wrapped',
 ): MeasureLayoutInContainer[] => {
     if (measureCount <= 0) return [];
 
     const extractedLayouts = extractMeasureLayoutsInContainer(container);
+    // Horizontal readiness requires every physical measure, never an estimated wrapped grid.
+    if (viewMode === 'horizontal' && (extractedLayouts.length !== measureCount ||
+        extractedLayouts.some((layout, index) => layout.measureIndex !== index))) return [];
     const minReliableCount = Math.max(1, Math.ceil(measureCount * MIN_EXTRACTED_LAYOUT_RATIO));
 
     const layouts =

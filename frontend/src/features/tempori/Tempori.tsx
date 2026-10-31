@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { canStartPendingPlayback, getResumeMeasureIndex, selectPracticeMeasure, type MeasureInteractionMode, type PendingPlayback, type TemporiRenderStatus } from './utils/practiceInteraction';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import OsmdViewer, { type TemporiRenderSnapshot } from './components/OsmdViewer';
+import OsmdViewer, { type TemporiRenderSnapshot, type OsmdViewerHandle } from './components/OsmdViewer';
 import TemporiAutoScroller from './components/TemporiAutoScroller';
 import TemporiMetronome from './components/TemporiMetronome';
 import MetronomeBeatIndicator from './components/MetronomeBeatIndicator';
@@ -36,7 +36,7 @@ import { cancelScrollAnimation, scrollToAnchoredMeasure } from './utils/scrollAn
 import { fetchTemporiMusicXml } from './utils/temporiLoader';
 import { resolveErrorMessage } from './utils/resolveErrorMessage';
 import { clampTransposeSemitones } from './utils/transpose';
-import { isIpadLikeDevice } from './utils/platform';
+import { getInitialViewMode, saveViewMode, type TemporiViewMode } from './utils/viewMode';
 import {
   normalizeTempoChanges,
   type TempoChange,
@@ -65,6 +65,14 @@ const USER_SCROLL_INTERRUPT_TOUCH_THRESHOLD_PX = 10;
 
 export function Tempori({ temporiId }: TemporiProps) {
   const t = useTranslation();
+  const viewerRef = useRef<OsmdViewerHandle>(null);
+  const restoreWrappedRevisionRef = useRef<number | null>(null);
+  const [viewMode, setViewMode] = useState<TemporiViewMode>(() => getInitialViewMode());
+  const [followSuspended, setFollowSuspended] = useState(false);
+  const [followRequestKey, setFollowRequestKey] = useState(0);
+  const [viewPreferenceFailed, setViewPreferenceFailed] = useState(false);
+  const [pendingViewMode, setPendingViewMode] = useState<{ mode: TemporiViewMode; persist: boolean } | null>(null);
+  const [horizontalGuideVisible, setHorizontalGuideVisible] = useState(true);
   const [loadRetryKey, setLoadRetryKey] = useState(0);
   const [renderRevision, setRenderRevision] = useState(0);
   const [renderState, setRenderState] = useState<{ status: TemporiRenderStatus; revision: number }>({ status: 'loading', revision: 0 });
@@ -158,7 +166,6 @@ export function Tempori({ temporiId }: TemporiProps) {
     loadAnnotationBrushSizes(),
   );
 
-  const isIpad = isIpadLikeDevice();
   const isAnnotationToolActive = annotationTool !== 'none';
 
   const {
@@ -286,6 +293,9 @@ export function Tempori({ temporiId }: TemporiProps) {
   useEffect(() => {
     let cancelled = false;
     pendingPlaybackRef.current = null;
+    restoreWrappedRevisionRef.current = null;
+    setPendingViewMode(null);
+    setFollowSuspended(false);
     cancelPlayback();
     cancelRangeSelection();
     setIsSettingsOpen(false);
@@ -486,7 +496,7 @@ export function Tempori({ temporiId }: TemporiProps) {
   }, [isCountingIn, countInDurationMs, windows, currentMeasureIndex, setElapsedMs, setPlaying]);
 
   const beginCountInAtMeasure = useCallback(
-    (measureIndex: number) => {
+    (measureIndex: number, resumeFollowing = true) => {
       setHasPlaybackEnded(false);
       const maxMeasureIndex = Math.max(snapshot.timings.length - 1, 0);
       const clampedIndex = Math.max(0, Math.min(measureIndex, maxMeasureIndex));
@@ -497,8 +507,13 @@ export function Tempori({ temporiId }: TemporiProps) {
       setPlaybackSyncKey((previous) => previous + 1);
       playbackStartIndexRef.current = clampedIndex;
 
+      if (resumeFollowing) {
+        setAnnotationTool('none');
+        setFollowSuspended(false);
+        setFollowRequestKey((key) => key + 1);
+      }
       const measureOffset = snapshot.measureOffsets[clampedIndex];
-      if (measureOffset !== undefined) {
+      if (viewMode === 'wrapped' && measureOffset !== undefined) {
         scrollToAnchoredMeasure(measureOffset, scrollSmoothing);
       }
       setIsCountingIn(true);
@@ -507,14 +522,15 @@ export function Tempori({ temporiId }: TemporiProps) {
       windows,
       snapshot.measureOffsets,
       snapshot.timings.length,
+      viewMode,
       scrollSmoothing,
       setCurrentMeasureIndex,
       setElapsedMs,
     ],
   );
 
-  const beginCountInAtSectionStart = useCallback(() => {
-    beginCountInAtMeasure(sectionStartIndex);
+  const beginCountInAtSectionStart = useCallback((resumeFollowing = true) => {
+    beginCountInAtMeasure(sectionStartIndex, resumeFollowing);
   }, [beginCountInAtMeasure, sectionStartIndex]);
 
   const handlePlayPause = useCallback(() => {
@@ -546,7 +562,6 @@ export function Tempori({ temporiId }: TemporiProps) {
     sectionEndMs,
     currentMeasureIndex,
     beginCountInAtMeasure,
-    beginCountInAtSectionStart,
     setPlaying,
   ]);
 
@@ -572,8 +587,10 @@ export function Tempori({ temporiId }: TemporiProps) {
       setCurrentMeasureIndex(clampedIndex);
       setPlaybackSyncKey((previous) => previous + 1);
 
+      setFollowSuspended(false);
+      setFollowRequestKey((key) => key + 1);
       const measureOffset = snapshot.measureOffsets[clampedIndex];
-      if (measureOffset !== undefined) {
+      if (viewMode === 'wrapped' && measureOffset !== undefined) {
         scrollToAnchoredMeasure(measureOffset, scrollSmoothing);
       }
     },
@@ -584,6 +601,7 @@ export function Tempori({ temporiId }: TemporiProps) {
       setCurrentMeasureIndex,
       snapshot.measureOffsets,
       snapshot.timings.length,
+      viewMode,
       scrollSmoothing,
     ],
   );
@@ -627,8 +645,10 @@ export function Tempori({ temporiId }: TemporiProps) {
 
   const applyPracticeSettings = useCallback((draft: PracticeSettingsDraft, intent: 'apply' | 'play') => {
     cancelPlayback();
-    const needsRender = draft.transposeSemitones !== transposeSemitones || draft.measuresPerLine !== measuresPerLine;
+    if (!(viewerRef.current?.flush() ?? true)) return;
+    const needsRender = draft.transposeSemitones !== transposeSemitones || (viewMode === 'wrapped' && draft.measuresPerLine !== measuresPerLine);
     const nextRenderRevision = renderRevision + (needsRender ? 1 : 0);
+    if (restoreWrappedRevisionRef.current !== null) restoreWrappedRevisionRef.current = nextRenderRevision;
     pendingPlaybackRef.current = intent === 'play' ? { temporiId, revision: nextRenderRevision } : null;
     if (needsRender) {
       setRenderRevision(nextRenderRevision);
@@ -669,7 +689,7 @@ export function Tempori({ temporiId }: TemporiProps) {
     setSettingsRevision((revision) => revision + 1);
     setIsSettingsOpen(false);
   }, [
-    cancelPlayback, transposeSemitones, measuresPerLine, renderRevision, temporiId,
+    cancelPlayback, transposeSemitones, measuresPerLine, renderRevision, temporiId, viewMode,
     totalMeasures,
     setBpm,
     setTimeSignature,
@@ -688,7 +708,31 @@ export function Tempori({ temporiId }: TemporiProps) {
     if (status === 'error') pendingPlaybackRef.current = null;
   }, [renderRevision, cancelPlayback]);
 
+  const changeViewMode = useCallback((mode: TemporiViewMode, persist = true) => {
+    if (mode === viewMode) return;
+    // Commit the old view before changing any renderer/document identity.
+    if (!(viewerRef.current?.flush() ?? true)) { setPendingViewMode({ mode, persist }); return; }
+    setPendingViewMode(null);
+    pendingPlaybackRef.current = null;
+    cancelPlayback();
+    setViewMode(mode);
+    restoreWrappedRevisionRef.current = mode === 'wrapped' ? renderRevision + 1 : null;
+    setFollowSuspended(false);
+    setFollowRequestKey((key) => key + 1);
+    setRenderRevision((revision) => revision + 1);
+    setRenderState({ status: 'loading', revision: renderRevision + 1 });
+    if (persist) setViewPreferenceFailed(!saveViewMode(mode));
+  }, [viewMode, cancelPlayback, renderRevision]);
+
+  useEffect(() => {
+    if (viewMode !== 'wrapped' || isSettingsOpen || renderState.status !== 'ready' || restoreWrappedRevisionRef.current !== renderState.revision) return;
+    viewerRef.current?.restoreMeasure(currentMeasureIndex);
+    restoreWrappedRevisionRef.current = null;
+  }, [viewMode, isSettingsOpen, renderState, currentMeasureIndex]);
+
   const handleRetryRender = () => {
+    if (!(viewerRef.current?.flush() ?? true)) return;
+    if (restoreWrappedRevisionRef.current !== null) restoreWrappedRevisionRef.current = renderRevision + 1;
     pendingPlaybackRef.current = null;
     cancelPlayback();
     setRenderState({ status: 'loading', revision: renderRevision + 1 });
@@ -762,7 +806,7 @@ export function Tempori({ temporiId }: TemporiProps) {
 
     if (isRepeatMode) {
       metronomeRef.current?.resume();
-      beginCountInAtSectionStart();
+      beginCountInAtSectionStart(false);
       return;
     }
 
@@ -799,7 +843,7 @@ export function Tempori({ temporiId }: TemporiProps) {
   }, [setPlaying]);
 
   useEffect(() => {
-    if (!isPlaying && !isCountingIn) return;
+    if (viewMode === 'horizontal' || (!isPlaying && !isCountingIn)) return;
 
     let touchStartY: number | null = null;
     let touchStartX: number | null = null;
@@ -849,12 +893,7 @@ export function Tempori({ temporiId }: TemporiProps) {
       window.removeEventListener('touchend', resetTouch);
       window.removeEventListener('touchcancel', resetTouch);
     };
-  }, [isCountingIn, isPlaying, stopPlaybackForUserScroll]);
-
-  useEffect(() => {
-    if (!isPlaying && !isCountingIn) return;
-    setAnnotationTool('none');
-  }, [isPlaying, isCountingIn]);
+  }, [isCountingIn, isPlaying, stopPlaybackForUserScroll, viewMode]);
 
   useEffect(() => {
     setAnnotationTool('none');
@@ -865,7 +904,8 @@ export function Tempori({ temporiId }: TemporiProps) {
   }, [isAnnotationToolActive, cancelRangeSelection]);
 
   useEffect(() => {
-    if (!isIpad || !isAnnotationToolActive) return;
+    if (!isAnnotationToolActive) return;
+    setFollowSuspended(true);
 
     document.body.classList.add('tempori-annotation-active');
 
@@ -883,16 +923,16 @@ export function Tempori({ temporiId }: TemporiProps) {
       document.removeEventListener('contextmenu', preventDefaultInteraction);
       document.removeEventListener('dragstart', preventDefaultInteraction);
     };
-  }, [isIpad, isAnnotationToolActive]);
+  }, [isAnnotationToolActive]);
 
   const handleAnnotationClear = useCallback(() => {
     if (!window.confirm(t('viewer.clearAnnotationConfirm'))) return;
-    dispatchAnnotationClear(temporiId);
-  }, [temporiId, t]);
+    dispatchAnnotationClear(temporiId, viewMode);
+  }, [temporiId, viewMode, t]);
 
   const handleAnnotationUndo = useCallback(() => {
-    dispatchAnnotationUndo(temporiId);
-  }, [temporiId]);
+    dispatchAnnotationUndo(temporiId, viewMode);
+  }, [temporiId, viewMode]);
 
   const handleAnnotationBrushSizeChange = useCallback(
     (toolKey: keyof AnnotationBrushSizes, size: number) => {
@@ -908,7 +948,7 @@ export function Tempori({ temporiId }: TemporiProps) {
   return (
     <div className={`tempori${isImmersive ? ' tempori--immersive' : ''}`}>
       <TemporiAnnotationToolbar
-        visible={isIpad && !isLoading && !error && Boolean(musicXml)}
+        visible={!isLoading && !error && Boolean(musicXml)}
         tool={annotationTool}
         brushSizes={annotationBrushSizes}
         onToolChange={setAnnotationTool}
@@ -956,7 +996,7 @@ export function Tempori({ temporiId }: TemporiProps) {
             windows={windows}
             measureOffsets={snapshot.measureOffsets}
             measureLayouts={snapshot.measureLayoutsInContainer}
-            autoScrollEnabled={isAutoScroll}
+            autoScrollEnabled={isAutoScroll && viewMode === 'wrapped'}
             autoScrollMode={autoScrollMode}
             scrollBehavior={scrollSmoothing}
             initialElapsedMs={elapsedMs}
@@ -999,8 +1039,8 @@ export function Tempori({ temporiId }: TemporiProps) {
               </strong>
             </div>
             <div className="viewer-quick-stat">
-              <span>{t('viewer.statMeasuresPerLine')}</span>
-              <strong>{measuresPerLine}</strong>
+              <span>{t('viewer.viewMode')}</span>
+              <strong>{t(viewMode === 'horizontal' ? 'viewer.horizontal' : 'viewer.wrapped')}</strong>
             </div>
           </div>
           <div className="tempori-toolbar">
@@ -1017,6 +1057,16 @@ export function Tempori({ temporiId }: TemporiProps) {
                 </div>
               </>}
             >
+              <fieldset className="tempori-view-mode">
+                <legend>{t('viewer.viewMode')}</legend>
+                <div className="tempori-view-mode-options">
+                  {(['horizontal', 'wrapped'] as const).map((mode) => <label key={mode}>
+                    <input type="radio" name="tempori-view-mode" value={mode} checked={viewMode === mode} onChange={() => changeViewMode(mode)} />
+                    {t(mode === 'horizontal' ? 'viewer.horizontal' : 'viewer.wrapped')}
+                  </label>)}
+                </div>
+                <p className="practice-settings-hint">{t('viewer.viewModeImmediate')} {t('viewer.separateAnnotations')}</p>
+              </fieldset>
               <p className="practice-status">
                 {t('viewer.statusCurrentMeasure')}: {displayMeasureNumber} · {t('viewer.statusProgress')}{' '}
                 {playbackStepIndex + 1}/{totalPlaybackSteps}
@@ -1097,8 +1147,9 @@ export function Tempori({ temporiId }: TemporiProps) {
                   }))
                 }
                 measuresPerLine={settingsDraft.measuresPerLine}
-                onMeasuresPerLineChange={(value) =>
+                onMeasuresPerLineChange={viewMode === 'wrapped' ? (value) =>
                   setSettingsDraft((previous) => ({ ...previous, measuresPerLine: value }))
+                  : undefined
                 }
                 startMeasure={draftPracticeRange.startMeasure}
                 endMeasure={draftPracticeRange.endMeasure}
@@ -1159,9 +1210,25 @@ export function Tempori({ temporiId }: TemporiProps) {
               <Button variant="outline" onClick={cancelRangeSelection}>{t('common.cancel')}</Button>
             </>}
           </div>}
-          {renderState.status === 'error' && <div className="tempori-recovery-actions"><Button onClick={handleRetryRender}>{t('viewer.retry')}</Button><Link to="/hobbies/tempori/library">{t('viewer.backToLibrary')}</Link></div>}
+          {viewPreferenceFailed && <p className="tempori-view-notice" role="status">{t('viewer.viewPreferenceFailed')}</p>}
+          {pendingViewMode && <div className="tempori-view-notice" role="alert">
+            <p>{t('viewer.annotationsSaveFailed')}</p>
+            <Button onClick={() => changeViewMode(pendingViewMode.mode, pendingViewMode.persist)}>{t('viewer.retryViewSwitch')}</Button>
+          </div>}
+          {viewMode === 'horizontal' && <div className="tempori-follow-actions">
+            {horizontalGuideVisible && <p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p>}
+            {followSuspended && <Button onClick={() => { setAnnotationTool('none'); setFollowSuspended(false); setFollowRequestKey((key) => key + 1); }}>{t('viewer.resumeFollow')}</Button>}
+          </div>}
+          {renderState.status === 'error' && <div className="tempori-recovery-actions">{viewMode === 'horizontal' && <Button onClick={() => changeViewMode('wrapped', false)}>{t('viewer.switchWrapped')}</Button>}<Button onClick={handleRetryRender}>{t('viewer.retry')}</Button><Link to="/hobbies/tempori/library">{t('viewer.backToLibrary')}</Link></div>}
           <div className="tempori-canvas-wrap">
             <OsmdViewer
+              ref={viewerRef}
+              viewMode={viewMode}
+              viewportLayoutKey={`${isSettingsOpen}:${isImmersive}:${horizontalGuideVisible}:${pendingViewMode !== null}:${viewPreferenceFailed}`}
+              currentMeasureIndex={currentMeasureIndex}
+              followEnabled={!followSuspended && (!isPlaying || isAutoScroll)}
+              followRequestKey={followRequestKey}
+              onManualNavigation={() => setFollowSuspended(true)}
               musicXml={musicXml}
               renderRevision={renderRevision}
               onRenderStatusChange={handleRenderStatusChange}
@@ -1174,7 +1241,7 @@ export function Tempori({ temporiId }: TemporiProps) {
               measureClickEnabled={renderState.status === 'ready' && !isSettingsOpen && !isPlaying && !isCountingIn && !isAnnotationToolActive}
               annotationTool={annotationTool}
               annotationBrushSizes={annotationBrushSizes}
-              annotationsEnabled={isIpad}
+              annotationsEnabled={true}
               freezeLayout={isPlaying || isCountingIn}
               onMeasureClick={handleMeasureClick}
               onSnapshot={handleOsmdSnapshot}

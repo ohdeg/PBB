@@ -18,6 +18,9 @@ export type PracticeMessageTree = {
     pageDesc: string;
   };
   viewer: {
+    annotationCleanupFailed: string; retryAnnotationCleanup: string; retryViewSwitch: string; viewMode: string; horizontal: string; wrapped: string; horizontalViewport: string;
+    viewModeImmediate: string; horizontalHintTouch: string; horizontalHintDesktop: string; separateAnnotations: string;
+    resumeFollow: string; viewPreferenceFailed: string; annotationsSaveFailed: string; annotationsLoadFailed: string; switchWrapped: string;
     retry: string;
     discardHint: string;
     selectRange: string;
@@ -171,6 +174,15 @@ export const PRACTICE_MESSAGES_KO: PracticeMessageTree = {
     pageDesc: '화면 높이 기준으로 페이지 단위로 스크롤합니다.',
   },
   viewer: {
+    annotationCleanupFailed: '악보는 삭제됐지만 일부 필기를 지우지 못했습니다. 필기 정리를 다시 시도하세요.', retryAnnotationCleanup: '필기 정리 다시 시도',
+    retryViewSwitch: '보기 전환 다시 시도', viewMode: '악보 보기', horizontal: '한 줄', wrapped: '여러 줄', horizontalViewport: '가로 악보 · 좌우 방향키로 이동',
+    viewModeImmediate: '보기 선택은 즉시 적용되며 다음 악보에도 기억됩니다.',
+    horizontalHintTouch: '좌우로 밀어 악보를 이동하세요. 필기하려면 펜을 선택하세요.',
+    horizontalHintDesktop: '가로 스크롤바·트랙패드·Shift+휠로 이동하세요. 악보에 포커스를 두면 좌우 방향키도 사용할 수 있어요.',
+    separateAnnotations: '필기는 한 줄과 여러 줄 보기별로 따로 저장됩니다.',
+    resumeFollow: '현재 마디로', viewPreferenceFailed: '현재 보기는 적용됐지만 저장하지 못했습니다. 다음 방문에는 다시 선택해야 할 수 있어요.',
+    annotationsSaveFailed: '필기를 저장하지 못했습니다. 현재 보기를 유지합니다. 다시 시도하세요.',
+    annotationsLoadFailed: '저장된 필기를 읽지 못했습니다. 원본을 보호하기 위해 필기를 잠갔습니다. 다시 시도하세요.', switchWrapped: '여러 줄로 돌아가기',
     retry: '다시 시도',
     discardHint: '취소하면 변경 내용이 사라집니다.',
     selectRange: '구간 선택',
@@ -187,7 +199,7 @@ export const PRACTICE_MESSAGES_KO: PracticeMessageTree = {
     guideTip1: '설정을 바꾼 뒤 적용하거나 적용하고 재생을 누르세요',
     guideTip2: '마디를 누르면 위치가 이동합니다. 구간 선택을 켜고 두 마디를 눌러 연습 범위를 정하세요',
     guideTip3: '반복 재생을 켜면 구간이 끝날 때마다 예비박 후 다시 시작합니다',
-    guideTip4: '자동 스크롤 중 손으로 스크롤하면 재생이 멈춥니다. Space 키로 재생하거나 멈출 수 있습니다',
+    guideTip4: '손으로 이동하면 한 줄 보기에서는 따라가기가, 여러 줄 보기에서는 재생이 멈춥니다. 현재 마디로 버튼이나 새 재생으로 따라가기를 다시 켜세요.',
     guideClose: '바로 연습하기',
     clearAnnotationConfirm: '필기를 모두 지울까요?',
     prefsSaved: '다음 악보의 BPM과 줄당 마디 수 기본값을 저장했습니다.',
@@ -324,6 +336,15 @@ export const PRACTICE_MESSAGES_EN: PracticeMessageTree = {
     pageDesc: 'Scroll by page based on viewport height.',
   },
   viewer: {
+    annotationCleanupFailed: 'The score was deleted, but some annotations could not be removed. Retry annotation cleanup.', retryAnnotationCleanup: 'Retry annotation cleanup',
+    retryViewSwitch: 'Retry view switch', viewMode: 'Score view', horizontal: 'Single line', wrapped: 'Multiple lines', horizontalViewport: 'Horizontal score · use left and right arrow keys',
+    viewModeImmediate: 'View changes apply immediately and are remembered for the next score.',
+    horizontalHintTouch: 'Swipe sideways to move through the score. Select a pen to write.',
+    horizontalHintDesktop: 'Use the horizontal scrollbar, trackpad or Shift+wheel. Focus the score to use left and right arrow keys.',
+    separateAnnotations: 'Annotations are saved separately for single-line and multiple-line views.',
+    resumeFollow: 'Current measure', viewPreferenceFailed: 'This view is active but could not be saved. You may need to choose it again next visit.',
+    annotationsSaveFailed: 'Could not save annotations. Your current view is kept. Try again.',
+    annotationsLoadFailed: 'Could not read saved annotations. Writing is locked to protect the original. Try again.', switchWrapped: 'Return to multiple lines',
     retry: 'Try again',
     discardHint: 'Cancel discards your changes.',
     selectRange: 'Select range',
@@ -340,7 +361,7 @@ export const PRACTICE_MESSAGES_EN: PracticeMessageTree = {
     guideTip1: 'After editing settings, choose Apply or Apply and play',
     guideTip2: 'Tap a measure to seek. Turn on Select range and tap two measures to define your practice range',
     guideTip3: 'With repeat on, the range restarts with a count-in after each pass',
-    guideTip4: 'Scrolling by hand during auto scroll pauses playback. Use Space to play or pause',
+    guideTip4: 'Manual navigation suspends following in single-line view and pauses playback in multiple-line view. Use Current measure or start playback to resume following.',
     guideClose: 'Start practicing',
     clearAnnotationConfirm: 'Clear all annotations?',
     prefsSaved: 'Saved BPM and measures per line as defaults for the next tempori.',

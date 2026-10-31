@@ -1,3 +1,4 @@
+import { cleanupDeletedTemporiAnnotations } from './temporiAnnotations';
 import { LEGACY_STORAGE } from '../constants/legacyStorage';
 import { openTemporiDatabase } from './temporiDatabase';
 import { TEMPORI_STORAGE } from '../constants/temporiStorage';
@@ -135,6 +136,7 @@ export async function saveLocalTempori(
 export async function deleteLocalTempori(userId: string, temporiId: string): Promise<void> {
   await getLocalTemporiRecord(userId, temporiId);
   await runTransaction('readwrite', (store) => store.delete(temporiId));
+  cleanupDeletedTemporiAnnotations([temporiId]);
 }
 
 export async function deleteAllLocalTemporiItems(userId: string): Promise<string[]> {
@@ -142,7 +144,7 @@ export async function deleteAllLocalTemporiItems(userId: string): Promise<string
   const ids = temporiItems.map((tempori) => tempori.id);
 
   for (const id of ids) {
-    await runTransaction('readwrite', (store) => store.delete(id));
+    await deleteLocalTempori(userId, id);
   }
 
   return ids;

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type Ref } from 'react';
 import type {
+  AnnotationLayerHandle,
   AnnotationBrushSizes,
   AnnotationStroke,
   AnnotationTool,
@@ -7,12 +8,14 @@ import type {
 } from '../types/temporiAnnotation';
 import { applyEraserAtPoint } from '../utils/annotationEraser';
 import {
-  createEmptyAnnotationDocument,
+  hasPendingAnnotationDraft,
   loadTemporiAnnotations,
   saveTemporiAnnotations,
 } from '../utils/temporiAnnotations';
 
 interface TemporiAnnotationLayerProps {
+  ref?: Ref<AnnotationLayerHandle>;
+  onError?: (error: 'save' | 'load' | null) => void;
   temporiId: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
   tool: AnnotationToolMode;
@@ -143,12 +146,17 @@ function paintCommittedLayer(
 }
 
 export default function TemporiAnnotationLayer({
+  ref,
+  onError,
   temporiId,
   containerRef,
   tool,
   brushSizes,
   enabled,
 }: TemporiAnnotationLayerProps) {
+  const dirtyRef = useRef(false);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const committedCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const strokesRef = useRef<AnnotationStroke[]>([]);
@@ -188,10 +196,16 @@ export default function TemporiAnnotationLayer({
   }, []);
 
   const persistStrokes = useCallback(() => {
-    saveTemporiAnnotations(temporiId, {
-      version: 1,
-      strokes: strokesRef.current,
-    });
+    dirtyRef.current = true;
+    try {
+      saveTemporiAnnotations(temporiId, { version: 1, strokes: strokesRef.current });
+      dirtyRef.current = false;
+      onErrorRef.current?.(null);
+      return true;
+    } catch {
+      onErrorRef.current?.('save');
+      return false;
+    }
   }, [temporiId]);
 
   const paintCommitted = useCallback(() => {
@@ -251,6 +265,8 @@ export default function TemporiAnnotationLayer({
 
     const document = loadTemporiAnnotations(temporiId);
     strokesRef.current = document.strokes;
+    dirtyRef.current = hasPendingAnnotationDraft(temporiId, 'wrapped');
+    onErrorRef.current?.(dirtyRef.current ? 'save' : null);
     activeStrokeRef.current = null;
     eraserDirtyRef.current = false;
     paint();
@@ -265,6 +281,7 @@ export default function TemporiAnnotationLayer({
     if (!container) return;
 
     const resizeObserver = new ResizeObserver(() => {
+      flushRef.current();
       syncCanvasSize();
     });
     resizeObserver.observe(container);
@@ -381,6 +398,7 @@ export default function TemporiAnnotationLayer({
 
     if (!activeStroke) return;
 
+    activeStrokeRef.current = null;
     if (activeStroke.points.length >= 2) {
       strokesRef.current = [...strokesRef.current, activeStroke];
       persistStrokes();
@@ -477,7 +495,7 @@ export default function TemporiAnnotationLayer({
 
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
 
     const pressure = event.pressure > 0 ? event.pressure : 0.5;
 
@@ -528,7 +546,7 @@ export default function TemporiAnnotationLayer({
     event.preventDefault();
     event.stopPropagation();
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
@@ -546,7 +564,7 @@ export default function TemporiAnnotationLayer({
   };
 
   const handlePointerCancel = () => {
-    activeStrokeRef.current = null;
+    finishStroke();
     containerRectRef.current = null;
     isErasingActiveRef.current = false;
     clearEraserCursor();
@@ -570,19 +588,19 @@ export default function TemporiAnnotationLayer({
 
     const handleClear = (event: Event) => {
       const customEvent = event as CustomEvent<{ temporiId: string }>;
-      if (customEvent.detail?.temporiId !== temporiId) return;
+      if (customEvent.detail?.temporiId !== temporiId || ((customEvent.detail as { viewMode?: string }).viewMode ?? 'wrapped') !== 'wrapped') return;
 
       strokesRef.current = [];
       activeStrokeRef.current = null;
       containerRectRef.current = null;
       eraserDirtyRef.current = false;
-      saveTemporiAnnotations(temporiId, createEmptyAnnotationDocument());
+      persistStrokes();
       paint();
     };
 
     const handleUndo = (event: Event) => {
       const customEvent = event as CustomEvent<{ temporiId: string }>;
-      if (customEvent.detail?.temporiId !== temporiId) return;
+      if (customEvent.detail?.temporiId !== temporiId || ((customEvent.detail as { viewMode?: string }).viewMode ?? 'wrapped') !== 'wrapped') return;
 
       strokesRef.current = strokesRef.current.slice(0, -1);
       persistStrokes();
@@ -597,6 +615,25 @@ export default function TemporiAnnotationLayer({
       window.removeEventListener('tempori-annotations-undo', handleUndo);
     };
   }, [enabled, paint, persistStrokes, temporiId]);
+
+  const flush = useCallback(() => {
+    finishStroke();
+    finishEraser();
+    return !dirtyRef.current || persistStrokes();
+  }, [finishStroke, finishEraser, persistStrokes]);
+  useImperativeHandle(ref, () => ({ flush }), [flush]);
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+  useEffect(() => {
+    const beforeResize = () => { flushRef.current(); };
+    const unload = (event: BeforeUnloadEvent) => {
+      if (!flushRef.current()) { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('orientationchange', beforeResize);
+    window.addEventListener('beforeunload', unload);
+    return () => { flushRef.current(); window.removeEventListener('orientationchange', beforeResize); window.removeEventListener('beforeunload', unload); };
+  }, []);
+  useEffect(() => { flushRef.current(); }, [tool]);
 
   if (!enabled) return null;
 

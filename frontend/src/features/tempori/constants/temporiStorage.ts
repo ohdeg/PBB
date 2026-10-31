@@ -6,6 +6,7 @@ export const TEMPORI_STORAGE = {
     userIndex: 'userId', createdAtIndex: 'createdAt', localIdPrefix: 'tempori-',
   },
   annotationsPrefix: 'tempori:annotations:',
+  horizontalAnnotationsPrefix: 'tempori:annotations:horizontal:',
   preferences: {
     bpm: 'tempori:last-bpm', measuresPerLine: 'tempori:last-measures-per-line',
     annotationBrushSizes: 'tempori:annotation-brush-sizes',

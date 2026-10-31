@@ -170,3 +170,8 @@ test('nearby parts in the original selected cluster survive subsequent layout wi
   assert.equal(first.widthPx, 156);
   assert.deepEqual(getMeasureHighlightBounds(first), { leftPx: 80, widthPx: 380 });
 });
+
+test('horizontal layout never fabricates missing measures from a wrapped estimate', () => {
+  const container = makeScore({ positions: [[40, 200]], containerWidth: 300 });
+  assert.deepEqual(resolveMeasureLayoutsInContainer(container, 300, 4, 'horizontal'), []);
+});

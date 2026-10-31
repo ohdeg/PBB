@@ -14,6 +14,10 @@ interface DietaWeekPlanModalProps {
   onPlateauChoice: (choice: DietaPlateauChoice) => void;
   weightKg: number | null;
   busy?: boolean;
+  targetWeightReached?: boolean;
+  loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   onClose: () => void;
   /** keepTargets true = 유지, false = 체중 기준 조정 */
   onConfirm: (keepTargets: boolean) => void;
@@ -27,6 +31,10 @@ export function DietaWeekPlanModal({
   onPlateauChoice,
   weightKg,
   busy = false,
+  targetWeightReached = false,
+  loading = false,
+  error = '',
+  onRetry,
   onClose,
   onConfirm,
 }: DietaWeekPlanModalProps) {
@@ -50,7 +58,7 @@ export function DietaWeekPlanModal({
       : proposal.source === 'MUSCLE'
         ? '근육'
         : proposal.source === 'WEIGHT'
-          ? '체중÷1.2'
+          ? '체중 변화'
           : null;
 
   return (
@@ -60,7 +68,7 @@ export function DietaWeekPlanModal({
       onClose={onClose}
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
-      backdropClassName="dieta-modal-backdrop"
+      backdropClassName="dieta-theme dieta-modal-backdrop"
       panelClassName="dieta-modal"
       description
     >
@@ -71,14 +79,16 @@ export function DietaWeekPlanModal({
           한 주 섭취와 변화를 바탕으로 식사·활동을 제안했어요. 확인해야 적용됩니다.
         </p>
 
-        <section>
+        {loading ? <p role="status">변경된 계획을 불러오는 중…</p> : null}
+        {error ? <p role="alert">{error} <button type="button" className="dieta-btn dieta-btn--ghost" onClick={onRetry}>다시 시도</button></p> : null}
+        <section aria-busy={loading}>
           <h3>
-            평가 · {proposal.eval}
+            {{PLATEAU:'변화가 잠시 멈췄어요', TOO_FAST:'변화 속도를 조절해요', ON_TRACK:'목표에 맞게 진행 중이에요', HOLD:'현재 리듬을 유지해요', MAINTAIN:'유지 목표로 진행해요'}[proposal.eval]}
             {sourceLabel ? ` (${sourceLabel})` : ''}
           </h3>
           {proposal.x != null ? (
             <p>
-              X = {proposal.x.toFixed(2)}
+              목표 환산 변화 {proposal.x.toFixed(2)} kg
               {proposal.weightDeltaKg != null
                 ? ` · 체중 ${proposal.weightDeltaKg > 0 ? '+' : ''}${proposal.weightDeltaKg.toFixed(2)} kg`
                 : ''}
@@ -102,7 +112,7 @@ export function DietaWeekPlanModal({
             </strong>
           </div>
           <div className="dieta-list-row">
-            <span>TDEE</span>
+            <span>하루 예상 소비량</span>
             <strong>
               {profile.tdeeKcal} → {proposal.proposedTdee} kcal
             </strong>
@@ -130,15 +140,16 @@ export function DietaWeekPlanModal({
               <button
                 type="button"
                 className={`dieta-chip ${plateauChoice === 'CUT_KCAL' ? 'is-active' : ''}`}
-                disabled={!canCut}
-                onClick={() => onPlateauChoice('CUT_KCAL')}
+                disabled={busy || !canCut}
+                aria-pressed={plateauChoice === 'CUT_KCAL'} onClick={() => onPlateauChoice('CUT_KCAL')}
               >
                 식사 감소{canCut ? '' : ' (하한)'}
               </button>
               <button
                 type="button"
                 className={`dieta-chip ${plateauChoice === 'ADD_ACTIVITY' ? 'is-active' : ''}`}
-                onClick={() => onPlateauChoice('ADD_ACTIVITY')}
+                disabled={busy}
+                aria-pressed={plateauChoice === 'ADD_ACTIVITY'} onClick={() => onPlateauChoice('ADD_ACTIVITY')}
               >
                 활동 증가
               </button>
@@ -149,7 +160,7 @@ export function DietaWeekPlanModal({
         <section>
           <h3>다음 주 목표</h3>
           <p className="dieta-muted dieta-helper-copy">
-            체중은 그대로여도 비체중 신호에 변동이 있으면 유지를 선택하셔도됩니다.
+            제안을 적용하거나 현재 식사·활동 목표를 유지할 수 있어요. 어느 쪽이든 이번 체크인을 저장하고 새 주를 시작합니다.
           </p>
           <div style={{ display: 'grid', gap: '0.55rem', marginTop: '0.35rem' }}>
             <button
@@ -158,20 +169,20 @@ export function DietaWeekPlanModal({
               disabled={busy}
               onClick={() => onConfirm(false)}
             >
-              체중 기준 조정 · 다음 주 시작
+              {targetWeightReached ? '유지 모드로 전환 · 다음 주 시작' : '제안 적용하고 다음 주 시작'}
             </button>
-            <button
+            {!targetWeightReached ? <button
               type="button"
               className="dieta-btn dieta-btn--soft dieta-btn--block"
               disabled={busy}
               onClick={() => onConfirm(true)}
             >
-              유지 · 다음 주 시작
-            </button>
+              현재 목표 유지하고 다음 주 시작
+            </button> : null}
             <button
               type="button"
               className="dieta-btn dieta-btn--ghost dieta-btn--block"
-              disabled={busy}
+              disabled={busy && !loading && !error}
               onClick={onClose}
             >
               닫기

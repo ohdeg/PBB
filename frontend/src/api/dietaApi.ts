@@ -81,6 +81,7 @@ export interface DietaOnboardingInput {
 }
 
 export interface DietaCheckInApplyInput {
+  revisionToken: string;
   loggedOn: string;
   weightKg: number;
   keepTargets: boolean;
@@ -203,7 +204,7 @@ export const dietaApi = {
   async proposeCheckIn(
     input: DietaCheckInProposalInput,
     _key?: string | null,
-  ): Promise<DietaWeekProposal & { targetWeightReached: boolean; due: boolean }> {
+  ): Promise<DietaWeekProposal & { targetWeightReached: boolean; due: boolean; revisionToken: string }> {
     try {
       const { data } = await apiClient.post<DietaWeekProposalApi>(
         `${BASE}/check-ins/proposal`,
@@ -219,6 +220,7 @@ export const dietaApi = {
         ...mapWeekProposal(data),
         targetWeightReached: data.targetWeightReached,
         due: data.due,
+        revisionToken: data.revisionToken,
       };
     } catch (error) {
       rethrowDieta(error, '주간 제안을 만들지 못했어요.');
@@ -244,6 +246,7 @@ export const dietaApi = {
           loggedOn: input.loggedOn,
           weightKg: input.weightKg,
           keepTargets: input.keepTargets,
+          revisionToken: input.revisionToken,
           plateauChoice: input.plateauChoice ?? null,
           avgIntakeKcal: input.avgIntakeKcal ?? null,
           intakeDays: input.intakeDays ?? null,

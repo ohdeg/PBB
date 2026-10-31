@@ -1,8 +1,8 @@
 # Dieta — Feature Spec (product contract)
 
-> Source of truth for FE stub + Spring BE + MySQL + Redis + Gemini.  
+> Source of truth for live FE + Spring BE + MySQL + Redis + Gemini.
 > Do not invent product rules beyond this doc, Notion Dieta page, and FE types/`dietaMath`.  
-> Status: **Phase 0** (this doc) · **Phase 1** BE profile/body/activity/keto live · **Phase 2** weekly check-in live · **Phase 3** Redis meal queue + Gemini finalize live · **Phase 4** FE wired to `/api/v1/dieta/**` (auth Bearer via `apiClient`; guest landing client-only) · **Phase 5** homemade recipe → `dieta_recipes` + immediate Gemini → intake merge · **Phase 5b** finalize sends `knownRecipes` from DB.
+> Status: **Phase 0** (this doc) · **Phase 1** BE profile/body/activity/keto live · **Phase 2** weekly check-in live · **Phase 3** Redis meal queue + Gemini finalize live · **Phase 4** FE wired to `/api/v1/dieta/**` (auth Bearer via `apiClient`; guest landing client-only) · **Phase 5** homemade recipe → Gemini → recipe library; explicit add-to-day → intake merge · **Phase 5b** finalize sends `knownRecipes` from DB.
 
 ## 1. Product
 
@@ -78,7 +78,7 @@ Persisted on `DietaCheckInLog` / `dieta_check_in_logs`.
 1. Basics: height, **weight**, age, sex, optional BMR.
 2. Goal: LOSS/GAIN/MAINTAIN · (L/G) target weight + W + activity factor · MAINTAIN: activity factor only.
 3. Diet style: BALANCED / TRAINING / KETO / VEGAN + optional macro customize (±10%p).
-4. Step kcal knobs (LOSS/GAIN) + **`geminiMealConsent`**.
+4. Personal daily target preview + optional advanced step kcal knobs (LOSS/GAIN) + **`geminiMealConsent`**. Preview uses existing BMR/TDEE and goal-bound helpers; each step validates numeric input before continuing.
 
 On complete: `onboardingComplete=true`, `weekStartsOn=today`, `weekActivityExtraKcal=0`, body log `source=ONBOARDING`, `dietBaselineMethod=SURVEY`, `lastNonMaintainGoalType` = GAIN if goal GAIN else LOSS.
 
@@ -86,12 +86,12 @@ On complete: `onboardingComplete=true`, `weekStartsOn=today`, `weekActivityExtra
 
 - Landing (auth optional; skip to home if onboarded).
 - Home: daily macros preview, weight chart, optional fasted weight, check-in CTA, keto modal.
-- Meals: daytime queue by mealType; finalize → Gemini → intake log. Homemade recipe via 「등록 음식」→「추가하기」 → immediate Gemini → `dieta_recipes` + same-day intake (not Redis queue); same modal select → copy recipe to today (`add-to-day`); finalize passes `knownRecipes`.
+- Meals: daytime queue by mealType; finalize → Gemini → intake log. Homemade recipe via 「등록 음식」→「추가하기」 → immediate Gemini → `dieta_recipes` library only (no intake and no Redis queue); same modal select → copy recipe to today (`add-to-day`); finalize passes `knownRecipes`.
 - Activity: steps / minutes / activity kcal (known fields only); week extra kcal hint.
 - Check-in: 7-day gate (`today − weekStartsOn ≥ 7`); weight; proposal modal with keepTargets.
 - Settings: maintain toggle, targets, step kcal, Gemini consent, **온보딩 다시** (confirm → `POST /reset` wipe → onboarding).
 
-Nav: 홈 · 섭취 · 활동 · 설정 (no progress tab; `/progress` → home).
+Nav: 홈 · 식사 · 활동 · 설정 (no progress tab; `/progress` → home).
 
 ## 6. Gemini meal finalize contract
 
@@ -99,7 +99,7 @@ Request `schemaVersion: 1`, `locale: 'ko-KR'`:
 
 - `goalHint`: `{ goalType, maintainKcal (TDEE), dailyKcalTarget, targetWeightKg? }`
 - `meals`: `[{ mealType, items: string[] }]` — **Redis queue one-line items only** (never include homemade recipe text)
-- `knownRecipes`: `[{ name, kcal, carbG, proteinG, fatG }]` — day's rows from `dieta_recipes` (pre-analyzed; do not re-estimate into `totals`)
+- `knownRecipes`: `[{ name, kcal, carbG, proteinG, fatG }]` — day's LEGACY/INTAKE rows from `dieta_recipes` (exclude LIBRARY) (pre-analyzed; do not re-estimate into `totals`)
 - `activityHint`:
   - **`steps` / `activeMinutes` always present** (use `0` if unknown).
   - **`activityKcal` only if the user entered burned kcal** — omit when null/absent (never fake `0`).
@@ -134,10 +134,10 @@ Example finalize request fragment:
 - Gemini returns **per 1 serving (1인분당)** kcal + macros (batch size = `servings`). Persist those per-serving values on `dieta_recipes` plus `servings`.
 - `meal_type` is **nullable** on create (library/source row). Meal type is chosen only when **adding to today** from the library modal.
 - **Does not** enter Redis daytime queue. Calls Gemini immediately (same schemaVersion 1; activity omitted / review activity flags off; `perServingOnly: true` + `servings`; `missingAmountAsOneServing` still true; `knownRecipes` empty on this call).
-- Inserts a row into **`dieta_recipes`** (day-scoped by `logged_on` for intake merge; historical rows remain listable). Macros/kcal columns = **per serving**.
-- Upserts same-day `dieta_intake_logs`: appends id to `source_meals_json.recipeIds[]` and sets row totals = `sum(DB recipes for day) + queueTotals` (`queueTotals` null until day finalize). Create-day row may have `meal_type` null.
+- Inserts a **LIBRARY** row into `dieta_recipes`; `logged_on` is the registration date. Macros/kcal columns = **per serving**. Registration does not count as eating.
+- Only `add-to-day` creates an **INTAKE** row and upserts `dieta_intake_logs`. Totals = day LEGACY/INTAKE rows + preserved legacy JSON-only recipes + optional queueTotals. LIBRARY rows never contribute. Registration returns `intake: null`.
 - Day finalize loads DB recipes → sends `knownRecipes` to Gemini; analyzes **only Redis queue text items** into `queueTotals`; writes `recipeIds` + `knownRecipes` audit snapshot; merges macros (no double-count).
-- Requires `geminiMealConsent`. Blank Gemini API key → BE stub (same as finalize; stub divides batch macros by `servings` when `perServingOnly`).
+- Requires `geminiMealConsent`. Missing Gemini key → 503; transport, parsing, or invalid nutrition response → 502. No production stub or fabricated nutrition is persisted. Tests inject controlled analysis responses.
 - **UX (meals header):** top-right 「등록 음식」→ **modal** (list all user recipes, newest first) with in-modal 「추가하기」(create + Gemini, servings). Select → **mealType** → 「오늘 섭취에 더하기」 via `POST /recipes/{id}/add-to-day` (copy **1인분** macros, no Gemini). `/hobbies/dieta/recipes` redirects to `/meals`.
 
 `source_meals_json` shape:
@@ -198,38 +198,38 @@ Auth: Bearer access token · `AccessTokenResolver.requireEmail` → `users.id` U
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/api/v1/dieta/check-ins` | List `dieta_check_in_logs` |
-| POST | `/api/v1/dieta/check-ins/proposal` | Server computes week proposal (X÷1.2, bands, TDEE). Optional `avgIntakeKcal`/`intakeDays` until Phase 3 intake API |
-| POST | `/api/v1/dieta/check-ins/apply` | Upsert CHECK_IN body log · apply `keepTargets` · auto-MAINTAIN on target weight · persist check-in log |
+| POST | `/api/v1/dieta/check-ins/proposal` | Server aggregates own DB intake in [weekStartsOn, loggedOn), computes proposal and returns revisionToken; supplied avgIntakeKcal/intakeDays are ignored |
+| POST | `/api/v1/dieta/check-ins/apply` | Require matching revisionToken (409 if missing/stale) · upsert CHECK_IN body log · apply `keepTargets` · auto-MAINTAIN on target weight · persist check-in log |
 
 ### Phase 3 (implemented)
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/api/v1/dieta/meal-queue?loggedOn=` | Redis day queue (empty open if missing) |
+| GET | `/api/v1/dieta/meal-queue?loggedOn=` | Redis day queue; DB queueTotals preserves done after Redis expiry; expired pending lease becomes failed |
 | GET | `/api/v1/dieta/meal-queue/{loggedOn}` | Same as query form |
-| POST | `/api/v1/dieta/meal-queue/items` | `{ loggedOn, mealType, text }` — reject if status `done` |
-| DELETE | `/api/v1/dieta/meal-queue/items/{itemId}?loggedOn=` | Remove item |
-| POST | `/api/v1/dieta/meal-queue/finalize` | `{ loggedOn }` — requires `geminiMealConsent`; Gemini (or stub) on **queue only** + `knownRecipes` from DB → merge into `dieta_intake_logs` |
+| POST | `/api/v1/dieta/meal-queue/items` | `{ loggedOn, mealType, text }` — reject if status `done` or active `pending` |
+| DELETE | `/api/v1/dieta/meal-queue/items/{itemId}?loggedOn=` | Remove item; reject done or active pending |
+| POST | `/api/v1/dieta/meal-queue/finalize` | `{ loggedOn }` — requires `geminiMealConsent`; Gemini on **queue only** + `knownRecipes` from DB → merge into `dieta_intake_logs` |
 | POST | `/api/v1/dieta/meal-queue/auto-finalize-yesterday` | Finalize yesterday if open+items+consent; else 204 |
 | GET | `/api/v1/dieta/intakes?loggedOn=` | List intake logs (optional date filter) |
-| GET | `/api/v1/dieta/recipes?loggedOn=` | Optional `loggedOn` — day filter; omit → all user recipes, `createdAt` desc, limit 100 |
-| POST | `/api/v1/dieta/recipes/analyze` | `{ loggedOn, title, ingredients[], steps?, servings }` → insert `dieta_recipes` (`meal_type` null; macros = per 1 serving) + upsert intake → `{ recipeId, macros, servings, oneLineReview, intake }` · requires `geminiMealConsent` |
+| GET | `/api/v1/dieta/recipes?loggedOn=` | With loggedOn → day LEGACY/INTAKE rows; omit → LIBRARY/LEGACY rows, filtered before newest-first limit 100 |
+| POST | `/api/v1/dieta/recipes/analyze` | `{ loggedOn, title, ingredients[], steps?, servings }` → insert LIBRARY row (`meal_type` null; macros = per 1 serving), no intake write → `{ recipeId, macros, servings, oneLineReview, intake: null }` · requires `geminiMealConsent` |
 | POST | `/api/v1/dieta/recipes/{id}/add-to-day` | `{ loggedOn, mealType }` — copy **1인분** macros into new day-scoped row (`meal_type` set) + upsert intake · **no Gemini**, consent not required · `mealType` required when source has null |
 
-Config: `dieta.gemini.api-key` / `base-url` / `model` (optional). Blank API key → deterministic stub honoring `estimateActivityKcalIfMissing` / `missingAmountAsOneServing`.
+Config: existing `dieta.gemini.api-key` / `base-url` / `model`. Missing key disables analysis with 503; no new environment variables. HTTP connect timeout 10 seconds, read timeout 45 seconds. Validate schema/date, review and all nonnegative nutrition fields before persistence.
 
 ### Phase 4 (done — FE live)
 
 - `frontend/src/api/dietaApi.ts` uses `apiClient` → `/api/v1/dieta/**` (Bearer + refresh like brew).
 - 404 profile → `null` → onboarding redirect; guest landing stays client-only (no API).
-- Check-in confirm → `POST /check-ins/apply` (`keepTargets`, `plateauChoice`, intake avg/days); modal preview still uses client `dietaMath`.
-- Meal finalize/auto-finalize → live Redis queue + Gemini (BE stub if API key blank).
-- Remaining: BE may still use Gemini stub without key; optional server-side intake avg for proposal (FE still sends avg/days); unused `dietaStubStore` left in tree.
+- Check-in preview → server proposal API; confirm sends `keepTargets`, `plateauChoice`, `revisionToken`. Records and fingerprint are checked under the same profile row lock. Late UI responses are discarded. A changed record requires a fresh preview and confirmation. Target-reaching previews show maintenance kcal=TDEE and activity=0, matching apply.
+- Meal finalize/auto-finalize → live Redis queue + Gemini; failures preserve queue input and expose retry. Recipe failures preserve form input.
+- Historical `dietaStubStore` remains unused by live routes. Server aggregation uses only recorded dates as the average denominator; missing dates are not zero-calorie days. Existing coaching constants and no-intake fallback remain unchanged.
 
 ### Phase 5 / 5b (homemade recipe → DB + knownRecipes)
 
 - FE: Meals 「등록 음식」 modal → `GET /recipes` + `POST /recipes/{id}/add-to-day` (mealType); in-modal 「추가하기」 → servings + `POST /recipes/analyze` (no mealType); day's recipes via `GET /recipes?loggedOn=`.
-- BE: insert `dieta_recipes` with nullable `meal_type`, `servings`, per-serving macros; intake `recipeIds` + merge on finalize; Gemini `perServingOnly`; list-all when `loggedOn` omitted; add-to-day copies 1인분 macros + sets mealType.
+- BE: register LIBRARY rows with nullable meal_type and per-serving nutrition; add-to-day creates INTAKE rows with mealType and merges intake. Existing rows use LEGACY and retain original intake semantics. Legacy JSON-only recipes remain represented across new adds and finalize.
 - Tests: `DietaIntakeSourceDocumentTest`, `DietaGeminiRequestBuilderTest` (knownRecipes + perServing), `DietaPhase5RecipeIT` (list-all + add-to-day + servings validation).
 ## 10. FE reference
 
@@ -238,3 +238,23 @@ Config: `dieta.gemini.api-key` / `base-url` / `model` (optional). Blank API key 
 - `frontend/src/features/dieta/utils/dietaMath.ts`
 - `frontend/src/features/dieta/utils/dietaGeminiStub.ts` (legacy FE helpers; finalize is server-side)
 - `docs/screenshots/dieta/WIREFRAMES.md`
+
+## 11. Reliability and deployment (2026-10-31)
+
+- Apply `infra/mysql/migrations/20261031_dieta_recipe_kind.sql` once before deploying the matching backend/frontend together. Do not run old and new backend versions concurrently: old code includes library rows in day totals. Reload old browser sessions. Historical intake is not recalculated or deleted by the migration.
+- Queue retention is unchanged: 48-hour TTL, no new scheduler or permanent queue storage, yesterday auto-finalize still triggered by visiting Meals.
+- Queue add/remove, lease claim/recovery, reset, and final DB commit serialize under a per-user profile write lock at READ_COMMITTED. This is intentionally coarser than per-day locking. No external AI call runs inside that transaction.
+- pending.updatedAt identifies a 120-second analysis lease. GET recovers expired pending to failed. Every takeover and final ownership check uses the same DB lock, so an expired worker cannot save after a replacement claims the queue. Pending edits and concurrent finalization return 409.
+- The final DB transaction re-reads day recipes. A successful commit writes queueTotals as durable completion evidence before Redis done is attempted. Redis completion failure is recoverable from DB without reanalysis. Repeated done finalization returns the persisted intake, including after Redis expiry.
+- Recipe registration and weekly apply API semantics changed; deploy clients with the backend. Old apply requests without revisionToken receive 409 and must reload/re-preview.
+
+## UI/UX update — 2026-10-31
+
+- Home prioritizes food/weight entry, then analyzed intake and weight trends. No analyzed intake displays “—”, while a logged zero remains 0. Pending queue entries are separate from analyzed totals.
+- Desktop uses a maximum 1040px shell and two-column home; mobile retains four bottom links. Check-in reminders lead only when due; otherwise recording comes first.
+- Dieta portals share app theme tokens. Mobile dialogs are bottom sheets; desktop dialogs are centered. Existing Dialog focus trap, Escape and focus restoration remain.
+- Settings use explicit target/advanced/AI-consent save and cancel. Only genuinely dirty fields survive route navigation in memory; clean fields come from refreshed server data. Drafts clear on logout/account change, and retained drafts protect reload with beforeunload. Late responses from obsolete page/session instances cannot rewrite them.
+- All-data reset is labeled “모든 기록 삭제 후 다시 시작” in Data management, with confirmation. No endpoint semantics change.
+- Profile-dependent initial reads occur after confirming onboarding; initial errors expose retry rather than showing empty data. New users are directed to onboarding.
+- Introduction assets `dieta-product-ui*.png` contain synthetic demonstration records only.
+- Isolated verification: `vitest --config vitest.dieta.config.ts`; `vite build --config vite.dieta-review.config.ts`; `playwright test --config playwright.dieta.config.ts` after that build. These configs disable environment-file loading. Browser tests mock `/api/v1/**`; they do not exercise live DB, Redis or Gemini.

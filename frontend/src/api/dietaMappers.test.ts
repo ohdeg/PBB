@@ -87,6 +87,7 @@ describe('dietaMappers', () => {
 
   it('maps week proposal action and eval', () => {
     const api: DietaWeekProposalApi = {
+      revisionToken: 'revision-fixture',
       eval: 'PLATEAU',
       x: 0.2,
       source: 'WEIGHT',
@@ -136,8 +137,15 @@ describe('dietaMappers', () => {
     expect(mapped.recipeId).toBe(api.recipeId);
     expect(mapped.kcal).toBe(270);
     expect(mapped.servings).toBe(4);
-    expect(mapped.intake.loggedOn).toBe('2026-07-30');
-    expect(mapped.intake.kcal).toBe(270);
+    expect(mapped.intake?.loggedOn).toBe('2026-07-30');
+    expect(mapped.intake?.kcal).toBe(270);
+  });
+
+  it('maps library creation without inventing an intake', () => {
+    const result = mapRecipeAnalyze({ recipeId: 'library', carbG: 20, proteinG: 25, fatG: 10,
+      kcal: 270, oneLineReview: 'saved', servings: 4, intake: null });
+    expect(result.intake).toBeNull();
+    expect(result.kcal).toBe(270);
   });
 
   it('maps body log, meal queue day, and recipe list row', () => {

@@ -125,6 +125,7 @@ export interface DietaMealQueueDayApi {
 }
 
 export interface DietaWeekProposalApi {
+  revisionToken: string;
   eval: string;
   x: number | null;
   source: string | null;
@@ -164,7 +165,7 @@ export interface DietaRecipeAnalyzeApi {
   kcal: number;
   oneLineReview: string | null;
   servings: number;
-  intake: DietaIntakeLogApi;
+  intake: DietaIntakeLogApi | null;
 }
 
 export interface DietaRecipeApi {
@@ -372,7 +373,7 @@ export function mapRecipeAnalyze(api: DietaRecipeAnalyzeApi): DietaRecipeAnalyze
     kcal: api.kcal,
     oneLineReview: api.oneLineReview ?? null,
     servings: asNumber(api.servings ?? 1),
-    intake: mapIntakeLog(api.intake),
+    intake: api.intake ? mapIntakeLog(api.intake) : null,
   };
 }
 

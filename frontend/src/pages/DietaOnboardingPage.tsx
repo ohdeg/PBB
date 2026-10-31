@@ -4,7 +4,7 @@ import { dietaApi } from '../api/dietaApi';
 import type { DietaDietStyle, DietaGoalType, DietaMacroPercents } from '../features/dieta/types';
 import { DIETA_STYLE_LABELS, DIETA_STYLE_PRESETS } from '../features/dieta/types';
 import { useDietaUserKey } from '../features/dieta/useDietaUserKey';
-import { macrosFromDaily } from '../features/dieta/utils/dietaMath';
+import { macrosFromDaily, estimateBmrKcal, computeTdee, applyLossDaily, applyGainDaily } from '../features/dieta/utils/dietaMath';
 import { useAuthStore } from '../stores/authStore';
 import '../features/dieta/dieta.css';
 
@@ -46,13 +46,27 @@ export function DietaOnboardingPage() {
   const [consent, setConsent] = useState(true);
 
   const previewDaily = useMemo(() => {
-    const tdeeGuess = 2200;
-    if (goalType === 'LOSS') return tdeeGuess - Number(deficit || 0);
-    if (goalType === 'GAIN') return tdeeGuess + Number(surplus || 0);
-    return tdeeGuess;
-  }, [goalType, deficit, surplus]);
-
-  const previewMacros = macrosFromDaily(Math.max(previewDaily, 1200), macros);
+    const bmr = bmrManual.trim() ? Number(bmrManual) : estimateBmrKcal({weightKg:Number(weightKg),heightCm:Number(heightCm),ageYears:Number(age),sex});
+    const tdee = computeTdee(bmr, Number(activityFactor));
+    if (goalType === 'LOSS') return applyLossDaily(tdee - Number(deficit), bmr);
+    if (goalType === 'GAIN') return applyGainDaily(tdee + Number(surplus), tdee, Number(ceiling));
+    return tdee;
+  }, [heightCm, weightKg, age, sex, bmrManual, activityFactor, goalType, deficit, surplus, ceiling]);
+  const previewMacros = macrosFromDaily(previewDaily, macros);
+  const validateStep = () => {
+    const entries: Array<[string, string, boolean]> = step === 0
+      ? [['heightCm',heightCm,true],['weightKg',weightKg,true],['age',age,true], ...(bmrManual.trim() ? [['bmrManual',bmrManual,true] as [string,string,boolean]] : [])]
+      : step === 1 && goalType !== 'MAINTAIN' ? [['targetWeight',targetWeight,true],['weeklyTarget',weeklyTarget,true]]
+      : step === 3 ? (goalType === 'LOSS' ? [['deficit',deficit,false],['cut',cut,false],['recover',recover,false],['activityKcal',activityKcal,false]] : goalType === 'GAIN' ? [['surplus',surplus,false],['gainSurplus',gainSurplus,false],['gainCut',gainCut,false],['ceiling',ceiling,false]] : []) : [];
+    const invalid = entries.find(([,value,positive]) => !value.trim() || !Number.isFinite(Number(value)) || (positive ? Number(value) <= 0 : Number(value) < 0));
+    if (invalid) {
+      setError(invalid[2] ? '0보다 큰 숫자를 입력해 주세요.' : '0 이상 숫자를 입력해 주세요.');
+      const input = document.getElementById(`dieta-onboard-${invalid[0]}`);
+      const details = input?.closest('details'); if (details) details.open = true;
+      input?.focus(); return false;
+    }
+    setError(''); return true;
+  };
 
   if (!accessToken) {
     return (
@@ -83,6 +97,7 @@ export function DietaOnboardingPage() {
   };
 
   const submit = async () => {
+    if (!validateStep()) return;
     setError('');
     setBusy(true);
     try {
@@ -143,74 +158,76 @@ export function DietaOnboardingPage() {
     <div className="dieta-app">
       <div className="dieta-shell dieta-shell--wide">
         <div className="dieta-title-row">
-          <h1 className="dieta-display">온보딩</h1>
+          <h1 className="dieta-display">내 리듬에 맞게 시작하기</h1>
           <span className="dieta-badge">{step + 1} / 4</span>
         </div>
 
         {step === 0 ? (
           <section className="dieta-card">
-            <strong>기본 정보</strong>
+            <h2>내 정보</h2>
             <div className="dieta-field">
-              <label>키 (cm)</label>
-              <input value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
+              <label htmlFor="dieta-onboard-heightCm">키 (cm)</label>
+              <input id="dieta-onboard-heightCm" name="heightCm" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
             </div>
             <div className="dieta-field">
-              <label>체중 (kg)</label>
-              <input value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+              <label htmlFor="dieta-onboard-weightKg">체중 (kg)</label>
+              <input id="dieta-onboard-weightKg" name="weightKg" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
             </div>
             <div className="dieta-field">
-              <label>나이</label>
-              <input value={age} onChange={(e) => setAge(e.target.value)} />
+              <label htmlFor="dieta-onboard-age">나이</label>
+              <input id="dieta-onboard-age" name="age" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={age} onChange={(e) => setAge(e.target.value)} />
             </div>
             <div className="dieta-chip-row" style={{ marginBottom: '0.85rem' }}>
               <button
                 type="button"
                 className={`dieta-chip ${sex === 'M' ? 'is-active' : ''}`}
-                onClick={() => setSex('M')}
+                aria-pressed={sex === 'M'} onClick={() => setSex('M')}
               >
                 남성
               </button>
               <button
                 type="button"
                 className={`dieta-chip ${sex === 'F' ? 'is-active' : ''}`}
-                onClick={() => setSex('F')}
+                aria-pressed={sex === 'F'} onClick={() => setSex('F')}
               >
                 여성
               </button>
             </div>
+            <details className="dieta-details"><summary>기초대사량을 알고 있나요? (선택)</summary>
             <div className="dieta-field">
-              <label>BMR 직접 입력 (선택)</label>
-              <input
-                value={bmrManual}
+              <label htmlFor="dieta-onboard-bmrManual">기초대사량 직접 입력 (선택)</label>
+              <input disabled={busy}
+                id="dieta-onboard-bmrManual" name="bmrManual" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={bmrManual}
                 onChange={(e) => setBmrManual(e.target.value)}
                 placeholder="비우면 자동 추정"
               />
             </div>
+            </details>
           </section>
         ) : null}
 
         {step === 1 ? (
           <section className="dieta-card">
-            <strong>목표</strong>
+            <h2>목표와 생활</h2>
             <div className="dieta-chip-row" style={{ margin: '0.75rem 0' }}>
               <button
                 type="button"
                 className={`dieta-chip ${goalType === 'LOSS' ? 'is-active' : ''}`}
-                onClick={() => setGoalType('LOSS')}
+                aria-pressed={goalType === 'LOSS'} onClick={() => setGoalType('LOSS')}
               >
                 감량
               </button>
               <button
                 type="button"
                 className={`dieta-chip ${goalType === 'GAIN' ? 'is-active' : ''}`}
-                onClick={() => setGoalType('GAIN')}
+                aria-pressed={goalType === 'GAIN'} onClick={() => setGoalType('GAIN')}
               >
                 증량
               </button>
               <button
                 type="button"
                 className={`dieta-chip ${goalType === 'MAINTAIN' ? 'is-active' : ''}`}
-                onClick={() => setGoalType('MAINTAIN')}
+                aria-pressed={goalType === 'MAINTAIN'} onClick={() => setGoalType('MAINTAIN')}
               >
                 유지
               </button>
@@ -218,9 +235,9 @@ export function DietaOnboardingPage() {
             {goalType !== 'MAINTAIN' ? (
               <>
                 <div className="dieta-field">
-                  <label>목표 체중 (kg)</label>
-                  <input
-                    value={targetWeight}
+                  <label htmlFor="dieta-onboard-targetWeight">목표 체중 (kg)</label>
+              <input disabled={busy}
+                    id="dieta-onboard-targetWeight" name="targetWeight" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={targetWeight}
                     onChange={(e) => setTargetWeight(e.target.value)}
                   />
                   <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
@@ -228,9 +245,9 @@ export function DietaOnboardingPage() {
                   </p>
                 </div>
                 <div className="dieta-field">
-                  <label>주간 목표 W (kg)</label>
-                  <input
-                    value={weeklyTarget}
+                  <label htmlFor="dieta-onboard-weeklyTarget">주간 목표 변화 (kg)</label>
+              <input disabled={busy}
+                    id="dieta-onboard-weeklyTarget" name="weeklyTarget" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={weeklyTarget}
                     onChange={(e) => setWeeklyTarget(e.target.value)}
                   />
                   <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
@@ -244,13 +261,13 @@ export function DietaOnboardingPage() {
               </>
             ) : (
               <p className="dieta-muted" style={{ marginBottom: '0.85rem' }}>
-                유지는 활동 계수만으로 하루 목표(TDEE)를 정해요.
+                기초대사량과 평소 활동량을 바탕으로 유지 목표를 정해요.
               </p>
             )}
             <div className="dieta-field">
-              <label>활동 계수</label>
-              <select
-                value={activityFactor}
+              <label htmlFor="dieta-onboard-activityFactor">평소 활동량</label>
+              <select disabled={busy}
+                id="dieta-onboard-activityFactor" name="activityFactor" aria-describedby={error ? "dieta-onboard-error" : undefined} value={activityFactor}
                 onChange={(e) => setActivityFactor(e.target.value)}
               >
                 <option value="1.2">1.2 좌식</option>
@@ -264,20 +281,20 @@ export function DietaOnboardingPage() {
 
         {step === 2 ? (
           <section className="dieta-card">
-            <strong>식단 스타일 · 탄단지</strong>
+            <h2>식사 방식</h2>
             <div className="dieta-chip-row" style={{ margin: '0.75rem 0' }}>
               {(Object.keys(DIETA_STYLE_LABELS) as DietaDietStyle[]).map((s) => (
                 <button
                   key={s}
                   type="button"
                   className={`dieta-chip ${dietStyle === s ? 'is-active' : ''}`}
-                  onClick={() => pickStyle(s)}
+                  aria-pressed={dietStyle === s} onClick={() => pickStyle(s)}
                 >
                   {DIETA_STYLE_LABELS[s]}
                 </button>
               ))}
             </div>
-            <p className="dieta-muted">프리셋 ±10%p 느낌으로 미세 조정</p>
+            <p className="dieta-muted">원하는 식사 방식을 고르세요. 영양소 비율은 조금씩 조절할 수 있어요.</p>
             {(
               [
                 ['탄수', 'carbPct'],
@@ -293,14 +310,14 @@ export function DietaOnboardingPage() {
                   <button
                     type="button"
                     className="dieta-chip"
-                    onClick={() => tweakMacro(key, -0.02)}
+                    aria-label={`${label} 비율 줄이기`} onClick={() => tweakMacro(key, -0.02)}
                   >
                     −
                   </button>
                   <button
                     type="button"
                     className="dieta-chip"
-                    onClick={() => tweakMacro(key, 0.02)}
+                    aria-label={`${label} 비율 늘리기`} onClick={() => tweakMacro(key, 0.02)}
                   >
                     +
                   </button>
@@ -316,25 +333,25 @@ export function DietaOnboardingPage() {
 
         {step === 3 ? (
           <section className="dieta-card">
-            <strong>가감 kcal · 동의</strong>
+            <h2>확인하고 시작</h2><p className="dieta-notice">하루 목표 약 {previewDaily.toLocaleString()} kcal · {DIETA_STYLE_LABELS[dietStyle]}</p><p className="dieta-muted">입력한 정보로 계산한 예상 목표예요. 저장 후 최종 목표를 확인할 수 있어요.</p><details className="dieta-details"><summary>고급 조절</summary>
             {goalType === 'LOSS' ? (
               <>
                 <div className="dieta-field">
-                  <label>1주차 적자</label>
-                  <input value={deficit} onChange={(e) => setDeficit(e.target.value)} />
+                  <label htmlFor="dieta-onboard-deficit">1주차 적자</label>
+              <input id="dieta-onboard-deficit" name="deficit" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={deficit} onChange={(e) => setDeficit(e.target.value)} />
                 </div>
                 <div className="dieta-field">
-                  <label>정체 시 식사 감소</label>
-                  <input value={cut} onChange={(e) => setCut(e.target.value)} />
+                  <label htmlFor="dieta-onboard-cut">정체 시 식사 감소</label>
+              <input id="dieta-onboard-cut" name="cut" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={cut} onChange={(e) => setCut(e.target.value)} />
                 </div>
                 <div className="dieta-field">
-                  <label>과속 시 회복 증가</label>
-                  <input value={recover} onChange={(e) => setRecover(e.target.value)} />
+                  <label htmlFor="dieta-onboard-recover">과속 시 회복 증가</label>
+              <input id="dieta-onboard-recover" name="recover" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={recover} onChange={(e) => setRecover(e.target.value)} />
                 </div>
                 <div className="dieta-field">
-                  <label>정체 시 활동 +kcal</label>
-                  <input
-                    value={activityKcal}
+                  <label htmlFor="dieta-onboard-activityKcal">정체 시 활동 +kcal</label>
+              <input disabled={busy}
+                    id="dieta-onboard-activityKcal" name="activityKcal" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={activityKcal}
                     onChange={(e) => setActivityKcal(e.target.value)}
                   />
                 </div>
@@ -343,48 +360,49 @@ export function DietaOnboardingPage() {
             {goalType === 'GAIN' ? (
               <>
                 <div className="dieta-field">
-                  <label>1주차 잉여</label>
-                  <input value={surplus} onChange={(e) => setSurplus(e.target.value)} />
+                  <label htmlFor="dieta-onboard-surplus">1주차 잉여</label>
+              <input id="dieta-onboard-surplus" name="surplus" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={surplus} onChange={(e) => setSurplus(e.target.value)} />
                 </div>
                 <div className="dieta-field">
-                  <label>정체 시 증가</label>
-                  <input
-                    value={gainSurplus}
+                  <label htmlFor="dieta-onboard-gainSurplus">정체 시 증가</label>
+              <input disabled={busy}
+                    id="dieta-onboard-gainSurplus" name="gainSurplus" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={gainSurplus}
                     onChange={(e) => setGainSurplus(e.target.value)}
                   />
                 </div>
                 <div className="dieta-field">
-                  <label>과속 시 감소</label>
-                  <input value={gainCut} onChange={(e) => setGainCut(e.target.value)} />
+                  <label htmlFor="dieta-onboard-gainCut">과속 시 감소</label>
+              <input id="dieta-onboard-gainCut" name="gainCut" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={gainCut} onChange={(e) => setGainCut(e.target.value)} />
                 </div>
                 <div className="dieta-field">
-                  <label>GAIN 상한 (TDEE+)</label>
-                  <input value={ceiling} onChange={(e) => setCeiling(e.target.value)} />
+                  <label htmlFor="dieta-onboard-ceiling">증량 시 추가 식사량 상한</label>
+              <input id="dieta-onboard-ceiling" name="ceiling" aria-describedby={error ? "dieta-onboard-error" : undefined} inputMode="decimal" autoComplete="off" value={ceiling} onChange={(e) => setCeiling(e.target.value)} />
                 </div>
               </>
             ) : null}
             {goalType === 'MAINTAIN' ? (
-              <p className="dieta-muted">유지는 하루 목표를 TDEE로 맞춥니다.</p>
+              <p className="dieta-muted">유지는 하루 예상 소비량에 맞춰 식사 목표를 정합니다.</p>
             ) : null}
-            <label className="dieta-muted" style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
+            </details>
+            <label className="dieta-check" style={{ display: 'flex', gap: '0.5rem' }}>
+              <input disabled={busy}
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
               />
-              식단 AI(Gemini 스텁) 사용에 동의합니다
+              식사 내용을 Gemini로 보내 AI 영양 분석을 받는 데 동의합니다
             </label>
           </section>
         ) : null}
 
-        {error ? <p style={{ color: 'var(--dieta-coral)' }}>{error}</p> : null}
+        {error ? <p id="dieta-onboard-error" role="alert" style={{ color: 'var(--dieta-coral)' }}>{error}</p> : null}
 
         <div style={{ display: 'flex', gap: '0.55rem', marginTop: '1rem' }}>
           {step > 0 ? (
             <button
               type="button"
               className="dieta-btn dieta-btn--ghost"
-              onClick={() => setStep((s) => (s - 1) as Step)}
+              disabled={busy} onClick={() => {setError(''); setStep(s => (s - 1) as Step);}}
             >
               이전
             </button>
@@ -394,7 +412,7 @@ export function DietaOnboardingPage() {
               type="button"
               className="dieta-btn dieta-btn--primary"
               style={{ flex: 1 }}
-              onClick={() => setStep((s) => (s + 1) as Step)}
+              onClick={() => { if (validateStep()) setStep(s => (s + 1) as Step); }}
             >
               다음
             </button>

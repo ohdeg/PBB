@@ -20,7 +20,7 @@ export function DietaKetoModal({
       open={open}
       title="키토플루 대체법"
       onClose={onClose}
-      backdropClassName="dieta-modal-backdrop"
+      backdropClassName="dieta-theme dieta-modal-backdrop"
       panelClassName="dieta-modal"
       description
     >

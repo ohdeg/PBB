@@ -144,7 +144,7 @@ export function DietaRecipeLibraryModal({
         onClose={onClose}
         closeOnBackdrop={!busy}
         closeOnEscape={!busy && !createOpen}
-        backdropClassName="dieta-modal-backdrop"
+        backdropClassName="dieta-theme dieta-modal-backdrop"
         panelClassName="dieta-modal"
         description
       >
@@ -238,7 +238,7 @@ export function DietaRecipeLibraryModal({
               <strong>추가됨 · {lastAdded.kcal}kcal</strong>
               <span className="dieta-muted">
                 {' '}
-                · 오늘 합계 {lastAdded.intake.kcal}kcal
+                · 오늘 합계 {lastAdded.intake?.kcal ?? lastAdded.kcal}kcal
               </span>
             </p>
           ) : null}
@@ -252,7 +252,7 @@ export function DietaRecipeLibraryModal({
               disabled={busy || !selected}
               onClick={() => void addSelected()}
             >
-              {busy ? '추가 중…' : '오늘 섭취에 더하기'}
+              {busy ? '추가 중…' : '오늘 1인분 추가'}
             </button>
             <button
               type="button"

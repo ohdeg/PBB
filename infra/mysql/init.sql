@@ -535,6 +535,7 @@ CREATE TABLE IF NOT EXISTS dieta_recipes (
     fat_g                    DECIMAL(7,1)   NOT NULL DEFAULT 0 COMMENT 'per 1 serving',
     kcal                     INT            NOT NULL COMMENT 'per 1 serving',
     one_line_review          TEXT           NULL,
+    record_kind              VARCHAR(16) NOT NULL DEFAULT 'LEGACY',
     servings                 DECIMAL(6,2)   NOT NULL DEFAULT 1.00 COMMENT 'batch servings at create; macros are per 1 serving',
     created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

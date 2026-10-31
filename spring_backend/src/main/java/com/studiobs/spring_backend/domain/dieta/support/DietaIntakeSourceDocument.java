@@ -76,7 +76,7 @@ public record DietaIntakeSourceDocument(
                 queue,
                 dayRecipeIds == null ? List.of() : List.copyOf(dayRecipeIds),
                 dayKnownRecipes == null ? List.of() : List.copyOf(dayKnownRecipes),
-                List.of());
+                analyzedRecipes);
     }
 
     /** Legacy fallback when DB recipes are empty but old JSON still has analyzedRecipes. */
@@ -100,7 +100,7 @@ public record DietaIntakeSourceDocument(
 
     public MacroTotals combinedWithRecipeSum(MacroTotals recipeSum) {
         MacroTotals recipes = recipeSum == null ? MacroTotals.zero() : recipeSum;
-        return recipes.plus(queueTotals == null ? MacroTotals.zero() : queueTotals);
+        return recipes.plus(legacyRecipeMacroSum()).plus(queueTotals == null ? MacroTotals.zero() : queueTotals);
     }
 
     private static BigDecimal nullToZero(BigDecimal value) {

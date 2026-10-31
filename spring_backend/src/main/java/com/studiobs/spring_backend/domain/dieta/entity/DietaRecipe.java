@@ -42,6 +42,9 @@ public class DietaRecipe {
     @Column(name = "meal_type", length = 16)
     private String mealType;
 
+    @Column(name = "record_kind", nullable = false, length = 16)
+    private String recordKind;
+
     @Column(nullable = false, length = 200)
     private String title;
 
@@ -92,8 +95,10 @@ public class DietaRecipe {
             BigDecimal fatG,
             int kcal,
             String oneLineReview,
-            BigDecimal servings
+            BigDecimal servings,
+            String recordKind
     ) {
+        this.recordKind = recordKind == null ? "LEGACY" : recordKind;
         this.userId = userId;
         this.loggedOn = loggedOn;
         this.mealType = mealType;

@@ -61,14 +61,14 @@ export function DietaSparkline({ label, points, unit }: DietaSparklineProps) {
           <path
             d={path}
             fill="none"
-            stroke="#1f7a64"
+            stroke="var(--dieta-accent)"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
         ) : null}
         {dots.map((d, i) => (
-          <circle key={i} cx={d.x} cy={d.y} r="2.2" fill="#1f7a64" />
+          <circle key={i} cx={d.x} cy={d.y} r="2.2" fill="var(--dieta-accent)" />
         ))}
         {!dots.length ? (
           <line
@@ -76,7 +76,7 @@ export function DietaSparkline({ label, points, unit }: DietaSparklineProps) {
             y1={height / 2}
             x2={width - 8}
             y2={height / 2}
-            stroke="#cfdcd5"
+            stroke="var(--dieta-line)"
             strokeWidth="2"
             strokeDasharray="4 4"
           />
@@ -150,7 +150,7 @@ export function DietaLineChart({
           y1={height / 2}
           x2={width - padR}
           y2={height / 2}
-          stroke="#cfdcd5"
+          stroke="var(--dieta-line)"
           strokeWidth="2"
           strokeDasharray="6 6"
         />
@@ -222,7 +222,7 @@ export function DietaLineChart({
               y1={padT}
               x2={x}
               y2={height - padB}
-              stroke="#e4eee9"
+              stroke="var(--dieta-line)"
               strokeWidth="1"
             />
           );
@@ -261,7 +261,7 @@ export function DietaLineChart({
             key={`seg-${i}`}
             d={seg}
             fill="none"
-            stroke="#1f7a64"
+            stroke="var(--dieta-accent)"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -269,15 +269,15 @@ export function DietaLineChart({
         ))}
         {coords.map((c, i) => (
           <g key={`${c.date}-${i}`}>
-            <circle cx={c.x} cy={c.y} r="3.5" fill="#1f7a64" />
-            <text
+            <circle cx={c.x} cy={c.y} r="3.5" fill="var(--dieta-accent)" />
+            {i === coords.length - 1 && <text
               x={c.x}
               y={c.y - 8}
               textAnchor="middle"
               className="dieta-chart-value"
             >
               {c.value.toFixed(1)}
-            </text>
+            </text>}
           </g>
         ))}
         {axis.map((date, i) =>
@@ -309,10 +309,11 @@ export function DietaLineChart({
         <p className="dieta-chart-dir dieta-muted">
           {oldest && newest
             ? `${formatShortDate(oldest)} → ${formatShortDate(newest)} · 왼쪽 과거 · 오른쪽 최근`
-            : '왼쪽 과거 · 오른쪽 최근'}
+            : '이 기간에 기록이 없어요. 오늘 체중을 남겨 보세요.'}
         </p>
       </div>
       {body}
+      {sorted.length > 0 && <details className="dieta-details"><summary>기록을 표로 보기 ({sorted.length}일)</summary><table className="dieta-chart-table"><caption>{title} 기록</caption><thead><tr><th scope="col">날짜</th><th scope="col">{title} ({unit})</th><th scope="col">기록 종류</th></tr></thead><tbody>{sorted.map(p => <tr key={p.date}><td>{p.date}</td><td>{p.value.toFixed(1)}</td><td>{sourceLabel(p.source)}</td></tr>)}</tbody></table></details>}
     </div>
   );
 }

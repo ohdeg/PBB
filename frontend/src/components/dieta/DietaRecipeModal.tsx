@@ -89,20 +89,20 @@ export function DietaRecipeModal({
   return (
     <Dialog
       open={open}
-      title="레시피로 추가"
+      title="레시피 보관함에 저장"
       onClose={resetAndClose}
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
-      backdropClassName="dieta-modal-backdrop"
+      backdropClassName="dieta-theme dieta-modal-backdrop"
       panelClassName="dieta-modal"
       description
     >
       {({ titleId, descriptionId }) => (
         <>
-        <h2 id={titleId}>레시피로 추가</h2>
+        <h2 id={titleId}>레시피 보관함에 저장</h2>
         <p id={descriptionId} className="dieta-muted">
-          제목·재료(분량)·몇 인분을 적으면 1인분당 영양·칼로리를 분석해 오늘 섭취에
-          더해요. 끼니(아침/점심/저녁/간식)는 「등록 음식」에서 다시 더할 때 고르세요.
+          제목·재료(분량)·몇 인분을 적으면 1인분당 영양·칼로리를 분석해 보관해요.
+          섭취량에는 반영되지 않아요. 먹은 날 「오늘 1인분 추가」를 눌러 주세요.
         </p>
 
         {result ? (
@@ -185,7 +185,7 @@ export function DietaRecipeModal({
                 placeholder="짧게 적어도 돼요"
               />
             </div>
-            {error ? <p className="dieta-muted">{error}</p> : null}
+            {error ? <p className="dieta-muted" role="alert">{error}</p> : null}
             <div style={{ display: 'grid', gap: '0.55rem', marginTop: '0.5rem' }}>
               <button
                 type="button"
@@ -193,7 +193,7 @@ export function DietaRecipeModal({
                 disabled={busy}
                 onClick={() => void submit()}
               >
-                {busy ? '분석 중…' : '분석 · 오늘 섭취에 더하기'}
+                {busy ? '분석 중…' : '분석 · 보관함에 저장'}
               </button>
               <button
                 type="button"

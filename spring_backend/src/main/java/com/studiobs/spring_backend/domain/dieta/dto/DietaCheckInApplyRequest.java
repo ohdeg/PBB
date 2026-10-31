@@ -13,6 +13,7 @@ public record DietaCheckInApplyRequest(
         boolean keepTargets,
         @Pattern(regexp = "CUT_KCAL|ADD_ACTIVITY") String plateauChoice,
         @Min(0) Integer avgIntakeKcal,
-        @Min(0) Integer intakeDays
+        @Min(0) Integer intakeDays,
+        String revisionToken
 ) {
 }

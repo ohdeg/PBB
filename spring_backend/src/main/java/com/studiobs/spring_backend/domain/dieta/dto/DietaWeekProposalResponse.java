@@ -22,7 +22,8 @@ public record DietaWeekProposalResponse(
         BigDecimal checkInWeightKg,
         LocalDate weekStartsOn,
         boolean due,
-        boolean targetWeightReached
+        boolean targetWeightReached,
+        String revisionToken
 ) {
     public static DietaWeekProposalResponse from(
             DietaMath.WeekProposal proposal,
@@ -30,7 +31,8 @@ public record DietaWeekProposalResponse(
             BigDecimal checkInWeightKg,
             LocalDate weekStartsOn,
             boolean due,
-            boolean targetWeightReached
+            boolean targetWeightReached,
+            String revisionToken
     ) {
         return new DietaWeekProposalResponse(
                 proposal.eval(),
@@ -50,6 +52,7 @@ public record DietaWeekProposalResponse(
                 checkInWeightKg,
                 weekStartsOn,
                 due,
-                targetWeightReached);
+                targetWeightReached,
+                revisionToken);
     }
 }

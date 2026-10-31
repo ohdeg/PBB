@@ -129,7 +129,7 @@ export interface DietaRecipeAnalyzeResult {
   kcal: number;
   oneLineReview: string | null;
   servings: number;
-  intake: DietaIntakeLog;
+  intake: DietaIntakeLog | null;
 }
 
 export interface DietaRecipeAnalyzeInput {

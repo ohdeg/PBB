@@ -1,12 +1,12 @@
+import { DietaLoadState } from '../components/dieta/DietaLoadState';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { dietaApi } from '../api/dietaApi';
+import { useDietaProposal } from '../features/dieta/useDietaProposal';
 import { DietaWeekPlanModal } from '../components/dieta/DietaWeekPlanModal';
-import type { DietaBodyLog, DietaIntakeLog, DietaProfile } from '../features/dieta/types';
+import type { DietaBodyLog, DietaProfile } from '../features/dieta/types';
 import { useDietaUserKey } from '../features/dieta/useDietaUserKey';
 import {
-  averageDailyIntakeKcal,
-  buildWeeklyCheckInProposal,
   daysBetweenIso,
   findCheckInBaseline,
   hasReachedTargetWeight,
@@ -21,7 +21,6 @@ export function DietaCheckInPage() {
   const userKey = useDietaUserKey();
   const [profile, setProfile] = useState<DietaProfile | null>(null);
   const [logs, setLogs] = useState<DietaBodyLog[]>([]);
-  const [meals, setMeals] = useState<DietaIntakeLog[]>([]);
   const [weight, setWeight] = useState('');
   const [keto, setKeto] = useState(false);
   const [plateauChoice, setPlateauChoice] = useState<DietaPlateauChoice>('CUT_KCAL');
@@ -31,28 +30,32 @@ export function DietaCheckInPage() {
   const [loaded, setLoaded] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  const [loadError, setLoadError] = useState('');
+  const [retry, setRetry] = useState(0);
   const today = todayIsoDate();
 
   useEffect(() => {
     if (!accessToken) {
       return;
     }
+    let cancelled = false;
+    setLoadError(''); setLoaded(false);
     void (async () => {
-      const [p, body, allMeals] = await Promise.all([
-        dietaApi.getProfile(userKey),
-        dietaApi.listBodyLogs(userKey),
-        dietaApi.listIntakes(undefined, userKey),
-      ]);
+      const p = await dietaApi.getProfile(userKey);
+      if (cancelled) return;
+      if (!p?.onboardingComplete) { setProfile(p); setLoaded(true); return; }
+      const body = await dietaApi.listBodyLogs(userKey);
+      if (cancelled) return;
       setProfile(p);
       setLogs(body);
-      setMeals(allMeals);
       const todayLog = body.find((l) => l.loggedOn === today);
       if (todayLog?.weightKg != null) {
         setWeight(String(todayLog.weightKg));
       }
       setLoaded(true);
-    })();
-  }, [accessToken, userKey, today]);
+    })().catch((e: unknown) => { if (!cancelled) setLoadError(e instanceof Error ? e.message : '기록을 불러오지 못했어요.'); });
+    return () => { cancelled = true; };
+  }, [accessToken, userKey, today, retry]);
 
   const due = profile ? isWeeklyCheckInDue(profile.weekStartsOn, today) : false;
   const dayIndex = profile
@@ -70,44 +73,11 @@ export function DietaCheckInPage() {
     [logs, today],
   );
 
-  const intake = useMemo(() => {
-    if (!profile) {
-      return { avgKcal: 0, dayCount: 0, totalKcal: 0 };
-    }
-    return averageDailyIntakeKcal(meals, profile.weekStartsOn, today);
-  }, [profile, meals, today]);
-
-  const proposal = useMemo(() => {
-    if (!profile || !weight) {
-      return null;
-    }
-    const nextWeight = Number(weight);
-    if (!Number.isFinite(nextWeight) || nextWeight <= 0) {
-      return null;
-    }
-    const weightDeltaKg =
-      baseline?.weightKg != null ? nextWeight - baseline.weightKg : null;
-
-    return buildWeeklyCheckInProposal({
-      goalType: profile.goalType,
-      weeklyTargetKg: profile.weeklyTargetKg,
-      currentDailyKcal: profile.dailyKcal,
-      currentTdee: profile.tdeeKcal,
-      bmr: profile.bmrKcal,
-      lossCutKcal: profile.lossCutKcal,
-      lossRecoverKcal: profile.lossRecoverKcal,
-      lossActivityKcal: profile.lossActivityKcal,
-      gainSurplusKcal: profile.gainSurplusKcal,
-      gainCutKcal: profile.gainCutKcal,
-      gainCeilingDeltaKcal: profile.gainCeilingDeltaKcal,
-      avgIntakeKcal: intake.avgKcal,
-      intakeDays: intake.dayCount,
-      weightDeltaKg,
-      fatDeltaKg: null,
-      muscleDeltaKg: null,
-      plateauChoice,
-    });
-  }, [profile, weight, baseline, intake, plateauChoice]);
+  const { proposal, displayProposal, pending: proposalPending, error: proposalError, reload: reloadProposal } = useDietaProposal({
+    enabled: Boolean(accessToken && profile?.onboardingComplete),
+    loggedOn: today, weight: weight, plateauChoice,
+    contextKey: JSON.stringify(profile),
+  });
 
   if (!accessToken) {
     return (
@@ -119,67 +89,14 @@ export function DietaCheckInPage() {
     );
   }
 
-  if (!loaded) {
-    return <p className="dieta-muted">불러오는 중…</p>;
-  }
+  if (!loaded || loadError) return <DietaLoadState error={loadError} onRetry={() => setRetry(n => n + 1)} />;
 
   if (!profile?.onboardingComplete) {
     return <Navigate to="/hobbies/dieta/onboarding" replace />;
   }
 
   const saveAndOpenPlan = async () => {
-    if (!proposal) {
-      return;
-    }
-    setBusy(true);
-    setResult('');
-    try {
-      const w = weight ? Number(weight) : null;
-      await dietaApi.upsertBodyLog(
-        {
-          loggedOn: today,
-          weightKg: w,
-          bodyFatMassKg: null,
-          skeletalMuscleMassKg: null,
-          fasted: true,
-          source: 'CHECK_IN',
-        },
-        userKey,
-      );
-      if (keto) {
-        await dietaApi.recordKeto(false, userKey);
-      }
-      setLogs(await dietaApi.listBodyLogs(userKey));
-
-      if (
-        w != null
-        && hasReachedTargetWeight({
-          goalType: profile.goalType,
-          weightKg: w,
-          targetWeightKg: profile.targetWeightKg,
-        })
-      ) {
-        const { profile: updated } = await dietaApi.applyWeekCheckIn(
-          {
-            loggedOn: today,
-            weightKg: w,
-            keepTargets: false,
-            plateauChoice,
-            avgIntakeKcal: intake.avgKcal,
-            intakeDays: intake.dayCount,
-          },
-          userKey,
-        );
-        setProfile(updated);
-        setCompleted(true);
-        setResult('목표 체중에 도달했어요. 유지 모드로 바꿨어요.');
-        return;
-      }
-
-      setPlanOpen(true);
-    } finally {
-      setBusy(false);
-    }
+    if (proposal && !busy) setPlanOpen(true);
   };
 
   const confirmProposal = async (keepTargets: boolean) => {
@@ -204,15 +121,19 @@ export function DietaCheckInPage() {
           weightKg: checkWeight,
           keepTargets: reached ? false : keepTargets,
           plateauChoice,
-          avgIntakeKcal: intake.avgKcal,
-          intakeDays: intake.dayCount,
+          revisionToken: proposal.revisionToken,
         },
         userKey,
       );
+      let ketoWarning = '';
+      if (keto) {
+        try { await dietaApi.recordKeto(false, userKey); }
+        catch { ketoWarning = ' 키토플루 기록은 저장하지 못했어요.'; }
+      }
       setProfile(updated);
       setPlanOpen(false);
       setCompleted(true);
-      setResult(
+      setResult((
         reached
           ? '목표 체중에 도달했어요. 유지 모드로 바꿨어요.'
           : keepTargets
@@ -220,8 +141,11 @@ export function DietaCheckInPage() {
             : `체중 기준으로 조정했어요. 일일 ${updated.dailyKcal}kcal` +
               (updated.weekActivityExtraKcal > 0
                 ? ` · 활동 +${updated.weekActivityExtraKcal}kcal`
-                : ''),
-      );
+                : '')
+      ) + ketoWarning);
+    } catch (error: unknown) {
+      setResult(error instanceof Error ? error.message : '계획을 적용하지 못했어요.');
+      reloadProposal();
     } finally {
       setBusy(false);
     }
@@ -264,36 +188,17 @@ export function DietaCheckInPage() {
         <h1>주간 체크인</h1>
       </div>
 
-      <section className="dieta-card">
-        <strong>이번 주 요약</strong>
-        <div className="dieta-list-row">
-          <span>평균 섭취</span>
-          <strong>
-            {intake.dayCount > 0
-              ? `${intake.avgKcal} kcal (${intake.dayCount}일)`
-              : '기록 없음'}
-          </strong>
-        </div>
-        <div className="dieta-list-row">
-          <span>직전 체크인 체중</span>
-          <strong>
-            {baseline?.weightKg != null ? `${baseline.weightKg} kg` : '—'}
-          </strong>
-        </div>
-        <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
-          단일 비교 · {profile.weekStartsOn} ~ {today} · W {profile.weeklyTargetKg}{' '}
-          kg
-        </p>
-      </section>
-
+      {result ? <p role="status" className="dieta-muted">{result}</p> : null}
+      {proposalPending ? <p role="status" className="dieta-muted">계획을 불러오는 중…</p> : null}
+      {proposalError ? <p role="alert">{proposalError} <button type="button" className="dieta-btn dieta-btn--ghost" onClick={reloadProposal}>다시 시도</button></p> : null}
       <section className="dieta-card">
         <p className="dieta-muted" style={{ marginBottom: '0.65rem' }}>
           이번 체크인 체중으로 직전 체크인(온보딩)과 비교합니다. 중간 매일 기록은
           추이만 반영돼요. 같은 날이면 수정할 수 있어요.
         </p>
         <div className="dieta-field">
-          <label>체중 (kg)</label>
-          <input value={weight} onChange={(e) => setWeight(e.target.value)} />
+          <label htmlFor="dieta-checkin-weight">체중 (kg)</label>
+          <input id="dieta-checkin-weight" inputMode="decimal" name="weight" autoComplete="off" disabled={busy} value={weight} onChange={(e) => setWeight(e.target.value)} />
         </div>
         {profile.goalType === 'LOSS' ? (
           <label className="dieta-muted" style={{ display: 'flex', gap: '0.5rem' }}>
@@ -307,24 +212,50 @@ export function DietaCheckInPage() {
         ) : null}
       </section>
 
+      <section className="dieta-card">
+        <h2>이번 기록 요약</h2>
+        <div className="dieta-list-row">
+          <span>평균 섭취</span>
+          <strong>
+            {(proposal?.intakeDays ?? 0) > 0
+              ? `${proposal?.avgIntakeKcal} kcal (${(proposal?.intakeDays ?? 0)}일)`
+              : proposal ? '분석된 식사 기록 없음' : '체중을 입력하면 확인할 수 있어요.'}
+          </strong>
+        </div>
+        <div className="dieta-list-row">
+          <span>직전 체크인 체중</span>
+          <strong>
+            {baseline?.weightKg != null ? `${baseline.weightKg} kg` : '—'}
+          </strong>
+        </div>
+        <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
+          비교 기간 {profile.weekStartsOn} ~ {today} · 주간 목표 {profile.weeklyTargetKg}{' '}
+          kg
+        </p>
+      </section>
+
       <button
         type="button"
         className="dieta-btn dieta-btn--primary dieta-btn--block"
         disabled={busy || !proposal}
         onClick={() => void saveAndOpenPlan()}
       >
-        {hasTodayEntry ? '수정 · 다음 주 계획 보기' : '저장 · 다음 주 계획 보기'}
+        {hasTodayEntry ? '체중 수정 · 다음 주 계획 보기' : '다음 주 계획 보기'}
       </button>
 
-      {proposal ? (
+      {(proposal ?? displayProposal) ? (
         <DietaWeekPlanModal
           open={planOpen}
           profile={profile}
-          proposal={proposal}
+          proposal={(proposal ?? displayProposal)!}
+          targetWeightReached={(proposal ?? displayProposal)?.targetWeightReached}
+          loading={proposalPending}
+          error={proposalError}
+          onRetry={reloadProposal}
           plateauChoice={plateauChoice}
           onPlateauChoice={setPlateauChoice}
           weightKg={Number(weight) || null}
-          busy={busy}
+          busy={busy || !proposal}
           onClose={() => setPlanOpen(false)}
           onConfirm={(keepTargets) => void confirmProposal(keepTargets)}
         />

@@ -15,6 +15,18 @@ class DietaIntakeSourceDocumentTest {
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
     @Test
+    void addingDbRecipeAndFinalizingPreservesJsonOnlyHistory() {
+        var prior = DietaIntakeSourceDocument.parse(objectMapper,
+                "{\"analyzedRecipes\":[{\"recipeId\":\"old\",\"title\":\"old\",\"kcal\":270,\"carbG\":20,\"proteinG\":25,\"fatG\":10}]}");
+        var next = prior.withAppendedRecipeId("new").withQueueFinalize(
+                new DietaGeminiRequestBuilder.Snapshot(null, List.of(), null),
+                new MacroTotals(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 100),
+                List.of("new"), List.of());
+        assertThat(next.combinedWithRecipeSum(new MacroTotals(
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 200)).kcal()).isEqualTo(570);
+    }
+
+    @Test
     void combinedWithRecipeSum_sumsDbRecipesAndQueueWithoutDoubleCount() throws Exception {
         MacroTotals recipeSum = new MacroTotals(
                 new BigDecimal("20.0"),

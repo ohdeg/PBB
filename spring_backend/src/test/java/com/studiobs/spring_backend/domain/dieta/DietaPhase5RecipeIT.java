@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+@org.springframework.context.annotation.Import(DietaGeminiTestConfiguration.class)
 class DietaPhase5RecipeIT extends AbstractIntegrationTest {
 
     private static final String PASSWORD = "Passw0rd!";
@@ -81,34 +82,27 @@ class DietaPhase5RecipeIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.proteinG").isNumber())
                 .andExpect(jsonPath("$.fatG").isNumber())
                 .andExpect(jsonPath("$.servings").value(4.0))
-                .andExpect(jsonPath("$.intake.loggedOn").value(today.toString()))
-                .andExpect(jsonPath("$.intake.sourceMealsJson").isNotEmpty())
+                .andExpect(jsonPath("$.intake").doesNotExist())
                 .andReturn();
 
         JsonNode recipeBody = objectMapper.readTree(recipeResult.getResponse().getContentAsString());
         int recipeKcal = recipeBody.path("kcal").asInt();
-        int intakeAfterRecipe = recipeBody.path("intake").path("kcal").asInt();
-        assertThat(intakeAfterRecipe).isEqualTo(recipeKcal);
-        assertThat(recipeBody.path("intake").path("sourceMealsJson").asString())
-                .contains("recipeIds")
-                .doesNotContain("analyzedRecipes");
+        mockMvc.perform(get("/api/v1/dieta/intakes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .param("loggedOn", today.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
 
         String recipeId = recipeBody.path("recipeId").asString();
 
-        MvcResult listResult = mockMvc.perform(get("/api/v1/dieta/recipes")
+        mockMvc.perform(get("/api/v1/dieta/recipes")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .param("loggedOn", today.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(recipeId))
-                .andExpect(jsonPath("$[0].title").value("된장찌개"))
-                .andExpect(jsonPath("$[0].servings").value(4.0))
-                .andExpect(jsonPath("$[0].kcal").value(recipeKcal))
-                .andReturn();
-
-        JsonNode listed = objectMapper.readTree(listResult.getResponse().getContentAsString());
-        assertThat(listed.get(0).path("mealType").isNull() || listed.get(0).path("mealType").isMissingNode())
-                .isTrue();
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(post("/api/v1/dieta/recipes/" + recipeId + "/add-to-day")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loggedOn\":\"" + today + "\",\"mealType\":\"LUNCH\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.intake.kcal").value(recipeKcal));
 
         // Recipe must NOT appear in Redis meal queue
         mockMvc.perform(get("/api/v1/dieta/meal-queue")
@@ -214,8 +208,7 @@ class DietaPhase5RecipeIT extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .param("loggedOn", day2.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].title").value("닭가슴살 샐러드"));
+                .andExpect(jsonPath("$.length()").value(0));
 
         mockMvc.perform(get("/api/v1/dieta/recipes")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))

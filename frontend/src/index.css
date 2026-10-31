@@ -8283,3 +8283,7 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
   outline-offset: -3px;
   background: rgba(99, 102, 241, 0.1);
 }
+
+/* Dieta owns its responsive shell; avoid mismatched outer padding/nav margins. */
+.app-shell:has(.dieta-app) { padding: 0; }
+.app-shell:has(.dieta-app) > .global-nav { margin: 0; }

@@ -537,6 +537,35 @@ export default function OsmdViewer({
   const activeLayouts =
     measureLayouts.length > 0 ? measureLayouts : lastGoodLayoutsRef.current;
 
+  // Playback removes the controls above the score. Correct that one layout shift,
+  // and rotation/viewport resizing, without fighting deliberate vertical panning.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewMode !== 'horizontal' || !freezeLayout || isRendering || !viewport) return;
+    let frame = 0;
+    const align = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if ((window.visualViewport?.scale ?? 1) > 1) return;
+          const top = viewport.getBoundingClientRect().top + window.scrollY;
+          scrollToAnchoredMeasure(top, 'auto', { anchorRatio: 0 });
+        });
+      });
+    };
+    align();
+    const observer = new ResizeObserver(align);
+    observer.observe(viewport);
+    window.addEventListener('resize', align);
+    window.visualViewport?.addEventListener('resize', align);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('resize', align);
+      window.visualViewport?.removeEventListener('resize', align);
+    };
+  }, [viewMode, freezeLayout, isRendering]);
+
   useImperativeHandle(ref, () => ({
     flush: () => annotationRef.current?.flush() ?? true,
     restoreMeasure: (measureIndex) => {

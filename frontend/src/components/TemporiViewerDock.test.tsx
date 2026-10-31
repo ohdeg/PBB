@@ -59,3 +59,16 @@ it('puts playback beside the exit and annotation and beat controls in separate d
   expect(screen.getByRole('button', { name: '펜' }).closest('.tempori-viewer-dock-annotation')).not.toBeNull();
   expect(screen.getByRole('status').closest('.tempori-viewer-dock-beat')).not.toBeNull();
 });
+
+it('offers an accessible disclosure for compact landscape tools without removing playback or exit', () => {
+  openScore(() => <TemporiDockSlot slot="annotation"><button>펜</button></TemporiDockSlot>);
+  const toggle = screen.getByRole('button', { name: '필기 도구' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  const target = document.getElementById(toggle.getAttribute('aria-controls')!);
+  expect(target).toContainElement(screen.getByRole('button', { name: '펜' }));
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  fireEvent.keyDown(toggle, { key: 'Escape' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.getByRole('link', { name: '보관함으로' })).toBeVisible();
+});

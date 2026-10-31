@@ -1216,7 +1216,7 @@ export function Tempori({ temporiId }: TemporiProps) {
             <Button onClick={() => changeViewMode(pendingViewMode.mode, pendingViewMode.persist)}>{t('viewer.retryViewSwitch')}</Button>
           </div>}
           {viewMode === 'horizontal' && <div className="tempori-follow-actions">
-            {horizontalGuideVisible && <p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p>}
+            {horizontalGuideVisible && !isImmersive && <p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p>}
             {followSuspended && <Button onClick={() => { setAnnotationTool('none'); setFollowSuspended(false); setFollowRequestKey((key) => key + 1); }}>{t('viewer.resumeFollow')}</Button>}
           </div>}
           {renderState.status === 'error' && <div className="tempori-recovery-actions">{viewMode === 'horizontal' && <Button onClick={() => changeViewMode('wrapped', false)}>{t('viewer.switchWrapped')}</Button>}<Button onClick={handleRetryRender}>{t('viewer.retry')}</Button><Link to="/hobbies/tempori/library">{t('viewer.backToLibrary')}</Link></div>}

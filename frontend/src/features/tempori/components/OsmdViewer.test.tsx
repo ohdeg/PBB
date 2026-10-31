@@ -30,6 +30,22 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('OSMD readiness contract', () => {
+  it('realigns horizontal playback after controls collapse, without vertical following on every measure', async () => {
+    const status = vi.fn();
+    const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const { rerender } = render(<OsmdViewer musicXml={xml} viewMode="horizontal" onRenderStatusChange={status} />);
+    await waitFor(() => expect(status).toHaveBeenLastCalledWith('ready', 0));
+    const viewport = screen.getByRole('region');
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: -80 } as DOMRect);
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(200);
+    scroll.mockClear();
+    rerender(<OsmdViewer musicXml={xml} viewMode="horizontal" freezeLayout onRenderStatusChange={status} />);
+    await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 120, behavior: 'auto' }));
+    scroll.mockClear();
+    rerender(<OsmdViewer musicXml={xml} viewMode="horizontal" freezeLayout currentMeasureIndex={1} onRenderStatusChange={status} />);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    expect(scroll).not.toHaveBeenCalled();
+  });
   it('sets horizontal mode before loading and strips XML system breaks', async () => {
     const status = vi.fn();
     render(<OsmdViewer musicXml={xml.replace('<note>', '<print new-system="yes" new-page="yes"/><note>')} viewMode="horizontal" onRenderStatusChange={status} />);

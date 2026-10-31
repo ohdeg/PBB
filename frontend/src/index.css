@@ -6333,7 +6333,8 @@ html.tempori-score-mode body {
 }
 
 .tempori-viewer-exit,
-.tempori-viewer-top {
+.tempori-viewer-top,
+.tempori-viewer-tools-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6416,6 +6417,38 @@ html.tempori-score-mode body {
 .tempori-viewer-dock .tempori-annotation-tool-btn.active { background: #4f46e5; color: #fff; }
 .tempori-viewer-dock .tempori-annotation-action-btn.danger { color: #b91c1c; }
 
+.tempori-viewer-tools-toggle { display: none; }
+
+/* In a short landscape viewport, reserve one control row for the score.
+   Drawing tools expand over the page only when explicitly requested. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .tempori-viewer-dock { flex-direction: row; align-items: center; }
+  .tempori-viewer-dock-row { flex: 1; min-width: 0; width: auto; flex-wrap: nowrap; }
+  .tempori-viewer-dock-beat { flex: 0 1 auto; max-width: 24%; min-width: 0; }
+  .tempori-viewer-dock .metronome-beat-indicator { flex-wrap: nowrap; overflow-x: auto; }
+  .tempori-viewer-dock .metronome-beat-dots { flex-wrap: nowrap; }
+  .tempori-viewer-dock .floating-playback { flex-wrap: nowrap; }
+  .tempori-viewer-tools-toggle { display: inline-flex; white-space: nowrap; }
+  .tempori-viewer-dock:has(.tempori-viewer-dock-annotation:empty) .tempori-viewer-tools-toggle { display: none; }
+  .tempori-viewer-dock-annotation {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 0.5rem);
+    max-height: calc(100dvh - 6rem - var(--safe-area-top) - var(--safe-area-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: auto;
+  }
+  .tempori-viewer-dock[data-tools-open='false'] .tempori-viewer-dock-annotation { display: none; }
+  .tempori-viewer-dock .tempori-annotation-toolbar { max-width: min(28rem, 100%); }
+}
+
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 650px) {
+  .tempori-viewer-dock .floating-playback-measure { display: none; }
+  .tempori-viewer-dock-row { gap: 0.25rem; }
+  .tempori-viewer-dock-beat { max-width: 18%; }
+}
+
 .app-shell--tempori-score .tempori-canvas-wrap {
   border: 0;
   border-radius: 0;
@@ -6439,6 +6472,14 @@ body.tempori-immersive .viewer-page {
 .tempori--immersive .tempori-canvas-wrap {
   margin-top: 0.25rem;
 }
+
+.tempori--immersive .osmd-score-viewport--horizontal {
+  display: flex;
+  align-items: center;
+  min-height: max(200px, calc(100dvh - var(--tempori-dock-height, 4.5rem) - var(--safe-area-top) - var(--safe-area-bottom) - 2rem));
+}
+
+.tempori--immersive .osmd-score-viewport--horizontal > .osmd-viewer-stage { flex-shrink: 0; }
 
 .tempori-status,
 .tempori-error {

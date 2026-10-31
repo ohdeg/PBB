@@ -1,4 +1,4 @@
-import { createContext, Suspense, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, Suspense, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { applyTemporiScoreSurface } from '../features/tempori/utils/focusMode';
@@ -24,6 +24,8 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   const [annotation, setAnnotation] = useState<HTMLDivElement | null>(null);
   const [beat, setBeat] = useState<HTMLDivElement | null>(null);
   const [playback, setPlayback] = useState<HTMLDivElement | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsId = useId();
 
   useLayoutEffect(() => applyTemporiScoreSurface(document), []);
 
@@ -61,12 +63,19 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
             {children}
           </Suspense>
         </AppErrorBoundary>
-        <div ref={dockRef} className="tempori-viewer-dock">
-          <div ref={setAnnotation} className="tempori-viewer-dock-annotation" />
+        <div ref={dockRef} className="tempori-viewer-dock" data-tools-open={toolsOpen}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && toolsOpen) {
+              setToolsOpen(false);
+              dockRef.current?.querySelector<HTMLButtonElement>('.tempori-viewer-tools-toggle')?.focus();
+            }
+          }}>
+          <div id={toolsId} ref={setAnnotation} className="tempori-viewer-dock-annotation" />
           <div ref={setBeat} className="tempori-viewer-dock-beat" />
           <div className="tempori-viewer-dock-row">
             <Link className="tempori-viewer-exit" to="/hobbies/tempori/library">보관함으로</Link>
             <button type="button" className="tempori-viewer-top" aria-label="악보 맨 위로" title="악보 맨 위로" onClick={() => scrollToTop(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')}><span aria-hidden="true">↑</span></button>
+            <button type="button" className="tempori-viewer-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} onClick={() => setToolsOpen(open => !open)}>필기 도구</button>
             <div ref={setPlayback} className="tempori-viewer-dock-playback" />
           </div>
         </div>

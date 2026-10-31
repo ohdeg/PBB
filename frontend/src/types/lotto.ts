@@ -52,6 +52,9 @@ export function hotColdWindowToApiKey(window: HotColdWindowKey): string {
 export type LottoPrizeRank = 1 | 2 | 3 | 4 | 5;
 
 export interface LottoHistoryItem {
+  source?: 'generated' | 'ticket-photo';
+  ticketLine?: 'A' | 'B' | 'C' | 'D' | 'E';
+  registeredAt?: string;
   targetRound?: number | null;
   status?: 'pending' | 'won';
   prizeRank?: LottoPrizeRank;

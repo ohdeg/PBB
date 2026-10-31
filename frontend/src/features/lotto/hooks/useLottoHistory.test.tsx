@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { lottoApi } from '../../../api/lottoApi'
 import { useAuthStore } from '../../../stores/authStore'
 import type { LottoHistoryItem } from '../../../types/lotto'
@@ -13,6 +13,7 @@ const login = (id: string | null, token = 'token') => useAuthStore.setState({ ac
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve() }) }
 
 describe('account-scoped lotto history persistence', () => {
+  afterEach(cleanup)
   beforeEach(() => { vi.clearAllMocks(); login('A'); vi.mocked(lottoApi.savePicks).mockImplementation(async (targetRound, items) => ({ targetRound, items })) })
   it('does not save or clear at startup; replays commands over authoritative hydration', async () => {
     const load = deferred<{ targetRound: number | null; items: LottoHistoryItem[] }>(); vi.mocked(lottoApi.getPicks).mockReturnValue(load.promise)
@@ -143,4 +144,32 @@ describe('account-scoped lotto history persistence', () => {
     act(() => login('A')); rerender({ owner: 'id:A' }); await flush(); expect(result.current.history).toEqual([])
     const signal = vi.mocked(lottoApi.getPicks).mock.calls[0][0]!; unmount(); expect(signal.aborted).toBe(true)
   })
+  it('awaits its own serialized save and retries without appending twice', async () => {
+    vi.mocked(lottoApi.getPicks).mockResolvedValue({ targetRound: null, items: [] })
+    const first = deferred<{ targetRound: number | null; items: LottoHistoryItem[] }>()
+    vi.mocked(lottoApi.savePicks).mockReturnValueOnce(first.promise)
+    const { result } = renderHook(() => useLottoHistory('id:A', [])); await flush()
+    let waiting!: Promise<string>; let completed = false
+    act(() => { waiting = result.current.appendAndWait([item], { operationId: 'photo', expectedOwner: 'id:A' }); void waiting.then(() => {completed=true}, () => {}) })
+    await flush(); expect(completed).toBe(false)
+    await act(async () => first.reject(new Error('offline')))
+    await expect(waiting).rejects.toThrow()
+    await act(async () => { await result.current.appendAndWait([item], { operationId:'photo', expectedOwner:'id:A' }) })
+    expect(result.current.history).toHaveLength(1)
+    expect(lottoApi.savePicks).toHaveBeenCalledTimes(2)
+  })
+  it('rejects photo completion on owner changes and rejects before hydration', async () => {
+    const load=deferred<{ targetRound: number | null; items: LottoHistoryItem[] }>()
+    vi.mocked(lottoApi.getPicks).mockReturnValueOnce(load.promise)
+    const {result}=renderHook(() => useLottoHistory('id:A', []))
+    await expect(result.current.appendAndWait([item], {operationId:'early',expectedOwner:'id:A'})).rejects.toThrow()
+    await act(async () => load.resolve({targetRound:null,items:[]}))
+    const save=deferred<{ targetRound: number | null; items: LottoHistoryItem[] }>(); vi.mocked(lottoApi.savePicks).mockReturnValueOnce(save.promise)
+    let waiting!: Promise<string>
+    act(() => { waiting=result.current.appendAndWait([item], {operationId:'photo',expectedOwner:'id:A'}); void waiting.catch(()=>{}) })
+    act(() => login('B'))
+    await expect(waiting).rejects.toThrow()
+    await act(async () => save.resolve({targetRound:null,items:[item]}))
+  })
+
 })

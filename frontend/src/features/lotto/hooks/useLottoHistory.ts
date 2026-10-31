@@ -7,6 +7,8 @@ import { migrateLottoHistory, settleLottoHistory } from '../utils/lottoHistory'
 
 type Mutation = (items: LottoHistoryItem[]) => LottoHistoryItem[]
 interface Session {
+  operations: Map<string, number>
+  waiters: { revision: number; resolve: (value: 'saved') => void; reject: (error: Error) => void }[]
   owner: string | null
   controller: AbortController
   items: LottoHistoryItem[]
@@ -61,6 +63,11 @@ export function useLottoHistory(owner: string | null, draws: LottoDraw[]) {
         if (!current(session)) return
         session.saved = snapshot
         session.savedRevision = revision
+        session.waiters = session.waiters.filter(waiter => {
+          if (waiter.revision > revision) return true
+          waiter.resolve('saved')
+          return false
+        })
         render()
       }
     } catch (error) {
@@ -71,6 +78,8 @@ export function useLottoHistory(owner: string | null, draws: LottoDraw[]) {
         : '연결 상태를 확인하고 다시 시도해 주세요.'
       session.error = `${reason} 변경 내용은 아직 저장되지 않았으며 이 화면에 유지됩니다. ${nextStep}`
       session.errorKind = 'save'
+      for (const waiter of session.waiters) waiter.reject(new Error(session.error))
+      session.waiters = []
     } finally {
       session.saving = false
       if (current(session)) render()
@@ -111,6 +120,8 @@ export function useLottoHistory(owner: string | null, draws: LottoDraw[]) {
   useEffect(() => {
     const session: Session = {
       owner,
+      operations: new Map(),
+      waiters: [],
       controller: new AbortController(),
       items: [],
       saved: [],
@@ -124,6 +135,11 @@ export function useLottoHistory(owner: string | null, draws: LottoDraw[]) {
       errorKind: null,
     }
     sessionRef.current = session
+    const rejectWaiters = () => {
+      for (const waiter of session.waiters) waiter.reject(new Error('계정이 변경되었거나 등록이 종료되었습니다.'))
+      session.waiters = []
+    }
+    session.controller.signal.addEventListener('abort', rejectWaiters, { once: true })
     // Zustand subscriptions run synchronously, before React effects or Axios 401 replays.
     const unsubscribe = useAuthStore.subscribe((auth) => {
       if (getLottoHistoryOwner(auth) !== session.owner) {
@@ -171,6 +187,32 @@ export function useLottoHistory(owner: string | null, draws: LottoDraw[]) {
     })
   }, [mutate])
 
+  const appendAndWait = useCallback(async (
+    items: LottoHistoryItem[],
+    options: { operationId: string; expectedOwner: string | null },
+  ): Promise<'saved' | 'local'> => {
+    const session = sessionRef.current
+    if (!session || !current(session) || !session.ready || session.owner !== options.expectedOwner) {
+      throw new Error('내역을 불러온 뒤 다시 등록해 주세요.')
+    }
+    let revision = session.operations.get(options.operationId)
+    if (revision === undefined) {
+      // Reserve before append; append/mutate starts the existing serial save loop.
+      revision = session.revision + 1
+      session.operations.set(options.operationId, revision)
+      append(items)
+      revision = session.revision
+      session.operations.set(options.operationId, revision)
+    }
+    if (!session.owner) return 'local'
+    if (session.savedRevision >= revision) return 'saved'
+    const completed = new Promise<'saved'>((resolve, reject) => {
+      session.waiters.push({ revision, resolve, reject })
+    })
+    void save(session)
+    return completed
+  }, [append, current, save])
+
   const remove = useCallback((ids: number[]) => {
     mutate((items) => items.filter((item) => !ids.includes(item.id)))
   }, [mutate])
@@ -202,7 +244,8 @@ export function useLottoHistory(owner: string | null, draws: LottoDraw[]) {
   const loading = owner !== null &&
     (!visible || visible.loading || !visible.ready) && !visible?.error
   return {
-    history, append, remove, acknowledge, retry, noticeItems,
+    history, append, appendAndWait, remove, acknowledge, retry, noticeItems,
+    ready: Boolean(visible?.ready),
     error: visible?.error ?? '', loading, saving: visible?.saving ?? false,
   }
 }

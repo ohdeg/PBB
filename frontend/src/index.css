@@ -8287,3 +8287,29 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 /* Dieta owns its responsive shell; avoid mismatched outer padding/nav margins. */
 .app-shell:has(.dieta-app) { padding: 0; }
 .app-shell:has(.dieta-app) > .global-nav { margin: 0; }
+
+/* Receipt import keeps the existing blue/slate palette and six-number rhythm. */
+.lotto-ticket-dialog { margin: auto; max-height: calc(100dvh - 1rem); overflow-y: auto; overscroll-behavior: contain; }
+.lotto-ticket-dialog::backdrop { background: rgb(15 23 42 / 65%); }
+.lotto-ticket-primary, .lotto-ticket-secondary { min-height: 44px; border-radius: .75rem; padding: .65rem 1rem; font-size: .875rem; font-weight: 700; touch-action: manipulation; }
+.lotto-ticket-primary { background: #2563eb; color: #fff; }
+.lotto-ticket-primary:hover { background: #1d4ed8; }
+.lotto-ticket-secondary { background: #f1f5f9; color: #334155; }
+.lotto-ticket-secondary:hover { background: #e2e8f0; }
+.lotto-ticket-input { min-height: 44px; border: 1px solid #cbd5e1; border-radius: .65rem; padding: .5rem; background: #fff; color: #0f172a; font-size: 16px; }
+.lotto-ticket-dialog :is(button,input,summary):focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.lotto-ticket-dialog :disabled { opacity: .5; cursor: not-allowed; }
+[data-theme='dark'] .lotto-ticket-secondary { background: #1e293b; color: #e2e8f0; }
+[data-theme='dark'] .lotto-ticket-input { background: #0f172a; color: #f8fafc; border-color: #475569; }
+@media (max-width: 639px) { .lotto-ticket-dialog { padding-bottom: env(safe-area-inset-bottom); } }
+
+.lotto-ticket-dialog { background: var(--bg-card); color: var(--text); }
+.lotto-ticket-dialog fieldset { border-color: var(--border-strong); }
+.lotto-ticket-guest { background: #fffbeb; color: #78350f; }
+.lotto-ticket-info { background: #eff6ff; color: #1e3a8a; }
+.lotto-ticket-error { color: #b91c1c; }
+.lotto-ticket-result { color: #1d4ed8; }
+[data-theme='dark'] .lotto-ticket-guest { background: #451a03; color: #fef3c7; }
+[data-theme='dark'] .lotto-ticket-info { background: #172554; color: #dbeafe; }
+[data-theme='dark'] .lotto-ticket-error { color: #fca5a5; }
+[data-theme='dark'] .lotto-ticket-result { color: #93c5fd; }

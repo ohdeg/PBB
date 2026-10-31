@@ -13,6 +13,9 @@ import { toPng } from 'html-to-image';
 import { lottoApi } from '../api/lottoApi';
 import { LottoButton as Button } from '../features/lotto/components/LottoButton';
 import { SixPickSplashScreen } from '../features/lotto/components/SixPickSplashScreen';
+import { LottoTicketImportDialog } from '../features/lotto/components/LottoTicketImportDialog';
+import { allocateLottoHistoryIds } from '../features/lotto/utils/lottoHistoryIds';
+import type { LottoHistoryTab } from '../features/lotto/utils/lottoHistory';
 import { LottoHistoryPanel } from '../features/lotto/components/LottoHistoryPanel';
 import { getLottoHistoryOwner, useLottoHistory } from '../features/lotto/hooks/useLottoHistory';
 import { getWinNoticeMessage } from '../features/lotto/utils/lottoHistory';
@@ -180,6 +183,7 @@ function getHotColdBadgeLabel(item: LottoHistoryItem): string | null {
 }
 
 function getHistoryDateLabel(item: LottoHistoryItem): string {
+  if (item.registeredAt) return `등록 ${formatLottoDrawnDateTime(item.registeredAt)}`
   if (item.drawnAt) return formatLottoDrawnDateTime(item.drawnAt)
   return item.reviews
 }
@@ -195,6 +199,7 @@ function LottoHistoryMetaBadges({
 
   return (
     <div className="mb-1 flex flex-wrap items-center gap-1.5">
+      {item.source === 'ticket-photo' && <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">용지 등록{item.ticketLine ? ` · ${item.ticketLine}` : ''}</span>}
       {showRound && (
         <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-blue-700">
           {item.targetRound != null ? `${item.targetRound}회` : '회차 미확인'}
@@ -1043,6 +1048,9 @@ export function LottoPage() {
 
   const [drawHistory, setDrawHistory] = useState<LottoDraw[]>([])
   const pickHistory = useLottoHistory(historyOwner, drawHistory)
+  const [showTicketImport, setShowTicketImport] = useState(false)
+  const [historyTab, setHistoryTab] = useState<LottoHistoryTab>('pending')
+  const [ticketMessage, setTicketMessage] = useState('')
   const [patternProfiles, setPatternProfiles] = useState<Record<
     string,
     LottoPatternProfileDto
@@ -1080,6 +1088,8 @@ export function LottoPage() {
   useEffect(() => {
     const unsubscribe = useAuthStore.subscribe((auth, previous) => {
       if (getLottoHistoryOwner(auth) !== getLottoHistoryOwner(previous)) {
+        setShowTicketImport(false)
+        setTicketMessage('')
         generationEpochRef.current++
         captureEpochRef.current++
         setExportItems([])
@@ -1562,7 +1572,7 @@ export function LottoPage() {
 
     const variablePickCount = 6 - preferredNumbers.length
     const newEntries: LottoHistoryItem[] = []
-    const batchBaseId = Date.now()
+    const batchIds = allocateLottoHistoryIds(gameCount, pickHistory.history.map(item => item.id))
     const targetRound = getNextSuggestedRoundFromLatest(latestStoredDraw)
     const drawnAt = new Date().toISOString()
     const drawnLabel = formatLottoDrawnDateTime(drawnAt)
@@ -1619,7 +1629,7 @@ export function LottoPage() {
       const poolResetSuffix = mustResetPool ? ' · 번호 풀 초기화' : ''
 
       newEntries.push({
-        id: batchBaseId + gameIndex,
+        id: batchIds[gameIndex],
         targetRound,
         status: 'pending',
         name: finalNumbers.join(', '),
@@ -2668,7 +2678,25 @@ export function LottoPage() {
           <MonteCarloFrequencyChart snapshot={monteCarloAppearance} />
         )}
 
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button type="button" className="lotto-ticket-primary" onClick={() => { setTicketMessage(''); setShowTicketImport(true) }}>용지 등록</button>
+          <p role="status" className="text-sm text-slate-500">{ticketMessage}</p>
+        </div>
+        {showTicketImport && <LottoTicketImportDialog
+          key={`ticket-${historyOwner ?? 'guest'}`}
+          owner={historyOwner}
+          draws={drawHistory}
+          latestRound={latestStoredDraw?.round ?? 0}
+          drawsReady={drawsReady}
+          ready={pickHistory.ready}
+          history={pickHistory.history}
+          onSave={pickHistory.appendAndWait}
+          onClose={() => setShowTicketImport(false)}
+          onComplete={(tab) => { setHistoryTab(tab); setShowTicketImport(false); setTicketMessage('번호를 저장했습니다') }}
+        />}
         <LottoHistoryPanel
+          activeTab={historyTab}
+          onTabChange={setHistoryTab}
           key={historyOwner ?? 'guest'}
           items={pickHistory.history}
           currentRound={getNextSuggestedRoundFromLatest(latestStoredDraw)}

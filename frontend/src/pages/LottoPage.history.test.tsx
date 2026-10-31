@@ -90,4 +90,27 @@ describe('LottoPage history boundaries', () => {
     await act(async () => capture.resolve('data:image/png;base64,test'))
     expect(download).not.toHaveBeenCalled()
   })
+  it('keeps exactly one ticket dialog when the parent rerenders with the same owner', async () => {
+    vi.mocked(lottoApi.listDraws).mockResolvedValue({data:[draw]} as Awaited<ReturnType<typeof lottoApi.listDraws>>)
+    login('A'); view(); await flush()
+    fireEvent.click(screen.getByRole('button',{name:'용지 등록',exact:true}))
+    fireEvent.click(screen.getByRole('button',{name:'직접 입력',exact:true}))
+    fireEvent.change(screen.getByLabelText('회차'),{target:{value:'1201'}})
+    act(()=>useAuthStore.setState({accessToken:'rotated-same-owner'}))
+    await flush()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByLabelText('회차')).toHaveValue('1201')
+  })
+
+  it('discards ticket drafts after batched account changes', async () => {
+    vi.mocked(lottoApi.listDraws).mockResolvedValue({data:[draw]} as Awaited<ReturnType<typeof lottoApi.listDraws>>)
+    login('A'); view(); await flush()
+    fireEvent.click(screen.getByRole('button',{name:'용지 등록',exact:true}))
+    fireEvent.click(screen.getByRole('button',{name:'직접 입력',exact:true}))
+    fireEvent.change(screen.getByLabelText('회차'),{target:{value:'1201'}})
+    act(()=>{login('B');login('A')});await flush()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(lottoApi.savePicks).not.toHaveBeenCalled()
+  })
+
 })

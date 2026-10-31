@@ -7,3 +7,16 @@ dist-ssr
 *.local
 .vite
 .DS_Store
+
+# Downloaded OCR engine, models and generated integrity manifest.
+# Recreated by `npm run prepare:lotto-ocr`; keep README and setup scripts tracked.
+/public/ocr/tesseract.esm.min.js
+/public/ocr/worker.min.js
+/public/ocr/core/
+/public/ocr/lang/
+/public/ocr/LICENSE-tesseract.txt
+/public/ocr/LICENSE-core.txt
+/public/ocr/manifest.json
+
+# Build output from vite.validation.config.ts
+/dist-ticket-validation/

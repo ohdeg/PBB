@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prepare:lotto-ocr": "node scripts/prepare-lotto-ocr-assets.mjs",
+    "predev": "node scripts/prepare-lotto-ocr-assets.mjs --optional",
+    "prebuild": "npm run prepare:lotto-ocr"
   },
   "dependencies": {
     "axios": "^1.18.1",

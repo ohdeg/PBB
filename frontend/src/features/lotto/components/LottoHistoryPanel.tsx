@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { LottoHistoryItem } from '../../../types/lotto'
 import { formatLottoDrawnDateTime } from '../utils/lottoDateFormat'
 import {
@@ -8,6 +8,8 @@ import {
 } from '../utils/lottoHistory'
 
 interface Props {
+  activeTab?: LottoHistoryTab
+  onTabChange?: (tab: LottoHistoryTab) => void
   items: LottoHistoryItem[]
   currentRound: number
   onRemove: (ids: number[]) => void
@@ -33,8 +35,10 @@ function roundLabel(item: LottoHistoryItem, currentRound: number): string {
 }
 
 export function LottoHistoryPanel(props: Props) {
-  const [tab, setTab] = useState<LottoHistoryTab>('pending')
+  const [localTab, setTab] = useState<LottoHistoryTab>('pending')
+  const tab = props.activeTab ?? localTab
   const [selected, setSelected] = useState<number[]>([])
+  useEffect(() => { setSelected([]) }, [tab])
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const id = useId()
   const visible = getHistoryForTab(props.items, tab)
@@ -44,6 +48,7 @@ export function LottoHistoryPanel(props: Props) {
 
   const switchTab = (next: LottoHistoryTab) => {
     setTab(next)
+    props.onTabChange?.(next)
     setSelected([])
   }
   const onTabKey = (event: KeyboardEvent, index: number) => {
@@ -214,7 +219,7 @@ export function LottoHistoryPanel(props: Props) {
               <div className="lotto-history__meta mt-2 min-w-0">
                 {props.renderMeta(item)}
                 <p className="text-xs font-medium text-slate-500">
-                  {item.drawnAt ? formatLottoDrawnDateTime(item.drawnAt) : item.reviews}
+                  {item.registeredAt ? `등록 ${formatLottoDrawnDateTime(item.registeredAt)}` : item.drawnAt ? formatLottoDrawnDateTime(item.drawnAt) : item.reviews}
                 </p>
                 {item.isNumberPoolResetStart && (
                   <p className="mt-2 text-xs font-bold text-amber-800">번호 풀 초기화 지점</p>

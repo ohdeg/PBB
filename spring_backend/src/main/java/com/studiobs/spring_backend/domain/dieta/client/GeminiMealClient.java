@@ -6,11 +6,13 @@ import com.studiobs.spring_backend.domain.dieta.dto.gemini.DietaGeminiMealRespon
 import com.studiobs.spring_backend.global.exception.BusinessException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -19,6 +21,19 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 @Component
 public class GeminiMealClient {
+
+    private static final Set<String> API_STATUSES = Set.of(
+            "INVALID_ARGUMENT", "FAILED_PRECONDITION", "OUT_OF_RANGE", "UNAUTHENTICATED",
+            "PERMISSION_DENIED", "NOT_FOUND", "ALREADY_EXISTS", "RESOURCE_EXHAUSTED",
+            "CANCELLED", "DATA_LOSS", "UNKNOWN", "INTERNAL", "UNAVAILABLE",
+            "DEADLINE_EXCEEDED", "UNIMPLEMENTED", "ABORTED");
+    private static final Set<String> API_REASONS = Set.of(
+            "API_KEY_INVALID", "API_KEY_EXPIRED", "API_KEY_SERVICE_BLOCKED",
+            "API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED",
+            "API_KEY_ANDROID_APP_BLOCKED", "API_KEY_IOS_APP_BLOCKED",
+            "SERVICE_DISABLED", "BILLING_DISABLED", "CONSUMER_INVALID",
+            "RATE_LIMIT_EXCEEDED", "QUOTA_EXCEEDED", "ACCESS_TOKEN_EXPIRED",
+            "ACCESS_TOKEN_SCOPE_INSUFFICIENT");
 
     private final DietaGeminiProperties properties;
     private final ObjectMapper objectMapper;
@@ -38,9 +53,42 @@ public class GeminiMealClient {
         try {
             return callGemini(request);
         } catch (Exception ex) {
-            log.warn("[DietaGemini] analysis failed ({})", ex.getClass().getSimpleName());
+            if (ex instanceof RestClientResponseException response) {
+                logHttpFailure(response);
+            } else {
+                // Exception messages/stack traces can contain the key-bearing URL or meal data.
+                log.warn("[DietaGemini] analysis failed (type={})", ex.getClass().getSimpleName());
+            }
             throw new BusinessException(HttpStatus.BAD_GATEWAY, "식단 분석에 실패했어요. 기록은 보관되어 있으니 다시 시도해 주세요.");
         }
+    }
+
+    private void logHttpFailure(RestClientResponseException response) {
+        String apiStatus = "UNKNOWN";
+        String reason = "UNKNOWN";
+        try {
+            byte[] body = response.getResponseBodyAsByteArray();
+            if (body.length > 0 && body.length <= 16_384) {
+                JsonNode error = objectMapper.readTree(body).path("error");
+                String status = error.path("status").asString("");
+                if (API_STATUSES.contains(status)) apiStatus = status;
+                JsonNode details = error.path("details");
+                if (details.isArray()) {
+                    for (JsonNode detail : details) {
+                        if (!"type.googleapis.com/google.rpc.ErrorInfo".equals(detail.path("@type").asString(""))) continue;
+                        String candidate = detail.path("reason").asString("");
+                        if (API_REASONS.contains(candidate)) {
+                            reason = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Malformed/non-JSON errors still retain the HTTP status; never log raw bodies.
+        }
+        log.warn("[DietaGemini] analysis failed (httpStatus={}, apiStatus={}, reason={})",
+                response.getStatusCode().value(), apiStatus, reason);
     }
 
     private DietaGeminiMealResponse callGemini(DietaGeminiMealRequest request) {

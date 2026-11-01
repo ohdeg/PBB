@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { scrollToAnchoredMeasure } from '../utils/scrollAnchor';
+import { animateHorizontalScroll } from '../utils/horizontalScroll';
 import { getHorizontalScrollTarget, type TemporiViewMode } from '../utils/viewMode';
 import type { TemporiRenderStatus } from '../utils/practiceInteraction';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -126,6 +127,8 @@ interface OsmdViewerProps {
   currentMeasureIndex?: number;
   followEnabled?: boolean;
   followRequestKey?: number;
+  scrollBehavior?: ScrollBehavior;
+  scrollDurationMs?: number;
   onManualNavigation?: () => void;
   renderRevision?: number;
   onRenderStatusChange?: (status: TemporiRenderStatus, revision: number) => void;
@@ -159,6 +162,8 @@ export default function OsmdViewer({
   currentMeasureIndex = 0,
   followEnabled = true,
   followRequestKey = 0,
+  scrollBehavior = 'smooth',
+  scrollDurationMs = 600,
   onManualNavigation,
   renderRevision = 0,
   onRenderStatusChange,
@@ -186,6 +191,7 @@ export default function OsmdViewer({
   manualNavigationRef.current = onManualNavigation;
   const lastFollowRequestRef = useRef(-1);
   const lastFollowWidthRef = useRef(0);
+  const cancelHorizontalScrollRef = useRef<() => void>(() => {});
   const dragRef = useRef<{ x: number; left: number; pointerId: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onMeasureClickRef = useRef(onMeasureClick);
@@ -584,6 +590,7 @@ export default function OsmdViewer({
     // React's delegated wheel listeners are passive. Only this scoped conversion cancels native scrolling.
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey) return;
+      cancelHorizontalScrollRef.current();
       manualNavigationRef.current?.();
       if (event.shiftKey && event.deltaX === 0) {
         event.preventDefault();
@@ -621,6 +628,7 @@ export default function OsmdViewer({
   }, [viewMode]);
 
   useEffect(() => {
+    cancelHorizontalScrollRef.current();
     const viewport = viewportRef.current;
     const layout = activeLayouts.find((entry) => entry.measureIndex === currentMeasureIndex);
     if (viewMode !== 'horizontal' || !viewport || !layout) return;
@@ -629,9 +637,12 @@ export default function OsmdViewer({
     if (!followEnabled && !explicitRequest && !resized) return;
     lastFollowRequestRef.current = followRequestKey;
     lastFollowWidthRef.current = viewport.clientWidth;
-    // Immediate movement keeps repeats deterministic, is interruptible and respects reduced motion.
-    viewport.scrollLeft = getHorizontalScrollTarget(layout.leftPx, viewport.clientWidth, viewport.scrollWidth);
-  }, [viewMode, activeLayouts, currentMeasureIndex, followEnabled, followRequestKey, viewportWindow.width]);
+    const target = getHorizontalScrollTarget(layout.leftPx, viewport.clientWidth, viewport.scrollWidth);
+    // Initial layout/rotation stays immediate; playback glides to each new measure.
+    const cancel = animateHorizontalScroll(viewport, target, freezeLayout && !resized ? scrollBehavior : 'auto', scrollDurationMs);
+    cancelHorizontalScrollRef.current = cancel;
+    return cancel;
+  }, [viewMode, activeLayouts, currentMeasureIndex, followEnabled, followRequestKey, viewportWindow.width, freezeLayout, scrollBehavior, scrollDurationMs]);
 
   const visibleLayouts = viewMode === 'horizontal'
     ? activeLayouts.filter((layout) => layout.leftPx + layout.widthPx >= viewportWindow.left - viewportWindow.width / 4 && layout.leftPx <= viewportWindow.left + viewportWindow.width * 1.25)
@@ -651,11 +662,13 @@ export default function OsmdViewer({
         onKeyDown={viewMode === 'horizontal' ? (event) => {
           if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey) return;
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
+          cancelHorizontalScrollRef.current();
           event.preventDefault(); onManualNavigation?.();
           const viewport = event.currentTarget;
           viewport.scrollLeft = event.key === 'Home' ? 0 : event.key === 'End' ? viewport.scrollWidth : viewport.scrollLeft + (event.key === 'ArrowLeft' ? -1 : 1) * viewport.clientWidth / 2;
         } : undefined}
         onPointerDownCapture={viewMode === 'horizontal' ? (event) => {
+          cancelHorizontalScrollRef.current();
           onManualNavigation?.();
           // Touch/pen navigation uses native scrolling; mouse dragging supplements the scrollbar.
           if (event.pointerType === 'mouse' && event.button === 0 && annotationTool === 'none') dragRef.current = { x: event.clientX, left: event.currentTarget.scrollLeft, pointerId: event.pointerId };

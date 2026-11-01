@@ -14,6 +14,55 @@ import tools.jackson.databind.json.JsonMapper;
 
 class GeminiMealClientTest {
     @Test
+    void httpFailureLogsOnlyAllowlistedDiagnostics() {
+        assertHttpDiagnostic(400, """
+                {"error":{"status":"INVALID_ARGUMENT","message":"secret-key private-meal https://private.invalid",
+                "details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"API_KEY_INVALID",
+                "metadata":{"secret":"secret-key"}}]}}
+                """, "INVALID_ARGUMENT", "API_KEY_INVALID");
+        assertHttpDiagnostic(404, "{\"error\":{\"status\":\"NOT_FOUND\"}}", "NOT_FOUND", "UNKNOWN");
+        assertHttpDiagnostic(429, "{\"error\":{\"status\":\"RESOURCE_EXHAUSTED\"}}", "RESOURCE_EXHAUSTED", "UNKNOWN");
+        assertHttpDiagnostic(503, "<html>secret-key private-meal</html>", "UNKNOWN", "UNKNOWN");
+        assertHttpDiagnostic(400, "{\"error\":{\"status\":\"secret-key\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"private-meal\"}]}}",
+                "UNKNOWN", "UNKNOWN");
+        assertHttpDiagnostic(502, "", "UNKNOWN", "UNKNOWN");
+        assertHttpDiagnostic(400, "{\"error\":{\"status\":\"INVALID_ARGUMENT\",\"message\":\""
+                + "x".repeat(16_384) + "\"}}", "UNKNOWN", "UNKNOWN");
+    }
+
+    private void assertHttpDiagnostic(int status, String body, String apiStatus, String reason) {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(GeminiMealClient.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            var builder = org.springframework.web.client.RestClient.builder().baseUrl("https://private.invalid");
+            var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
+            server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                    .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                            .withStatus(org.springframework.http.HttpStatusCode.valueOf(status))
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(body));
+            var client = new GeminiMealClient(new DietaGeminiProperties("secret-key", "https://private.invalid", "fixture"),
+                    JsonMapper.builder().build(), builder.build());
+            var request = new DietaGeminiMealRequest(1, "ko-KR", LocalDate.of(2026, 10, 31), null,
+                    List.of(new DietaGeminiMealRequest.MealGroup("LUNCH", List.of("private-meal"))),
+                    List.of(), null, DietaGeminiMealRequest.Instructions.productDefaults());
+            var error = catchThrowableOfType(BusinessException.class, () -> client.analyze(request));
+            assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
+            assertThat(appender.list).hasSize(1);
+            var event = appender.list.getFirst();
+            assertThat(event.getFormattedMessage()).contains("httpStatus=" + status,
+                    "apiStatus=" + apiStatus, "reason=" + reason)
+                    .doesNotContain("secret-key", "private-meal", "private.invalid");
+            assertThat(event.getThrowableProxy()).isNull();
+            server.verify();
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    @Test
     void missingKeyFailsInsteadOfInventingNutrition() {
         var client = new GeminiMealClient(new DietaGeminiProperties("", null, null), JsonMapper.builder().build(), org.springframework.web.client.RestClient.create());
         var request = new DietaGeminiMealRequest(1, "ko-KR", LocalDate.of(2026, 10, 31),

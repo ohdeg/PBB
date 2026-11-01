@@ -1228,6 +1228,8 @@ export function Tempori({ temporiId }: TemporiProps) {
               currentMeasureIndex={currentMeasureIndex}
               followEnabled={!followSuspended && (!isPlaying || isAutoScroll)}
               followRequestKey={followRequestKey}
+              scrollBehavior={scrollSmoothing}
+              scrollDurationMs={Math.min(600, (windows[playbackStepIndex]?.durationMs ?? 1200) / 2)}
               onManualNavigation={() => setFollowSuspended(true)}
               musicXml={musicXml}
               renderRevision={renderRevision}

@@ -16,17 +16,24 @@ function isZipBuffer(bytes: Uint8Array): boolean {
 }
 
 function isMusicXmlText(text: string): boolean {
-  const normalized = stripBom(text).trim();
-  return (
-    normalized.startsWith('<?xml') ||
-    normalized.includes('<score-partwise') ||
-    normalized.includes('<score-timewise')
-  );
+  if (/<!ENTITY/i.test(text) || /<!DOCTYPE[^>]*\[/i.test(text)) return false;
+  const document = new DOMParser().parseFromString(text, 'application/xml');
+  return !document.querySelector('parsererror') && ['score-partwise', 'score-timewise'].includes(document.documentElement.localName);
 }
 
 async function extractMusicXmlFromMxl(buffer: ArrayBuffer): Promise<string> {
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(buffer);
+  const entries = Object.values(zip.files);
+  if (entries.length > 1000) throw new Error('압축 파일 항목이 너무 많습니다.');
+  let total = 0;
+  for (const entry of entries) {
+    const metadata = entry as typeof entry & { unsafeOriginalName?: string; _data?: { uncompressedSize?: number } };
+    const path = metadata.unsafeOriginalName ?? entry.name;
+    if (path.startsWith('/') || path.includes('\\') || path.split('/').includes('..') || /^[A-Za-z]:/.test(path)) throw new Error('잘못된 압축 경로입니다.');
+    total += metadata._data?.uncompressedSize ?? 0;
+    if (total > 100 * 1024 * 1024) throw new Error('압축 해제 용량 제한을 초과했습니다.');
+  }
   const containerXml = await zip.file('META-INF/container.xml')?.async('string');
 
   if (containerXml) {
@@ -53,6 +60,7 @@ async function extractMusicXmlFromMxl(buffer: ArrayBuffer): Promise<string> {
 }
 
 export async function blobToMusicXml(blob: Blob): Promise<string> {
+  if (blob.size > 25 * 1024 * 1024) throw new Error('악보 원본은 25 MiB 이하여야 합니다.');
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
 

@@ -6,6 +6,9 @@ export interface TemporiSummary {
   artist: string | null;
   createdAt: string;
   fileName?: string;
+  annotationId?: string;
+  syncState?: 'local' | 'saved' | 'failed';
+  offline?: boolean;
 }
 
 export interface TemporiDetail {
@@ -15,4 +18,7 @@ export interface TemporiDetail {
   storagePath: string;
   createdAt: string;
   fileName?: string;
+  annotationId?: string;
+  syncState?: 'local' | 'saved' | 'failed';
+  offline?: boolean;
 }

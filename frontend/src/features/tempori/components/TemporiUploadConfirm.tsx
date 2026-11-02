@@ -8,6 +8,7 @@ interface TemporiUploadConfirmProps {
   title: string;
   artist: string;
   isUploading: boolean;
+  cloud?: boolean;
   error: string | null;
   onTitleChange: (value: string) => void;
   onArtistChange: (value: string) => void;
@@ -20,6 +21,7 @@ export function TemporiUploadConfirm({
   title,
   artist,
   isUploading,
+  cloud = false,
   error,
   onTitleChange,
   onArtistChange,
@@ -61,6 +63,7 @@ export function TemporiUploadConfirm({
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder={t('tempori.uploadTitlePlaceholder')}
             required
+            maxLength={200}
             name="title"
             autoComplete="off"
           />
@@ -70,6 +73,7 @@ export function TemporiUploadConfirm({
           {t('tempori.uploadArtistLabel')}
           <input
             type="text"
+            maxLength={200}
             name="artist"
             autoComplete="off"
             value={artist}
@@ -85,7 +89,7 @@ export function TemporiUploadConfirm({
             {t('common.cancel')}
           </Button>
           <Button type="submit" disabled={isUploading || title.trim().length === 0}>
-            {isUploading ? t('tempori.uploading') : t('tempori.upload')}
+            {isUploading ? cloud ? '서버에 저장 중…' : t('tempori.uploading') : cloud ? '계정 보관함에 저장' : t('tempori.upload')}
           </Button>
         </div>
       </form>

@@ -35,6 +35,7 @@ export const normalizeMusicXmlLayout = (
   measuresPerLine: number = DEFAULT_MEASURES_PER_LINE,
   viewMode: TemporiViewMode = 'wrapped',
 ): string => {
+  if (viewMode === 'pages') return withXmlDeclaration(musicXmlText);
   const targetMeasuresPerLine = clampMeasuresPerLine(measuresPerLine);
 
   const parser = new DOMParser();

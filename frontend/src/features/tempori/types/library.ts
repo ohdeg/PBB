@@ -4,4 +4,8 @@ export interface LibraryTemporiItem {
   artist: string | null;
   createdAt: string;
   fileName?: string;
+  annotationId?: string;
+  syncState?: 'local' | 'saved' | 'failed';
+  offline?: boolean;
+  serverListUnavailable?: boolean;
 }

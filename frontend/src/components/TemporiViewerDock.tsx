@@ -6,7 +6,7 @@ import { setScoreDockBounds } from '../features/tempori/utils/scoreViewport';
 import { scrollToTop } from '../features/tempori/utils/scrollAnchor';
 import { AppErrorBoundary } from './AppErrorBoundary';
 
-type DockSlot = 'annotation' | 'beat' | 'playback';
+type DockSlot = 'annotation' | 'beat' | 'playback' | 'pages';
 type DockTargets = Record<DockSlot, HTMLDivElement | null>;
 const DockContext = createContext<DockTargets | undefined>(undefined);
 
@@ -21,6 +21,7 @@ export function TemporiDockSlot({ slot, children }: { slot: DockSlot; children: 
 export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   const dockRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const [pages, setPages] = useState<HTMLDivElement | null>(null);
   const [annotation, setAnnotation] = useState<HTMLDivElement | null>(null);
   const [beat, setBeat] = useState<HTMLDivElement | null>(null);
   const [playback, setPlayback] = useState<HTMLDivElement | null>(null);
@@ -56,7 +57,7 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <DockContext.Provider value={{ annotation, beat, playback }}>
+    <DockContext.Provider value={{ annotation, beat, playback, pages }}>
       <div ref={frameRef} className="tempori-viewer-frame">
         <AppErrorBoundary>
           <Suspense fallback={<main className="viewer-page"><p className="tempori-status" role="status">악보를 불러오는 중입니다.</p></main>}>
@@ -70,6 +71,7 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
               dockRef.current?.querySelector<HTMLButtonElement>('.tempori-viewer-tools-toggle')?.focus();
             }
           }}>
+          <div ref={setPages} className="tempori-viewer-dock-pages" />
           <div id={toolsId} ref={setAnnotation} className="tempori-viewer-dock-annotation" />
           <div ref={setBeat} className="tempori-viewer-dock-beat" />
           <div className="tempori-viewer-dock-row">

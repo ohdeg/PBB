@@ -5,15 +5,15 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   servlet:
     multipart:
-      max-file-size: 8MB
-      max-request-size: 10MB
+      max-file-size: 25MB
+      max-request-size: 27MB
 
 server:
   port: ${SERVER_PORT:8080}
   tomcat:
     # Sranko multipart uploads (FE-resized images)
-    max-http-form-post-size: 12MB
-    max-swallow-size: 12MB
+    max-http-form-post-size: 27MB
+    max-swallow-size: 27MB
 
 management:
   endpoints:
@@ -85,3 +85,10 @@ app:
     # 발신 주소 (발송 도메인 인증 필요). prod 는 MAIL_FROM 으로 no-reply@<도메인> 주입.
     from: ${MAIL_FROM:no-reply@pbb.com}
   # Cloudflare R2 설정은 application-dev.yaml / application-prod.yaml 에서 프로필별로 관리
+
+# Private score bucket. Never point this at the public image bucket.
+tempori:
+  r2-bucket: ${TEMPORI_R2_BUCKET:}
+  max-file-bytes: ${TEMPORI_MAX_FILE_BYTES:26214400}
+  max-user-bytes: ${TEMPORI_MAX_USER_BYTES:524288000}
+  max-user-files: ${TEMPORI_MAX_USER_FILES:200}

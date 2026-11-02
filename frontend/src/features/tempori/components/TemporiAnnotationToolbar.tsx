@@ -12,6 +12,7 @@ interface TemporiAnnotationToolbarProps {
   onClear: () => void;
   onUndo: () => void;
   visible: boolean;
+  pageMode?: boolean;
 }
 
 export default function TemporiAnnotationToolbar({
@@ -22,6 +23,7 @@ export default function TemporiAnnotationToolbar({
   onClear,
   onUndo,
   visible,
+  pageMode = false,
 }: TemporiAnnotationToolbarProps) {
   const t = useTranslation();
 
@@ -83,7 +85,7 @@ export default function TemporiAnnotationToolbar({
           {t('annotation.undo')}
         </button>
         <button type="button" className="tempori-annotation-action-btn danger" onClick={onClear}>
-          {t('annotation.clearAll')}
+          {pageMode ? '이 페이지 필기 지우기' : t('annotation.clearAll')}
         </button>
       </div>
     </div>

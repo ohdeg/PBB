@@ -8368,3 +8368,62 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 .tempori-view-mode-options label { display: inline-flex; gap: .5rem; align-items: center; min-height: 44px; cursor: pointer; }
 .tempori-view-notice { margin: .75rem 0; font-size: .875rem; overflow-wrap: anywhere; }
 .tempori-follow-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin: .75rem 0; }
+
+/* Fixed paper pages reuse Tempori's compact dock and reserve its actual height. */
+.tempori-pages { min-width: 0; width: 100%; }
+.tempori-page-controls { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; padding: .25rem .5rem; }
+.tempori-page-controls button, .tempori-page-controls select, .tempori-page-error button, .tempori-page-save-error button { min-height: 44px; border: 1px solid var(--border-color, #cbd5e1); border-radius: .5rem; padding: .35rem .65rem; background: var(--surface, #fff); color: var(--text-primary, #1e293b); }
+.tempori-page-viewport { width: 100%; overflow: auto; overscroll-behavior: contain; background: #e5e7eb; padding: 8px; box-sizing: border-box; }
+.tempori-page-sheet { position: relative; margin: 0 auto; flex-shrink: 0; background: white; box-shadow: 0 2px 12px #0002; }
+.tempori-page-art, .tempori-page-render { width: 100%; height: 100%; }
+.tempori-page-render svg, .tempori-page-render canvas { display: block; }
+.tempori-page-sheet[aria-busy="true"] { opacity: .7; transition: opacity 180ms; }
+.tempori-page-annotations { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tempori-page-turn-bar { display: grid; grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr); align-items: center; gap: .5rem; width: 100%; }
+.tempori-page-turn-bar button { min-height: 44px; color: inherit; font-weight: 650; background: var(--surface, #fff); border: 1px solid #94a3b8; border-radius: .45rem; }
+.tempori-page-turn-bar output { font-variant-numeric: tabular-nums; font-size: .85rem; }
+.tempori-page-turn-bar button:disabled { opacity: .4; cursor: default; }
+.tempori-page-turn-bar button:focus-visible, .tempori-page-controls button:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.tempori-viewer-dock-pages:empty { display: none; }
+.tempori-viewer-dock-pages:not(:empty) { width: 100%; padding: .25rem .4rem; }
+.tempori-camera-settings { position: relative; margin-left: auto; }
+.tempori-camera-panel { position: fixed; z-index: 80; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: min(360px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: 1rem; border: 1px solid #94a3b8; border-radius: .7rem; background: var(--surface, #fff); color: var(--text-primary, #0f172a); box-shadow: 0 8px 30px #0003; }
+.tempori-camera-panel--closed { visibility: hidden; pointer-events: none; }
+.tempori-camera-panel p { font-size: .82rem; line-height: 1.5; margin: .6rem 0; }
+.tempori-camera-panel label { display: flex; gap: .5rem; align-items: center; margin: .6rem 0; }
+.tempori-camera-panel video { width: 144px; height: 108px; object-fit: cover; transform: scaleX(-1); border-radius: .4rem; background: #111827; }
+.tempori-camera-video--off { display: none; }
+.tempori-camera-live { font-size: .75rem; margin-left: .4rem; color: #166534; }
+.tempori-camera-live button { padding: .2rem .4rem; }
+.tempori-page-error, .tempori-page-save-error { padding: .5rem; background: #fff7ed; color: #9a3412; font-size: .85rem; }
+.tempori-page-save-error { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; }
+.tempori-pdf-metronome { display: flex; gap: .4rem; align-items: center; }
+.tempori-pdf-metronome input { width: 4rem; min-height: 36px; }
+.tempori-pdf-metronome button { min-height: 44px; padding: .3rem .6rem; }
+.tempori-pdf-metronome output { min-width: 1ch; font-variant-numeric: tabular-nums; }
+.tempori-sync-note { font-size: .8rem; color: #64748b; }
+.tempori-cloud-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .8rem; }
+.tempori-migration { margin-block: 1rem; padding: 1rem; border: 1px solid #94a3b8; border-radius: .6rem; }
+.tempori-migration ul { list-style: none; padding: 0; max-height: 280px; overflow: auto; }
+.tempori-migration li label { display: flex; gap: .5rem; align-items: center; min-height: 44px; }
+@media (max-width: 640px) { .tempori-page-controls { gap: .25rem; padding-inline: .2rem; } .tempori-page-controls button { padding-inline: .4rem; font-size: .75rem; } .tempori-camera-live { display: block; } .tempori-pdf-metronome { gap: .2rem; font-size: .75rem; } .tempori-pdf-metronome input { width: 3rem; } }
+@media (max-height: 450px) and (orientation: landscape) { .tempori-page-controls { padding-block: 0; } .tempori-page-controls button { min-height: 36px; } .tempori-camera-live { display: inline; } .tempori-page-turn-bar output { font-size: .7rem; } }
+@media (prefers-reduced-motion: reduce) { .tempori-page-sheet[aria-busy="true"] { transition: none; } }
+
+.tempori-camera-panel--closed video:not(.tempori-camera-video--off) { visibility: visible; position: fixed; top: 54px; right: max(8px, env(safe-area-inset-right)); width: 80px; height: 60px; pointer-events: none; opacity: .9; }
+
+.tempori--pages .viewer-quick-stats, .tempori--pages .tempori-range-toolbar { display: none; }
+.tempori--pages .tempori-toolbar { margin-block: 0; padding-block: 0; }
+.tempori--pages .tempori-canvas-wrap { margin-top: 0; padding-top: 0; }
+.tempori-page-turn-bar, .tempori-pdf-metronome { pointer-events: auto; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem; align-items: center; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-dock-pages { grid-column: 1 / -1; grid-row: 1; padding: 0; min-width: 0; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-dock-row { grid-column: 2; grid-row: 2; width: 100%; flex-wrap: wrap; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-dock-beat { grid-column: 1; grid-row: 2; max-width: 100px; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)):has(.tempori-viewer-dock-beat:empty) .tempori-viewer-dock-row { grid-column: 1 / -1; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-top { display: none; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-tools-toggle { display: inline-flex; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-dock-annotation { position: absolute; bottom: calc(100% + .5rem); left: 0; max-height: calc(100dvh - 7rem); overflow-y: auto; pointer-events: auto; }
+.tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty))[data-tools-open='false'] .tempori-viewer-dock-annotation { display: none; }
+.tempori-viewer-dock-pages { background: var(--surface, #fff); color: var(--text-primary, #1e293b); border-radius: .5rem; }
+@media (max-width: 420px) { .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-exit, .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-tools-toggle { font-size: .75rem; padding-inline: .45rem; } .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .floating-playback-measure { display: none; } }

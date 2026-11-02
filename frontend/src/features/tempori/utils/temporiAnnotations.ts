@@ -1,3 +1,4 @@
+import { clearPageAnnotations } from '../pages/pageAnnotations';
 import { TEMPORI_STORAGE } from '../constants/temporiStorage';
 import type { TemporiAnnotationDocument, HorizontalAnnotationDocument } from '../types/temporiAnnotation';
 
@@ -46,6 +47,7 @@ export const clearTemporiAnnotations = (temporiId: string): void => {
   // Cleanup is idempotent; a caller can retry after the score record was already deleted.
   localStorage.removeItem(`${STORAGE_PREFIX}${temporiId}`);
   localStorage.removeItem(`${TEMPORI_STORAGE.horizontalAnnotationsPrefix}${temporiId}`);
+  clearPageAnnotations(temporiId);
   pendingWrapped.delete(temporiId); pendingHorizontal.delete(temporiId);
 };
 

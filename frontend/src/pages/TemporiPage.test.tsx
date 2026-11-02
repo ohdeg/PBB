@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TemporiPage } from './TemporiPage';
 import { fetchTemporiDetail } from '../features/tempori/services/temporiRepository';
 vi.mock('../features/tempori/services/temporiRepository', () => ({ fetchTemporiDetail: vi.fn() }));
+vi.mock('../features/tempori/pages/scoreSource', () => ({ loadScoreSource: vi.fn(async (id: string) => ({ kind: 'musicxml', id, xml: '<score-partwise/>' })) }));
 vi.mock('../features/tempori/Tempori', () => ({ Tempori: ({ temporiId }: { temporiId: string }) => <div>Tempori {temporiId}</div> }));
 const detail = { id: 'a', title: 'No artist score', artist: null, createdAt: '', storagePath: '' };
 beforeEach(() => vi.clearAllMocks());

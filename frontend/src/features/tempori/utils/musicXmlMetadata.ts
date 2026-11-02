@@ -1,4 +1,4 @@
-import { blobToMusicXml } from './temporiLoader';
+import { sourceFromBlob } from '../pages/scoreSource';
 import { AppError } from './appError';
 
 export interface TemporiFileMetadata {
@@ -6,10 +6,10 @@ export interface TemporiFileMetadata {
   artist: string | null;
 }
 
-const ALLOWED_EXTENSIONS = ['.musicxml', '.mxl'] as const;
+const ALLOWED_EXTENSIONS = ['.musicxml', '.mxl', '.xml', '.pdf'] as const;
 
 const TEMPORI_FILE_ACCEPT_DESKTOP =
-  '.musicxml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml';
+  '.pdf,.xml,.musicxml,.mxl,application/pdf,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml';
 
 function isIosFilePicker(): boolean {
   if (typeof navigator === 'undefined') {
@@ -86,6 +86,7 @@ export function parseMusicXmlMetadata(xml: string, fileName: string): TemporiFil
 
 export async function extractTemporiMetadataFromFile(file: File): Promise<TemporiFileMetadata> {
   assertAllowedTemporiFile(file);
-  const xml = await blobToMusicXml(file);
-  return parseMusicXmlMetadata(xml, file.name);
+  const source = await sourceFromBlob('upload', file);
+  if (source.kind === 'pdf') return { title: fallbackTitleFromFileName(file.name), artist: null };
+  return parseMusicXmlMetadata(source.xml, file.name);
 }

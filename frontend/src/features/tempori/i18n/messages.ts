@@ -124,7 +124,7 @@ export const TEMPORI_MESSAGES_KO: MessageTree = {
     localDbOpenFailed: '로컬 악보 저장소를 열지 못했습니다.',
     localDbOperationFailed: '로컬 악보 작업에 실패했습니다.',
     localDbTransactionFailed: '로컬 악보 트랜잭션에 실패했습니다.',
-    invalidTemporiFileType: 'MusicXML(.musicxml) 또는 MXL(.mxl) 파일만 업로드할 수 있습니다.',
+    invalidTemporiFileType: 'PDF(.pdf), MusicXML(.musicxml/.xml), MXL(.mxl) 원본을 업로드해 주세요.',
     musicXmlMetadataParseFailed: 'MusicXML 메타데이터를 읽지 못했습니다.',
     mxlNoMusicXml: 'MXL 파일에서 MusicXML을 찾지 못했습니다.',
     invalidMusicXmlContent: '올바르지 않은 MusicXML 파일입니다.',

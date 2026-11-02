@@ -1,3 +1,7 @@
+import { useAuthStore } from '../stores/authStore';
+import { loadScoreSource } from '../features/tempori/pages/scoreSource';
+import type { ScoreSource } from '../features/tempori/pages/types';
+import { PdfTempori } from '../features/tempori/pages/PdfTempori';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
@@ -10,6 +14,8 @@ import { resolveErrorMessage } from '../features/tempori/utils/resolveErrorMessa
 function TemporiPageInner() {
   const { id } = useParams<{ id: string }>();
   const t = useTranslation();
+  const account = useAuthStore((state) => state.userId);
+  const [source, setSource] = useState<ScoreSource | null>(null);
   const [tempori, setTempori] = useState<TemporiDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +24,7 @@ function TemporiPageInner() {
   useEffect(() => {
     let cancelled = false;
     setTempori(null);
+    setSource(null);
     if (!id) { setIsLoading(false); setError(t('viewer.loadFailed')); return; }
 
     const loadTempori = async () => {
@@ -26,7 +33,9 @@ function TemporiPageInner() {
 
       try {
         const data = await fetchTemporiDetail(id);
-        if (!cancelled) setTempori(data);
+        if (cancelled) return;
+        const source = await loadScoreSource(data.id);
+        if (!cancelled) { setTempori(data); setSource(source); }
       } catch (err) {
         if (!cancelled) setError(resolveErrorMessage(t, err, 'viewer.loadFailed'));
       } finally {
@@ -36,7 +45,7 @@ function TemporiPageInner() {
 
     void loadTempori();
   return () => { cancelled = true; };
-  }, [id, t, retryKey]);
+  }, [id, t, retryKey, account]);
 
   return (
     <main className="tempori-main viewer-page">
@@ -47,15 +56,16 @@ function TemporiPageInner() {
 
       {isLoading && <p className="tempori-status" role="status">{t('viewer.loadingTempori')}</p>}
       {error && <div><p className="tempori-error" role="alert">{error}</p><Button onClick={() => setRetryKey((key) => key + 1)}>{t('viewer.retry')}</Button></div>}
-      {!isLoading && !error && tempori && <Tempori key={tempori.id} temporiId={tempori.id} />}
+      {!isLoading && !error && tempori && source && (source.kind === 'pdf' ? <PdfTempori key={`${account}:${tempori.id}`} source={source} annotationId={tempori.annotationId ?? tempori.id} /> : <Tempori key={`${account}:${tempori.id}`} temporiId={tempori.id} annotationId={tempori.annotationId} suppliedMusicXml={source.xml} />)}
     </main>
   );
 }
 
 export function TemporiPage() {
+  const account = useAuthStore((state) => state.userId);
   return (
     <TemporiI18nProvider>
-      <TemporiPageInner />
+      <TemporiPageInner key={account ?? "guest"} />
     </TemporiI18nProvider>
   );
 }

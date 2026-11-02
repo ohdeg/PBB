@@ -17,12 +17,14 @@
     "prebuild": "npm run prepare:lotto-ocr"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.2.0",
     "axios": "^1.18.1",
     "html-to-image": "^1.11.13",
     "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.31.0",
     "opensheetmusicdisplay": "^1.9.9",
+    "pdfjs-dist": "6.4.299",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

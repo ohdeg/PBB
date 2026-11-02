@@ -1,3 +1,4 @@
+import { ScorePageViewer } from './pages/ScorePageViewer';
 import { TEMPORI_STORAGE } from './constants/temporiStorage';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
@@ -56,6 +57,8 @@ import { useTemporiPlaybackDerived } from './hooks/useTemporiPlaybackDerived';
 
 interface TemporiProps {
   temporiId: string;
+  annotationId?: string;
+  suppliedMusicXml?: string;
 }
 
 const BPM_STORAGE_KEY = TEMPORI_STORAGE.preferences.bpm;
@@ -63,7 +66,7 @@ const MEASURES_PER_LINE_STORAGE_KEY = TEMPORI_STORAGE.preferences.measuresPerLin
 const TEMPORI_GUIDE_SEEN_KEY = TEMPORI_STORAGE.preferences.viewerGuideSeen;
 const USER_SCROLL_INTERRUPT_TOUCH_THRESHOLD_PX = 10;
 
-export function Tempori({ temporiId }: TemporiProps) {
+export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml }: TemporiProps) {
   const t = useTranslation();
   const viewerRef = useRef<OsmdViewerHandle>(null);
   const restoreWrappedRevisionRef = useRef<number | null>(null);
@@ -165,6 +168,8 @@ export function Tempori({ temporiId }: TemporiProps) {
   const [annotationBrushSizes, setAnnotationBrushSizes] = useState<AnnotationBrushSizes>(() =>
     loadAnnotationBrushSizes(),
   );
+
+  const pageSource = useMemo(() => ({ kind: 'musicxml' as const, id: temporiId, xml: musicXml }), [temporiId, musicXml]);
 
   const isAnnotationToolActive = annotationTool !== 'none';
 
@@ -308,7 +313,7 @@ export function Tempori({ temporiId }: TemporiProps) {
       try {
         const savedBpm = Number(localStorage.getItem(BPM_STORAGE_KEY));
         const savedMeasuresPerLine = Number(localStorage.getItem(MEASURES_PER_LINE_STORAGE_KEY));
-        const xmlText = await fetchTemporiMusicXml(temporiId);
+        const xmlText = suppliedMusicXml ?? await fetchTemporiMusicXml(temporiId);
         if (cancelled) return;
         applyMusicXml(xmlText);
         if (Number.isFinite(savedBpm) && savedBpm > 0) {
@@ -329,7 +334,7 @@ export function Tempori({ temporiId }: TemporiProps) {
     void load();
     return () => { cancelled = true; pendingPlaybackRef.current = null; cancelPlayback(); };
     // Render retries must not refetch the source file.
-  }, [temporiId, loadRetryKey, applyMusicXml, setBpm, setMeasuresPerLine, cancelPlayback, cancelRangeSelection]);
+  }, [temporiId, suppliedMusicXml, loadRetryKey, applyMusicXml, setBpm, setMeasuresPerLine, cancelPlayback, cancelRangeSelection]);
 
   const handleCloseGuide = useCallback(() => {
     localStorage.setItem(TEMPORI_GUIDE_SEEN_KEY, '1');
@@ -843,7 +848,7 @@ export function Tempori({ temporiId }: TemporiProps) {
   }, [setPlaying]);
 
   useEffect(() => {
-    if (viewMode === 'horizontal' || (!isPlaying && !isCountingIn)) return;
+    if (viewMode !== 'wrapped' || (!isPlaying && !isCountingIn)) return;
 
     let touchStartY: number | null = null;
     let touchStartX: number | null = null;
@@ -926,13 +931,13 @@ export function Tempori({ temporiId }: TemporiProps) {
   }, [isAnnotationToolActive]);
 
   const handleAnnotationClear = useCallback(() => {
-    if (!window.confirm(t('viewer.clearAnnotationConfirm'))) return;
-    dispatchAnnotationClear(temporiId, viewMode);
-  }, [temporiId, viewMode, t]);
+    if (!window.confirm(viewMode === 'pages' ? '이 페이지의 필기를 지울까요?' : t('viewer.clearAnnotationConfirm'))) return;
+    dispatchAnnotationClear(annotationId, viewMode);
+  }, [annotationId, viewMode, t]);
 
   const handleAnnotationUndo = useCallback(() => {
-    dispatchAnnotationUndo(temporiId, viewMode);
-  }, [temporiId, viewMode]);
+    dispatchAnnotationUndo(annotationId, viewMode);
+  }, [annotationId, viewMode]);
 
   const handleAnnotationBrushSizeChange = useCallback(
     (toolKey: keyof AnnotationBrushSizes, size: number) => {
@@ -946,8 +951,9 @@ export function Tempori({ temporiId }: TemporiProps) {
   );
 
   return (
-    <div className={`tempori${isImmersive ? ' tempori--immersive' : ''}`}>
+    <div className={`tempori${isImmersive ? ' tempori--immersive' : ''}${viewMode === 'pages' ? ' tempori--pages' : ''}`}>
       <TemporiAnnotationToolbar
+        pageMode={viewMode === 'pages'}
         visible={!isLoading && !error && Boolean(musicXml)}
         tool={annotationTool}
         brushSizes={annotationBrushSizes}
@@ -1040,7 +1046,7 @@ export function Tempori({ temporiId }: TemporiProps) {
             </div>
             <div className="viewer-quick-stat">
               <span>{t('viewer.viewMode')}</span>
-              <strong>{t(viewMode === 'horizontal' ? 'viewer.horizontal' : 'viewer.wrapped')}</strong>
+              <strong>{viewMode === 'pages' ? '페이지' : t(viewMode === 'horizontal' ? 'viewer.horizontal' : 'viewer.wrapped')}</strong>
             </div>
           </div>
           <div className="tempori-toolbar">
@@ -1060,9 +1066,9 @@ export function Tempori({ temporiId }: TemporiProps) {
               <fieldset className="tempori-view-mode">
                 <legend>{t('viewer.viewMode')}</legend>
                 <div className="tempori-view-mode-options">
-                  {(['horizontal', 'wrapped'] as const).map((mode) => <label key={mode}>
+                  {(['horizontal', 'wrapped', 'pages'] as const).map((mode) => <label key={mode}>
                     <input type="radio" name="tempori-view-mode" value={mode} checked={viewMode === mode} onChange={() => changeViewMode(mode)} />
-                    {t(mode === 'horizontal' ? 'viewer.horizontal' : 'viewer.wrapped')}
+                    {mode === 'pages' ? '페이지' : t(mode === 'horizontal' ? 'viewer.horizontal' : 'viewer.wrapped')}
                   </label>)}
                 </div>
                 <p className="practice-settings-hint">{t('viewer.viewModeImmediate')} {t('viewer.separateAnnotations')}</p>
@@ -1215,13 +1221,28 @@ export function Tempori({ temporiId }: TemporiProps) {
             <p>{t('viewer.annotationsSaveFailed')}</p>
             <Button onClick={() => changeViewMode(pendingViewMode.mode, pendingViewMode.persist)}>{t('viewer.retryViewSwitch')}</Button>
           </div>}
-          {viewMode === 'horizontal' && <div className="tempori-follow-actions">
-            {horizontalGuideVisible && !isImmersive && <p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p>}
+          {viewMode !== 'wrapped' && <div className="tempori-follow-actions">
+            {viewMode === 'horizontal' && horizontalGuideVisible && !isImmersive && <p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p>}
             {followSuspended && <Button onClick={() => { setAnnotationTool('none'); setFollowSuspended(false); setFollowRequestKey((key) => key + 1); }}>{t('viewer.resumeFollow')}</Button>}
           </div>}
           {renderState.status === 'error' && <div className="tempori-recovery-actions">{viewMode === 'horizontal' && <Button onClick={() => changeViewMode('wrapped', false)}>{t('viewer.switchWrapped')}</Button>}<Button onClick={handleRetryRender}>{t('viewer.retry')}</Button><Link to="/hobbies/tempori/library">{t('viewer.backToLibrary')}</Link></div>}
           <div className="tempori-canvas-wrap">
-            <OsmdViewer
+            {viewMode === 'pages' ? <ScorePageViewer
+              key={`pages:${renderRevision}`}
+              ref={viewerRef}
+              source={pageSource}
+              annotationId={annotationId}
+              transpose={transposeSemitones}
+              currentMeasure={currentMeasureIndex}
+              followEnabled={!followSuspended && (!isPlaying || isAutoScroll)}
+              followRequestKey={followRequestKey}
+              annotationTool={annotationTool}
+              annotationBrushSizes={annotationBrushSizes}
+              settingsOpen={isSettingsOpen}
+              onManualNavigation={() => setFollowSuspended(true)}
+              onSnapshot={handleOsmdSnapshot}
+              onReady={(ready) => handleRenderStatusChange(ready ? 'ready' : 'loading', renderRevision)}
+            /> : <OsmdViewer
               ref={viewerRef}
               viewMode={viewMode}
               viewportLayoutKey={`${isSettingsOpen}:${isImmersive}:${horizontalGuideVisible}:${pendingViewMode !== null}:${viewPreferenceFailed}`}
@@ -1234,7 +1255,7 @@ export function Tempori({ temporiId }: TemporiProps) {
               musicXml={musicXml}
               renderRevision={renderRevision}
               onRenderStatusChange={handleRenderStatusChange}
-              temporiId={temporiId}
+              temporiId={annotationId}
               measuresPerLine={measuresPerLine}
               transposeSemitones={transposeSemitones}
               positionHighlight={positionHighlight}
@@ -1247,7 +1268,7 @@ export function Tempori({ temporiId }: TemporiProps) {
               freezeLayout={isPlaying || isCountingIn}
               onMeasureClick={handleMeasureClick}
               onSnapshot={handleOsmdSnapshot}
-            />
+            />}
           </div>
           <FloatingPlaybackButton
             visible={!isSettingsOpen}

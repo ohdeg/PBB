@@ -1,4 +1,4 @@
-export type TemporiViewMode = 'wrapped' | 'horizontal';
+export type TemporiViewMode = 'wrapped' | 'horizontal' | 'pages';
 export const VIEW_MODE_STORAGE_KEY = 'tempori:view-mode';
 
 export interface DeviceSignals {
@@ -22,7 +22,7 @@ export function getInitialViewMode(
   try {
     const source = storage ?? (typeof localStorage === 'undefined' ? undefined : localStorage);
     const saved = source?.getItem(VIEW_MODE_STORAGE_KEY);
-    if (saved === 'horizontal' || saved === 'wrapped') return saved;
+    if (saved === 'horizontal' || saved === 'wrapped' || saved === 'pages') return saved;
   } catch { /* A denied preference read must not prevent opening the score. */ }
   return getDeviceViewMode(device);
 }

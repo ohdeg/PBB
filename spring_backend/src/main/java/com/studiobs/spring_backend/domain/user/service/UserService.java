@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final com.studiobs.spring_backend.domain.tempori.TemporiCloudService temporiCloudService;
     private final UserConsentRepository userConsentRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -134,6 +135,7 @@ public class UserService {
 
     @Transactional
     public void delete(User user) {
+        temporiCloudService.deleteAccountScores(user.getId());
         userRepository.delete(user);
     }
 

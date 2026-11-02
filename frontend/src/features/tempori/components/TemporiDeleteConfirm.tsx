@@ -4,6 +4,7 @@ import { Dialog } from '../../../components/ui/Dialog';
 
 interface TemporiDeleteConfirmProps {
   title: string;
+  scope?: 'account' | 'device';
   isDeleting: boolean;
   error: string | null;
   onCancel: () => void;
@@ -12,6 +13,7 @@ interface TemporiDeleteConfirmProps {
 
 export function TemporiDeleteConfirm({
   title,
+  scope,
   isDeleting,
   error,
   onCancel,
@@ -37,6 +39,7 @@ export function TemporiDeleteConfirm({
           <strong>{title}</strong>
           {t('tempori.deleteDescSuffix')}
         </p>
+        {scope && <p>{scope === 'account' ? '계정 원본과 동기화된 필기·연습 상태가 삭제됩니다. 별도로 가져온 기기 원본은 유지됩니다.' : '이 기기의 원본과 해당 기기 필기를 삭제합니다. 계정에 저장된 사본은 유지됩니다.'}</p>}
         {error && <p className="form-error">{error}</p>}
         <div className="tempori-delete-confirm-actions">
           <Button type="button" variant="secondary" onClick={onCancel} disabled={isDeleting}>

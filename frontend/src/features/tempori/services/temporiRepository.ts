@@ -1,3 +1,4 @@
+import { deleteScoreState } from './temporiStateRepository';
 import { migrateTemporiStorageOnce } from '../utils/migrateTemporiStorage';
 import type { TemporiDetail, TemporiSummary } from '../types';
 import type { LibraryTemporiItem } from '../types/library';
@@ -5,9 +6,21 @@ import { getLocalLibraryUserId } from '../utils/libraryUserId';
 import { deleteLocalTempori, fetchLocalTemporiContent, fetchLocalTemporiDetail, fetchLocalTemporiItems, isLocalTemporiId, saveLocalTempori } from '../utils/localTempori';
 import { captureCloudSession, currentAccount, cloudScoreDetail, deleteCloudScore, downloadCloudScore, listCloudScores, scoreHash, type CloudScore } from './temporiCloudApi';
 import { cloudCache } from './cloudCache';
-import { migrateLocalScore, migrationJobs } from './temporiMigration';
+import { initializeUploadedState, migrateLocalScore, migrationJobs, restartDeletedMigration } from './temporiMigration';
 import { cleanupDeletedTemporiAnnotations } from '../utils/temporiAnnotations';
 
+interface CachedOriginal { blob: Blob; detail: CloudScore }
+const originalBlob = (value: Blob | CachedOriginal | undefined) => value instanceof Blob ? value : value?.blob;
+const canUseCachedMetadata = (error: unknown) => { const status = (error as { response?: { status?: number } })?.response?.status; return status === undefined || status >= 500; };
+async function availableDetail(id: string, account: string): Promise<CloudScore> {
+  try { if (typeof navigator === 'undefined' || navigator.onLine) return await cloudScoreDetail(id); }
+  catch (error) { if (!canUseCachedMetadata(error)) throw error; }
+  const cached = await cloudCache<Blob | CachedOriginal>(`blob:${account}:${id}`);
+  if (cached && !(cached instanceof Blob)) return cached.detail;
+  const list = await cloudCache<CloudScore[]>(`list:${account}`); const found = list?.find((score) => score.id === id);
+  if (found && originalBlob(cached)) return found;
+  throw new Error('오류가 발생하여 다운로드에 실패하였습니다');
+}
 const accountOwner = (account: string) => `account:${account}`;
 async function localOwner(id: string): Promise<string> {
   const account = currentAccount();
@@ -22,7 +35,8 @@ async function localOwner(id: string): Promise<string> {
 export async function fetchLibraryTemporiItems(): Promise<LibraryTemporiItem[]> {
   const session = captureCloudSession(); await migrateTemporiStorageOnce(); session.assert(); const account = session.account;
   if (!account) return (await fetchLocalTemporiItems(getLocalLibraryUserId())).map((item) => ({ ...item, syncState: 'local' }));
-  const [local, jobs, cachedList] = await Promise.all([fetchLocalTemporiItems(accountOwner(account)), migrationJobs(account), cloudCache<CloudScore[]>(`list:${account}`)]); session.assert();
+  const [ownLocal, guestLocal, jobs, cachedList] = await Promise.all([fetchLocalTemporiItems(accountOwner(account)), fetchLocalTemporiItems(getLocalLibraryUserId()), migrationJobs(account), cloudCache<CloudScore[]>(`list:${account}`)]); session.assert();
+  const local = [...new Map([...ownLocal, ...guestLocal].map((item) => [item.id, item])).values()];
   const drafts = local.filter((item) => !jobs.some((job) => job.localId === item.id && job.state === 'saved'));
   let remote: CloudScore[]; let offline = false; let serverListUnavailable = false;
   try {
@@ -37,20 +51,22 @@ export async function fetchLibraryTemporiItems(): Promise<LibraryTemporiItem[]> 
     serverListUnavailable = true;
   }
   session.assert();
+  if (!serverListUnavailable) for (const job of jobs.filter((job) => job.state === 'saved' && (!job.stateSeeded || job.stateSyncPending))) {
+    const score = remote.find((item) => item.id === job.serverId);
+    if (score) { try { await initializeUploadedState(account, job, score.sha256); } catch { session.assert(); } }
+  }
+  session.assert();
+  const refreshedJobs = await migrationJobs(account); session.assert();
   return [
-    ...remote.map((item) => ({ ...item, syncState: 'saved' as const, offline, serverListUnavailable, annotationId: jobs.find((job) => job.serverId === item.id)?.localId })),
-    ...drafts.map((item) => ({ ...item, syncState: 'failed' as const, serverListUnavailable })),
+    ...remote.map((item) => ({ ...item, syncState: 'saved' as const, stateSyncPending: refreshedJobs.find((job) => job.serverId === item.id)?.stateSyncPending, offline, serverListUnavailable, annotationId: jobs.find((job) => job.serverId === item.id)?.localId })),
+    ...local.filter((item) => !jobs.some((job) => job.localId === item.id && job.state === 'saved' && (serverListUnavailable || remote.some((score) => score.id === job.serverId)))).map((item) => ({ ...item, syncState: (jobs.find((job) => job.localId === item.id)?.state === 'saved' ? 'local' : jobs.find((job) => job.localId === item.id)?.state === 'failed' || ownLocal.some((own) => own.id === item.id) ? 'failed' : 'local') as 'failed' | 'local', serverListUnavailable })),
   ];
 }
 export async function fetchTemporiDetail(id: string): Promise<TemporiDetail> {
   const session = captureCloudSession(); await migrateTemporiStorageOnce(); session.assert();
   if (isLocalTemporiId(id)) { const value = await fetchLocalTemporiDetail(await localOwner(id), id); session.assert(); return value; }
   if (!session.account) throw new Error('계정에 로그인해 주세요.');
-  let score: CloudScore;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    const cached = await cloudCache<CloudScore[]>(`list:${session.account}`); const found = cached?.find((item) => item.id === id);
-    if (!found || !await cloudCache(`blob:${session.account}:${id}`)) throw new Error('오프라인에서는 이 기기에 내려받은 악보만 열 수 있습니다.'); score = found;
-  } else score = await cloudScoreDetail(id);
+  const score = await availableDetail(id, session.account); session.assert();
   const job = (await migrationJobs(session.account)).find((item) => item.serverId === id); session.assert();
   return { ...score, storagePath: '', annotationId: job?.localId ?? id };
 }
@@ -58,13 +74,20 @@ export async function fetchTemporiContent(id: string): Promise<Blob> {
   const session = captureCloudSession(); await migrateTemporiStorageOnce(); session.assert();
   if (isLocalTemporiId(id)) { const blob = await fetchLocalTemporiContent(await localOwner(id), id); session.assert(); return blob; }
   if (!session.account) throw new Error('계정에 로그인해 주세요.');
-  const key = `blob:${session.account}:${id}`;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) { const cached = await cloudCache<Blob>(key); session.assert(); if (cached) return cached; throw new Error('오프라인 원본이 없습니다.'); }
-  const detail = await cloudScoreDetail(id); const cached = await cloudCache<Blob>(key); session.assert();
-  if (cached && cached.size === detail.sizeBytes && await scoreHash(cached) === detail.sha256) { session.assert(); return cached; }
-  const blob = await downloadCloudScore(id); session.assert();
-  if (blob.size !== detail.sizeBytes || await scoreHash(blob) !== detail.sha256) throw new Error('원본 검증에 실패했습니다. 다시 내려받아 주세요.');
-  session.assert(); await cloudCache(key, blob); session.assert(); return blob;
+  try {
+    const key = `blob:${session.account}:${id}`;
+    const detail = await availableDetail(id, session.account); const cached = originalBlob(await cloudCache<Blob | CachedOriginal>(key)); session.assert();
+    if (cached && cached.size === detail.sizeBytes && await scoreHash(cached) === detail.sha256) { session.assert(); return cached; }
+    const blob = await downloadCloudScore(id); session.assert();
+    if (blob.size !== detail.sizeBytes || await scoreHash(blob) !== detail.sha256) throw new Error('Original integrity check failed');
+    // The blob record is the completion marker: one atomic IDB transaction, never a memory fallback.
+    session.assert(); await cloudCache(key, { blob, detail }); session.assert(); return blob;
+  } catch (error) {
+    session.assert();
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    throw new Error(error instanceof DOMException && error.name === 'QuotaExceededError'
+      ? '저장공간이 부족해 다운로드에 실패했습니다' : '오류가 발생하여 다운로드에 실패하였습니다');
+  }
 }
 export async function saveTempori(file: File, title: string, artist: string | undefined): Promise<TemporiSummary> {
   const session = captureCloudSession(); await migrateTemporiStorageOnce(); session.assert(); const account = session.account;
@@ -77,14 +100,26 @@ export async function saveTempori(file: File, title: string, artist: string | un
 export async function retryTemporiUpload(id: string) {
   const session = captureCloudSession(); const owner = await localOwner(id); session.assert();
   const detail = await fetchLocalTemporiDetail(owner, id); session.assert();
+  if (session.account) {
+    const job = (await migrationJobs(session.account)).find((job) => job.localId === id); session.assert();
+    if (job?.state === 'saved' && job.serverId) { try { await cloudScoreDetail(job.serverId); session.assert(); } catch (failure) { session.assert(); if ((failure as { response?: { status?: number } }).response?.status !== 404) throw failure; await restartDeletedMigration(session.account, id); session.assert(); } }
+  }
   const result = await migrateLocalScore(id, owner, detail.title, detail.artist ?? undefined); session.assert(); return result;
 }
 export async function deleteLibraryTempori(item: LibraryTemporiItem): Promise<void> {
   const session = captureCloudSession(); await migrateTemporiStorageOnce(); session.assert();
-  if (isLocalTemporiId(item.id)) { await deleteLocalTempori(await localOwner(item.id), item.id); session.assert(); return; }
+  if (isLocalTemporiId(item.id)) { const owner = await localOwner(item.id); session.assert(); await deleteLocalTempori(owner, item.id); session.assert(); await deleteScoreState(owner, item.id); session.assert(); return; }
   if (!session.account) throw new Error('계정에 로그인해 주세요.');
-  await deleteCloudScore(item.id); session.assert(); await cloudCache(`blob:${session.account}:${item.id}`, null);
+  await deleteCloudScore(item.id); session.assert(); await cloudCache(`blob:${session.account}:${item.id}`, null); await deleteScoreState(accountOwner(session.account), item.id); session.assert();
   // A migrated local copy and its annotations survive cloud deletion.
   if (!item.annotationId || item.annotationId === item.id) cleanupDeletedTemporiAnnotations([item.id]);
 }
 export async function deleteTempori(item: TemporiSummary): Promise<void> { return deleteLibraryTempori(item); }
+
+export async function temporiStateIdentity(id: string, originalHash: string) {
+  const session = captureCloudSession();
+  const owner = isLocalTemporiId(id) ? await localOwner(id) : `account:${session.account}`; session.assert();
+  let initializationError: string | undefined;
+  if (!isLocalTemporiId(id) && session.account) { const job = (await migrationJobs(session.account)).find((job) => job.serverId === id); session.assert(); if (job) { try { await initializeUploadedState(session.account, job, originalHash); } catch { session.assert(); initializationError = '원본은 준비되었지만 이전 기기 상태의 복사를 마치지 못했습니다. 보관함에서 다시 열어 재시도해 주세요.'; } } session.assert(); }
+  return { owner, scoreId: id, originalHash, accountId: session.account, initializationError };
+}

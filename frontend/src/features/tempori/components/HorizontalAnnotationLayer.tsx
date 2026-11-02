@@ -1,3 +1,4 @@
+import { useAnnotationState } from '../services/useAnnotationState';
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type PointerEvent, type Ref, type RefObject } from 'react';
 import type { AnnotationBrushSizes, AnnotationLayerHandle, AnnotationPoint, AnnotationStroke, AnnotationToolMode, HorizontalAnnotationStroke } from '../types/temporiAnnotation';
 import type { MeasureLayoutInContainer } from '../utils/measureTiming';
@@ -6,6 +7,8 @@ import { hasPendingAnnotationDraft, loadHorizontalAnnotations, saveHorizontalAnn
 
 export type AnnotationError = 'save' | 'load' | null;
 interface Props {
+  storageId?: string;
+  stateLayout?: string;
   ref?: Ref<AnnotationLayerHandle>;
   temporiId: string;
   containerRef: RefObject<HTMLDivElement | null>;
@@ -19,7 +22,11 @@ interface Props {
 const initialBounds = getAnnotationCanvasBounds({ left: 0, top: 0, width: 1, height: 1 }, { width: 1, height: 1 }, 1);
 
 /** Only this viewport crop has canvas backing pixels; the complete score remains SVG. */
-export default function HorizontalAnnotationLayer({ ref, temporiId, containerRef, viewportRef, layouts, layoutKey, tool, brushSizes, onError }: Props) {
+export default function HorizontalAnnotationLayer(props: Props) {
+  const sync = useAnnotationState('horizontal', props.stateLayout ?? 'legacy', props.temporiId);
+  return <>{sync.error && <p role="status">{sync.error}</p>}{sync.ready && <HorizontalAnnotationLayerInner key={`${sync.storageId}:${sync.revision}`} {...props} storageId={sync.storageId} />}</>;
+}
+function HorizontalAnnotationLayerInner({ ref, temporiId, storageId = temporiId, containerRef, viewportRef, layouts, layoutKey, tool, brushSizes, onError }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<HorizontalAnnotationStroke[]>([]);
   const indexRef = useRef(new Map<number, Set<HorizontalAnnotationStroke>>());
@@ -76,10 +83,10 @@ export default function HorizontalAnnotationLayer({ ref, temporiId, containerRef
     if (lockedRef.current || !dirtyRef.current) return true;
     try {
       // Synchronous save captures this mounted document's ID, never a later render's ID.
-      saveHorizontalAnnotations(temporiId, { version: 2, strokes: strokesRef.current });
+      saveHorizontalAnnotations(storageId, { version: 2, strokes: strokesRef.current });
       dirtyRef.current = false; onErrorRef.current?.(null); return true;
     } catch { onErrorRef.current?.('save'); return false; }
-  }, [temporiId]);
+  }, [storageId, temporiId]);
 
   const flush = useCallback(() => {
     const active = activeRef.current;
@@ -95,13 +102,13 @@ export default function HorizontalAnnotationLayer({ ref, temporiId, containerRef
   }, [paint, persist, reindex]);
 
   const load = useCallback(() => {
-    const result = loadHorizontalAnnotations(temporiId);
+    const result = loadHorizontalAnnotations(storageId);
     lockedRef.current = !result.ok; setLocked(!result.ok);
-    if (result.ok) { strokesRef.current = result.document.strokes; dirtyRef.current = hasPendingAnnotationDraft(temporiId, 'horizontal'); reindex(); onErrorRef.current?.(dirtyRef.current ? 'save' : null); }
+    if (result.ok) { strokesRef.current = result.document.strokes; dirtyRef.current = hasPendingAnnotationDraft(storageId, 'horizontal'); reindex(); onErrorRef.current?.(dirtyRef.current ? 'save' : null); }
     else onErrorRef.current?.('load');
     paint();
     return result.ok;
-  }, [temporiId, paint, reindex]);
+  }, [storageId, temporiId, paint, reindex]);
 
   useImperativeHandle(ref, () => ({ flush, retryLoad: load }), [flush, load]);
 
@@ -154,7 +161,7 @@ export default function HorizontalAnnotationLayer({ ref, temporiId, containerRef
     const unload = (event: BeforeUnloadEvent) => { if (!flush()) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', unload);
     return () => { window.removeEventListener('tempori-annotations-clear', clear); window.removeEventListener('tempori-annotations-undo', undo); window.removeEventListener('beforeunload', unload); };
-  }, [temporiId, flush, persist, paint, reindex]);
+  }, [storageId, temporiId, flush, persist, paint, reindex]);
 
   // Switching tools must not abandon a captured pen stroke.
   useEffect(() => { flush(); }, [tool, flush]);

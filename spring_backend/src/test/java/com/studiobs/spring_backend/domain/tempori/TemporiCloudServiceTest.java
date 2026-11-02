@@ -27,7 +27,7 @@ class TemporiCloudServiceTest {
         when(scores.findById(anyString())).thenAnswer(call -> Optional.ofNullable(rows.get(call.getArgument(0))));
         when(scores.findByOwnerIdOrderByCreatedAtDesc(anyString())).thenAnswer(call -> rows.values().stream().filter(row -> row.getOwnerId().equals(call.getArgument(0))).toList());
         when(scores.lockAllByOwner(anyString())).thenAnswer(call -> rows.values().stream().filter(row -> row.getOwnerId().equals(call.getArgument(0))).toList());
-        service=new TemporiCloudService(scores,users,storage,new TemporiFileValidator(),manager,26214400,524288000,200);
+        service=new TemporiCloudService(scores,mock(TemporiScoreStateRepository.class),mock(TemporiStateMutationRepository.class),users,storage,new TemporiFileValidator(),manager,26214400,524288000,200);
     }
     @Test void sameRequestRetryReturnsReadyIdWithoutWritingAgainAndDifferentRequestConflicts() {
         var first=service.upload(owner,"request-123",file,"Title",null);
@@ -43,7 +43,7 @@ class TemporiCloudServiceTest {
         assertTrue(service.list(stranger,null).items().isEmpty()); verify(storage,never()).download(anyString());
     }
     @Test void failedUploadStaysReservedAndCannotExceedQuota() {
-        service=new TemporiCloudService(scores,users,storage,new TemporiFileValidator(),manager,26214400,524288000,1);
+        service=new TemporiCloudService(scores,mock(TemporiScoreStateRepository.class),mock(TemporiStateMutationRepository.class),users,storage,new TemporiFileValidator(),manager,26214400,524288000,1);
         doThrow(new RuntimeException("object failure")).when(storage).put(anyString(),any(),anyString());
         assertThrows(BusinessException.class,()->service.upload(owner,"request-123",file,"Title",null));
         assertEquals(TemporiScore.State.FAILED,rows.values().iterator().next().getState());

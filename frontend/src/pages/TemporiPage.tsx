@@ -1,5 +1,8 @@
+import { TemporiStateProvider } from '../features/tempori/services/TemporiStateProvider';
+import { scoreHash } from '../features/tempori/services/temporiCloudApi';
+import type { StateIdentity } from '../features/tempori/services/temporiStateRepository';
 import { useAuthStore } from '../stores/authStore';
-import { loadScoreSource } from '../features/tempori/pages/scoreSource';
+import { sourceFromBlob } from '../features/tempori/pages/scoreSource';
 import type { ScoreSource } from '../features/tempori/pages/types';
 import { PdfTempori } from '../features/tempori/pages/PdfTempori';
 import { useEffect, useState } from 'react';
@@ -7,7 +10,7 @@ import { useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Tempori } from '../features/tempori/Tempori';
 import { TemporiI18nProvider, useTranslation } from '../features/tempori/i18n/LanguageContext';
-import { fetchTemporiDetail } from '../features/tempori/services/temporiRepository';
+import { fetchTemporiDetail, fetchTemporiContent, temporiStateIdentity } from '../features/tempori/services/temporiRepository';
 import type { TemporiDetail } from '../features/tempori/types';
 import { resolveErrorMessage } from '../features/tempori/utils/resolveErrorMessage';
 
@@ -15,6 +18,8 @@ function TemporiPageInner() {
   const { id } = useParams<{ id: string }>();
   const t = useTranslation();
   const account = useAuthStore((state) => state.userId);
+  const [identity, setIdentity] = useState<StateIdentity | null>(null);
+  const [stateError, setStateError] = useState('');
   const [source, setSource] = useState<ScoreSource | null>(null);
   const [tempori, setTempori] = useState<TemporiDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +29,7 @@ function TemporiPageInner() {
   useEffect(() => {
     let cancelled = false;
     setTempori(null);
-    setSource(null);
+    setSource(null); setIdentity(null); setStateError('');
     if (!id) { setIsLoading(false); setError(t('viewer.loadFailed')); return; }
 
     const loadTempori = async () => {
@@ -34,10 +39,14 @@ function TemporiPageInner() {
       try {
         const data = await fetchTemporiDetail(id);
         if (cancelled) return;
-        const source = await loadScoreSource(data.id);
-        if (!cancelled) { setTempori(data); setSource(source); }
+        const blob = await fetchTemporiContent(data.id);
+        const source = await sourceFromBlob(data.id, blob); const hash = await scoreHash(blob); if (cancelled) return;
+        let identity: StateIdentity;
+        try { identity = await temporiStateIdentity(data.id, hash); }
+        catch (failure) { if (failure instanceof DOMException && failure.name === 'AbortError') throw failure; if (!cancelled) setStateError('기기 연습 상태의 이전을 마치지 못했습니다. 보관함에서 악보를 다시 열어 재시도해 주세요.'); throw failure; }
+        if (!cancelled) { setTempori(data); setSource(source); setIdentity(identity); }
       } catch (err) {
-        if (!cancelled) setError(resolveErrorMessage(t, err, 'viewer.loadFailed'));
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) setError(err instanceof Error && ['저장공간이 부족해 다운로드에 실패했습니다', '오류가 발생하여 다운로드에 실패하였습니다'].includes(err.message) ? err.message : resolveErrorMessage(t, err, 'viewer.loadFailed'));
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -55,8 +64,9 @@ function TemporiPageInner() {
       </header>
 
       {isLoading && <p className="tempori-status" role="status">{t('viewer.loadingTempori')}</p>}
+      {stateError && <p role="status">{stateError}</p>}
       {error && <div><p className="tempori-error" role="alert">{error}</p><Button onClick={() => setRetryKey((key) => key + 1)}>{t('viewer.retry')}</Button></div>}
-      {!isLoading && !error && tempori && source && (source.kind === 'pdf' ? <PdfTempori key={`${account}:${tempori.id}`} source={source} annotationId={tempori.annotationId ?? tempori.id} /> : <Tempori key={`${account}:${tempori.id}`} temporiId={tempori.id} annotationId={tempori.annotationId} suppliedMusicXml={source.xml} />)}
+      {!isLoading && !error && tempori && source && identity && <TemporiStateProvider identity={identity}>{(source.kind === 'pdf' ? <PdfTempori key={`${account}:${tempori.id}`} source={source} annotationId={tempori.annotationId ?? tempori.id} /> : <Tempori key={`${account}:${tempori.id}`} temporiId={tempori.id} annotationId={tempori.annotationId} suppliedMusicXml={source.xml} />)}</TemporiStateProvider>}
     </main>
   );
 }

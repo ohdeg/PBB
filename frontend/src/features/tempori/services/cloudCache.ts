@@ -11,7 +11,7 @@ export async function cloudCache<T>(key: string, value?: T | null): Promise<T | 
       const store = transaction.objectStore('records');
       const request = value === undefined ? store.get(key) : value === null ? store.delete(key) : store.put(value, key);
       transaction.oncomplete = () => resolve(value === undefined ? request.result as T | undefined : undefined);
-      transaction.onerror = transaction.onabort = () => reject(transaction.error ?? new Error('기기 저장 공간을 확인해 주세요.'));
+      transaction.onerror = transaction.onabort = () => reject(request.error ?? transaction.error ?? new Error('기기 저장 공간을 확인해 주세요.'));
     });
   } finally { db.close(); }
 }

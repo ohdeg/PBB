@@ -704,6 +704,7 @@ export default function OsmdViewer({
           />
           {annotationsEnabled && (viewMode === 'horizontal' ? <HorizontalAnnotationLayer
             key={`horizontal:${temporiId}`}
+            stateLayout={`osmd1.9.9:horizontal:transpose${transposeSemitones}`}
             ref={annotationRef}
             temporiId={temporiId}
             containerRef={containerRef}
@@ -715,6 +716,7 @@ export default function OsmdViewer({
             onError={setAnnotationError}
           /> : <TemporiAnnotationLayer
             key={`wrapped:${temporiId}`}
+            stateLayout={`osmd1.9.9:wrapped:measures${normalizedMeasuresPerLine}:transpose${transposeSemitones}:${JSON.stringify(activeLayouts)}`}
             ref={annotationRef}
             temporiId={temporiId}
             containerRef={containerRef}

@@ -26,6 +26,10 @@ class TemporiCloudConcurrencyIT extends AbstractIntegrationTest {
     @Autowired UserRepository users;
     @Autowired TemporiScoreRepository scores;
     @Autowired PlatformTransactionManager manager;
+    @Autowired TemporiStateService state;
+    @Autowired TemporiScoreStateRepository documents;
+    @Autowired TemporiStateMutationRepository mutations;
+    @Autowired tools.jackson.databind.ObjectMapper json;
     @MockitoBean TemporiPrivateStorage storage;
     private final MockMultipartFile file=new MockMultipartFile("file","score.xml","application/xml","<score-partwise><part-list/></score-partwise>".getBytes(StandardCharsets.UTF_8));
     private User account() { String unique=UUID.randomUUID().toString(); return users.saveAndFlush(User.builder().email(unique+"@example.test").nickname(unique).password("test-only-not-a-login-hash").build()); }
@@ -55,10 +59,12 @@ class TemporiCloudConcurrencyIT extends AbstractIntegrationTest {
             }));
             assertTrue(snapshot.await(10,TimeUnit.SECONDS));
             TemporiCloudService.ScoreDto score;
-            try { score=service.upload(owner.getId(),"interleaved-request",file,"Committed later",null); } finally { uploaded.countDown(); }
+            try { score=service.upload(owner.getId(),"interleaved-request",file,"Committed later",null); state.put(owner.getId(),score.id(),"position",new TemporiStateService.Write(0,"state-before-delete",1,json.readTree("{\"kind\":\"musicxml\",\"measureIndex\":0,\"progress\":0}"))); } finally { uploaded.countDown(); }
             deletion.get(10,TimeUnit.SECONDS);
             assertEquals(TemporiScore.State.DELETING,scores.findById(score.id()).orElseThrow().getState());
             assertFalse(users.existsById(owner.getId()));
+            assertTrue(documents.findByScoreIdOrderByDocumentKey(score.id()).isEmpty());
+            assertTrue(mutations.findByScoreIdAndMutationId(score.id(),"state-before-delete").isEmpty());
         }
     }
 }

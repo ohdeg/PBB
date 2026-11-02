@@ -1,3 +1,4 @@
+import { publishAnnotationChange } from '../services/annotationStateBridge';
 import { clearPageAnnotations } from '../pages/pageAnnotations';
 import { TEMPORI_STORAGE } from '../constants/temporiStorage';
 import type { TemporiAnnotationDocument, HorizontalAnnotationDocument } from '../types/temporiAnnotation';
@@ -38,6 +39,7 @@ export const saveTemporiAnnotations = (temporiId: string, document: TemporiAnnot
   if (!temporiId) return;
   try {
     localStorage.setItem(`${STORAGE_PREFIX}${temporiId}`, JSON.stringify(document));
+    publishAnnotationChange(temporiId, document);
     pendingWrapped.delete(temporiId);
   } catch (error) { pendingWrapped.set(temporiId, document); throw error; }
 };
@@ -83,6 +85,7 @@ export function saveHorizontalAnnotations(temporiId: string, document: Horizonta
   if (!temporiId) return;
   try {
     localStorage.setItem(`${TEMPORI_STORAGE.horizontalAnnotationsPrefix}${temporiId}`, JSON.stringify(document));
+    publishAnnotationChange(temporiId, document);
     pendingHorizontal.delete(temporiId);
   } catch (error) { pendingHorizontal.set(temporiId, document); throw error; }
 }

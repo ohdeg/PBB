@@ -8,4 +8,5 @@ export interface LibraryTemporiItem {
   syncState?: 'local' | 'saved' | 'failed';
   offline?: boolean;
   serverListUnavailable?: boolean;
+  stateSyncPending?: boolean;
 }

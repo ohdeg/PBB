@@ -1,3 +1,5 @@
+import { useTemporiState } from './services/TemporiStateProvider';
+import type { PracticeState, PositionState } from './services/temporiStateRepository';
 import { ScorePageViewer } from './pages/ScorePageViewer';
 import { TEMPORI_STORAGE } from './constants/temporiStorage';
 import { Link } from 'react-router-dom';
@@ -68,6 +70,18 @@ const USER_SCROLL_INTERRUPT_TOUCH_THRESHOLD_PX = 10;
 
 export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml }: TemporiProps) {
   const t = useTranslation();
+  const scoreState = useTemporiState();
+  const practiceGeneration = useRef(0); const practiceApplied = useRef(-1); const practiceText = useRef('');
+  const positionGeneration = useRef(0); const positionApplied = useRef(-1);
+  const positionTarget = useRef<string | null>(null); const positionLast = useRef(''); const positionLastSavedAt = useRef(0);
+  const positionLatest = useRef<PositionState | null>(null);
+  const stateRef = useRef(scoreState); stateRef.current = scoreState;
+  const persistPractice = useCallback((payload: PracticeState) => {
+    if (practiceText.current === JSON.stringify(payload)) return;
+    try { stateRef.current?.save('practice', payload, practiceGeneration.current); practiceText.current = JSON.stringify(payload); practiceGeneration.current += 1; practiceApplied.current = practiceGeneration.current; }
+    catch (failure) { stateRef.current?.reportError(failure instanceof Error ? failure.message : '연습 설정을 저장하지 못했습니다.'); }
+  }, []);
+
   const viewerRef = useRef<OsmdViewerHandle>(null);
   const restoreWrappedRevisionRef = useRef<number | null>(null);
   const [viewMode, setViewMode] = useState<TemporiViewMode>(() => getInitialViewMode());
@@ -391,6 +405,49 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
     });
   }, [totalMeasures, temporiId, snapshot.timings.length]);
 
+  useEffect(() => { scoreState?.setBusy(isPlaying || isCountingIn || isAnnotationToolActive || isSettingsOpen); return () => scoreState?.setBusy(false); }, [scoreState?.setBusy, isPlaying, isCountingIn, isAnnotationToolActive, isSettingsOpen]);
+  useEffect(() => {
+    if (!scoreState?.ready || snapshot.timings.length === 0 || isPlaying || isCountingIn || isAnnotationToolActive || isSettingsOpen) return;
+    const doc = scoreState.state.documents.practice;
+    if (doc?.payload && doc.generation !== practiceApplied.current && !doc.conflict) {
+      const value = doc.payload as PracticeState; const range = clampMeasureRange(value.startMeasure, value.endMeasure, totalMeasures);
+      setBpm(value.bpm); setTempoChanges(normalizeTempoChanges(value.tempoChanges, totalMeasures)); setStartMeasure(range.startMeasure); setEndMeasure(range.endMeasure); setIsRepeatMode(value.isRepeatMode);
+      practiceGeneration.current = doc.generation; practiceApplied.current = doc.generation; practiceText.current = JSON.stringify({ ...value, startMeasure: range.startMeasure, endMeasure: range.endMeasure, tempoChanges: normalizeTempoChanges(value.tempoChanges, totalMeasures) });
+    } else if (!doc?.payload && practiceApplied.current < 0 && (doc?.serverKnown || !scoreState.identity.accountId || temporiId.startsWith('tempori-'))) {
+      practiceGeneration.current = doc?.generation ?? 0;
+      persistPractice({ bpm: Math.min(300, Math.max(20, bpm)), tempoChanges: [], startMeasure: 1, endMeasure: totalMeasures, isRepeatMode: false });
+    }
+  }, [scoreState, snapshot.timings.length, totalMeasures, isPlaying, isCountingIn, isAnnotationToolActive, isSettingsOpen, setBpm, bpm, persistPractice, temporiId]);
+  const flushPosition = useCallback(() => {
+    const payload = positionLatest.current; const context = stateRef.current;
+    if (!payload || !context || JSON.stringify(payload) === positionLast.current) return;
+    try { context.save('position', payload, positionGeneration.current); positionGeneration.current += 1; positionApplied.current = positionGeneration.current; positionLast.current = JSON.stringify(payload); positionLastSavedAt.current = Date.now(); }
+    catch (failure) { context.reportError(failure instanceof Error ? failure.message : '연습 위치를 저장하지 못했습니다.'); }
+  }, []);
+  useEffect(() => {
+    if (!scoreState?.ready || windows.length === 0 || renderState.status !== 'ready' || isPlaying || isCountingIn || isAnnotationToolActive || isSettingsOpen) return;
+    const doc = scoreState.state.documents.position; const value = doc?.payload as PositionState | undefined;
+    if (value?.kind === 'musicxml' && doc.generation !== positionApplied.current && !doc.conflict) {
+      positionApplied.current = doc.generation; positionGeneration.current = doc.generation;
+      if (value.measureIndex >= snapshot.timings.length) return;
+      const window = windows.find((window) => window.measureIndex === value.measureIndex); if (!window) return;
+      positionTarget.current = JSON.stringify(value); positionLast.current = JSON.stringify(value);
+      setCurrentMeasureIndex(value.measureIndex); setElapsedMs(window.startMs + value.progress * window.durationMs); setPlaybackSyncKey((key) => key + 1); setFollowRequestKey((key) => key + 1);
+      viewerRef.current?.restoreMeasure(value.measureIndex);
+    }
+  }, [scoreState, windows, renderState.status, snapshot.timings.length, isPlaying, isCountingIn, isAnnotationToolActive, isSettingsOpen, setCurrentMeasureIndex, setElapsedMs]);
+  useEffect(() => {
+    if (!scoreState?.ready || windows.length === 0 || renderState.status !== 'ready') return;
+    const doc = scoreState.state.documents.position;
+    if (!doc?.payload && !doc?.serverKnown && scoreState.identity.accountId && !temporiId.startsWith('tempori-')) return;
+    const window = windows[playbackStepIndex] ?? windows.find((item) => item.measureIndex === currentMeasureIndex); if (!window) return;
+    const payload: PositionState = { kind: 'musicxml', measureIndex: currentMeasureIndex, progress: Math.round(Math.max(0, Math.min(1, (elapsedMs - window.startMs) / window.durationMs)) * 10000) / 10000 };
+    if (positionTarget.current) { const target = JSON.parse(positionTarget.current) as Extract<PositionState, { kind: 'musicxml' }>; if (target.measureIndex !== payload.measureIndex || Math.abs(target.progress - payload.progress) > .001) return; positionTarget.current = null; }
+    positionLatest.current = payload;
+    if (!isPlaying || Date.now() - positionLastSavedAt.current >= 5000) flushPosition();
+  }, [scoreState, windows, renderState.status, playbackStepIndex, currentMeasureIndex, elapsedMs, isPlaying, flushPosition, temporiId]);
+  useEffect(() => { const flush = () => flushPosition(); window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', flush); return () => { flush(); window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', flush); }; }, [flushPosition]);
+
   countInAudioRef.current = {
     enabled: isMetronomeEnabled,
     windows: countInMetronomeWindows,
@@ -622,10 +679,11 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
         setStartMeasure(result.range.startMeasure);
         setEndMeasure(result.range.endMeasure);
         setMeasureInteractionMode('seek');
+        persistPractice({ bpm, tempoChanges, ...result.range, isRepeatMode });
       }
       seekToMeasureIndex(result.seekIndex);
     },
-    [isPlaying, isCountingIn, isAnnotationToolActive, isSettingsOpen, renderState.status, measureInteractionMode, rangeSelectionStartMeasure, seekToMeasureIndex],
+    [isPlaying, isCountingIn, isAnnotationToolActive, isSettingsOpen, renderState.status, measureInteractionMode, rangeSelectionStartMeasure, seekToMeasureIndex, persistPractice, bpm, tempoChanges, isRepeatMode],
   );
 
   const handleSeekToStartMeasure = useCallback(() => {
@@ -666,6 +724,7 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
       totalMeasures,
     );
 
+    persistPractice({ bpm: draft.bpm, tempoChanges: normalizeTempoChanges(draft.tempoChanges, totalMeasures), startMeasure: range.startMeasure, endMeasure: range.endMeasure, isRepeatMode: draft.isRepeatMode });
     setBpm(draft.bpm);
     setTimeSignature({
       beatsPerMeasure: draft.beatsPerMeasure,
@@ -694,7 +753,7 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
     setSettingsRevision((revision) => revision + 1);
     setIsSettingsOpen(false);
   }, [
-    cancelPlayback, transposeSemitones, measuresPerLine, renderRevision, temporiId, viewMode,
+    persistPractice, cancelPlayback, transposeSemitones, measuresPerLine, renderRevision, temporiId, viewMode,
     totalMeasures,
     setBpm,
     setTimeSignature,
@@ -1232,6 +1291,7 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
               ref={viewerRef}
               source={pageSource}
               annotationId={annotationId}
+              onMeasureNavigation={(measure) => { if (!isPlaying && !isCountingIn) seekToMeasureIndex(measure); setFollowSuspended(true); }}
               transpose={transposeSemitones}
               currentMeasure={currentMeasureIndex}
               followEnabled={!followSuspended && (!isPlaying || isAutoScroll)}

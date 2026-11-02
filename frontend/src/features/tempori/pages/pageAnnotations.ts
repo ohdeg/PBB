@@ -1,3 +1,4 @@
+import { publishAnnotationChange } from '../services/annotationStateBridge';
 export interface PagePoint { x: number; y: number }
 export interface PageStroke { id: string; tool: 'pen' | 'highlighter'; color: string; widthPageRatio: number; points: PagePoint[] }
 export interface PageAnnotationDocument { version: 1; pages: { pageIndex: number; strokes: PageStroke[] }[] }
@@ -16,7 +17,7 @@ export function loadPageAnnotations(id: string, layout: string): { ok: true; doc
 }
 export function savePageAnnotations(id: string, layout: string, doc: PageAnnotationDocument) {
   const key = pageAnnotationKey(id, layout); pending.set(key, doc);
-  localStorage.setItem(key, JSON.stringify(doc)); pending.delete(key);
+  localStorage.setItem(key, JSON.stringify(doc)); publishAnnotationChange(id, doc); pending.delete(key);
 }
 export function clearPageAnnotations(id: string) {
   const start = `${prefix}${id}:`; const keys: string[] = [];

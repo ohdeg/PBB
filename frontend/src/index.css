@@ -8427,3 +8427,34 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty))[data-tools-open='false'] .tempori-viewer-dock-annotation { display: none; }
 .tempori-viewer-dock-pages { background: var(--surface, #fff); color: var(--text-primary, #1e293b); border-radius: .5rem; }
 @media (max-width: 420px) { .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-exit, .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .tempori-viewer-tools-toggle { font-size: .75rem; padding-inline: .45rem; } .tempori-viewer-dock:has(.tempori-viewer-dock-pages:not(:empty)) .floating-playback-measure { display: none; } }
+
+/* Library actions share one layer; the score keeps its full readable width. */
+.tempori-library-row { position: relative; min-width: 0; list-style: none; isolation: isolate; }
+.tempori-library-card { position: relative; min-width: 0; background: var(--surface, #fff); border-radius: 12px; transition: transform .18s ease; touch-action: pan-y pinch-zoom; }
+.tempori-library-card .tempori-list-item { min-width: 0; padding-right: 52px; }
+.tempori-library-card .tempori-list-item strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.tempori-library-card .tempori-list-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tempori-library-menu { position: absolute; right: 4px; top: 4px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.tempori-library-menu:hover { background: #e8edf3; }
+.tempori-library-actions { position: absolute; right: 6px; top: 46px; z-index: 3; display: flex; flex-direction: column; padding: 4px; background: var(--surface, #fff); box-shadow: 0 4px 18px #0002; border: 1px solid #d3dbe6; border-radius: 10px; }
+.tempori-library-actions[hidden] { display: none; }
+.tempori-library-actions button { min-width: 88px; min-height: 44px; display: flex; gap: 6px; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.tempori-library-actions button:first-child { color: #a32525; }
+.tempori-library-actions button:hover { background: #e8edf3; }
+.tempori-library-actions button:disabled { opacity: .55; cursor: wait; }
+.tempori-library-actions button:focus-visible, .tempori-library-menu:focus-visible { outline: 2px solid #2867b2; outline-offset: 2px; }
+.tempori-library-row.is-touch-menu { overflow: hidden; border-radius: 12px; }
+.tempori-library-row.is-touch-menu .tempori-library-actions { top: 0; bottom: 0; right: 0; padding: 0; width: min(var(--tempori-action-width), 100%); flex-direction: row; z-index: -1; box-shadow: none; }
+.tempori-library-row.is-touch-menu .tempori-library-actions button { min-width: 0; flex: 1; flex-direction: column; }
+.tempori-library-row.is-touch-menu.is-open .tempori-library-card { transform: translateX(calc(-1 * min(var(--tempori-action-width), 100%))); }
+.tempori-library-row.is-dragging .tempori-library-card { transition: none; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .tempori-library-card { transition: none; } }
+.tempori-library-row.is-open { z-index: 4; }
+@media (prefers-color-scheme: dark) {
+  .tempori-library-actions button:first-child { color: #ff9999; }
+  .tempori-library-menu:hover, .tempori-library-actions button:hover { background: #ffffff18; }
+  .tempori-library-actions { border-color: #ffffff30; }
+}
+[data-theme='dark'] .tempori-library-actions button:first-child { color: #ff9999; }
+[data-theme='dark'] .tempori-library-menu:hover, [data-theme='dark'] .tempori-library-actions button:hover { background: #ffffff18; }
+[data-theme='dark'] .tempori-library-actions { border-color: #ffffff30; }

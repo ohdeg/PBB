@@ -1,4 +1,6 @@
 # OS
+# Ignore local/generated files, not build inputs or CI tests.
+# Already tracked files are unaffected; deployment packaging is configured separately.
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -63,6 +65,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 hs_err_pid*
+replay_pid*
+*.pid
+*.pid.lock
+*.hprof
 
 # Local DB / backups (never ship dumps)
 *.sql.gz
@@ -93,6 +99,14 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/playwright/.cache/
 frontend/blob-report/
+frontend/.vite-temp/
+frontend/.npm/
+frontend/.pnpm-store/
+# Local review/validation bundles; source configs and tests remain tracked.
+frontend/dist-*/
+frontend/.nyc_output/
+frontend/coverage-final.json
+frontend/junit.xml
 *.tsbuildinfo
 .eslintcache
 
@@ -132,6 +146,20 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.pyre/
+.pytype/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.egg-info/
+fastAPI_backend/.uv-cache/
+fastAPI_backend/.pybuilder/
+fastAPI_backend/pip-wheel-metadata/
 
 # =========================
 # Agent / local tooling
@@ -143,6 +171,11 @@ venv/
 .wrangler/
 .direnv/
 .envrc
+/.codex/
+/.superpowers/
+# Local implementation notes and visual review artifacts, not application assets.
+/docs/superpowers/
+/docs/screenshots/
 
 # =========================
 # Local docker / bind mounts
@@ -168,6 +201,13 @@ coverage/
 .cache/
 .parcel-cache/
 .vite/
+.nyc_output/
+*.lcov
+# Ad-hoc generated exports and scratch work at the repository root.
+/artifacts/
+/output/
+/tmp/
+/temp/
 useskill.md
 학습데이터/
 

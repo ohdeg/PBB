@@ -17,15 +17,17 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class TemporiCloudService {
     private final TemporiScoreRepository scores;
+    private final TemporiScoreStateRepository states;
+    private final TemporiStateMutationRepository mutations;
     private final UserRepository users;
     private final TemporiPrivateStorage storage;
     private final TemporiFileValidator validator;
     private final TransactionTemplate tx;
     private final long maxFileBytes,maxUserBytes;
     private final int maxUserFiles;
-    public TemporiCloudService(TemporiScoreRepository scores,UserRepository users,TemporiPrivateStorage storage,TemporiFileValidator validator,PlatformTransactionManager manager,
+    public TemporiCloudService(TemporiScoreRepository scores,TemporiScoreStateRepository states,TemporiStateMutationRepository mutations,UserRepository users,TemporiPrivateStorage storage,TemporiFileValidator validator,PlatformTransactionManager manager,
         @Value("${tempori.max-file-bytes:26214400}") long maxFileBytes,@Value("${tempori.max-user-bytes:524288000}") long maxUserBytes,@Value("${tempori.max-user-files:200}") int maxUserFiles) {
-        this.scores=scores;this.users=users;this.storage=storage;this.validator=validator;this.tx=new TransactionTemplate(manager);
+        this.scores=scores;this.states=states;this.mutations=mutations;this.users=users;this.storage=storage;this.validator=validator;this.tx=new TransactionTemplate(manager);
         this.maxFileBytes=maxFileBytes;this.maxUserBytes=maxUserBytes;this.maxUserFiles=maxUserFiles;
     }
     public record ScoreDto(String id,String title,String artist,String fileName,String format,long sizeBytes,String sha256,Instant createdAt,long version) {
@@ -101,15 +103,16 @@ public class TemporiCloudService {
         tx.executeWithoutResult(status -> {
             users.lockById(owner).orElseThrow(TemporiCloudService::missing);
             var row=scores.lockById(id).orElseThrow(TemporiCloudService::missing);
-            if(!row.getOwnerId().equals(owner.toString())) throw missing(); row.requestDelete(Instant.now());
+            if(!row.getOwnerId().equals(owner.toString())) throw missing(); row.requestDelete(Instant.now()); deleteState(row.getId());
         });
     }
     /** Joins account-deletion transaction; the user lock excludes concurrent reservations. */
     @org.springframework.transaction.annotation.Transactional
     public void deleteAccountScores(UUID owner) {
         users.lockById(owner).orElseThrow(TemporiCloudService::missing);
-        for(var row:scores.lockAllByOwner(owner.toString())) row.requestDelete(Instant.now());
+        for(var row:scores.lockAllByOwner(owner.toString())) { row.requestDelete(Instant.now()); deleteState(row.getId()); }
     }
+    private void deleteState(String id) { mutations.deleteByScoreId(id); states.deleteByScoreId(id); }
     @Scheduled(fixedDelayString="${tempori.cleanup-interval-ms:60000}")
     public void reconcile() {
         Instant cutoff=Instant.now().minusSeconds(86400);

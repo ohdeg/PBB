@@ -1,3 +1,4 @@
+import { useAnnotationState } from '../services/useAnnotationState';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type Ref } from 'react';
 import type {
   AnnotationLayerHandle,
@@ -14,6 +15,8 @@ import {
 } from '../utils/temporiAnnotations';
 
 interface TemporiAnnotationLayerProps {
+  storageId?: string;
+  stateLayout?: string;
   ref?: Ref<AnnotationLayerHandle>;
   onError?: (error: 'save' | 'load' | null) => void;
   temporiId: string;
@@ -145,10 +148,15 @@ function paintCommittedLayer(
   strokes.forEach((stroke) => drawStroke(context, stroke, width, height));
 }
 
-export default function TemporiAnnotationLayer({
+export default function TemporiAnnotationLayer(props: TemporiAnnotationLayerProps) {
+  const sync = useAnnotationState('wrapped', props.stateLayout ?? 'legacy', props.temporiId);
+  return <>{sync.error && <p role="status">{sync.error}</p>}{sync.ready && <TemporiAnnotationLayerInner key={`${sync.storageId}:${sync.revision}`} {...props} storageId={sync.storageId} />}</>;
+}
+function TemporiAnnotationLayerInner({
   ref,
   onError,
   temporiId,
+  storageId = temporiId,
   containerRef,
   tool,
   brushSizes,
@@ -198,7 +206,7 @@ export default function TemporiAnnotationLayer({
   const persistStrokes = useCallback(() => {
     dirtyRef.current = true;
     try {
-      saveTemporiAnnotations(temporiId, { version: 1, strokes: strokesRef.current });
+      saveTemporiAnnotations(storageId, { version: 1, strokes: strokesRef.current });
       dirtyRef.current = false;
       onErrorRef.current?.(null);
       return true;
@@ -206,7 +214,7 @@ export default function TemporiAnnotationLayer({
       onErrorRef.current?.('save');
       return false;
     }
-  }, [temporiId]);
+  }, [storageId, temporiId]);
 
   const paintCommitted = useCallback(() => {
     const committedContext = getCommittedContext();
@@ -263,9 +271,9 @@ export default function TemporiAnnotationLayer({
   useEffect(() => {
     if (!enabled) return;
 
-    const document = loadTemporiAnnotations(temporiId);
+    const document = loadTemporiAnnotations(storageId);
     strokesRef.current = document.strokes;
-    dirtyRef.current = hasPendingAnnotationDraft(temporiId, 'wrapped');
+    dirtyRef.current = hasPendingAnnotationDraft(storageId, 'wrapped');
     onErrorRef.current?.(dirtyRef.current ? 'save' : null);
     activeStrokeRef.current = null;
     eraserDirtyRef.current = false;

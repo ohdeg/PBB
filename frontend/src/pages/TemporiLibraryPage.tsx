@@ -1,5 +1,6 @@
 import { useAuthStore } from '../stores/authStore';
-import { CloudLibraryMigration } from '../features/tempori/components/CloudLibraryMigration';
+import { TemporiLibraryItem } from '../features/tempori/components/TemporiLibraryItem';
+import { Upload } from 'lucide-react';
 import { currentAccount } from '../features/tempori/services/temporiCloudApi';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -26,11 +27,11 @@ import { Button } from '../components/ui/Button';
 function TemporiLibraryPageInner() {
   const t = useTranslation();
   const account = useAuthStore((state) => state.userId);
-  const accountLabel = useAuthStore((state) => state.email ?? state.nickname ?? '로그인 계정');
-  const [migrationOpen, setMigrationOpen] = useState(false);
+  const [openItem, setOpenItem] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState('');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const mounted = useRef(true);
+  const uploadingRef = useRef<string | null>(null);
   const loadRevision = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [temporiItems, setTemporiItems] = useState<LibraryTemporiItem[]>([]);
@@ -51,6 +52,7 @@ function TemporiLibraryPageInner() {
 
   const loadTemporiItems = useCallback(async () => {
     const revision = ++loadRevision.current;
+    setOpenItem(null);
     setIsLoading(true);
     setError(null);
     try {
@@ -189,17 +191,16 @@ function TemporiLibraryPageInner() {
             hidden
           />
           <Button type="submit" disabled={isParsingFile || isSaving}>
-            {isParsingFile ? t('library.parsingFile') : t('library.importLocal')}
+            <Upload size={18} aria-hidden="true" />{isParsingFile ? t('library.parsingFile') : t('library.importLocal')}
           </Button>
         </form>
       </div>
 
-      <div className="tempori-cloud-toolbar"><Button variant="secondary" disabled={isLoading} onClick={() => void loadTemporiItems()}>보관함 새로고침</Button>{account && <Button variant="secondary" onClick={() => setMigrationOpen(true)}>이 기기의 악보를 계정에 저장</Button>}</div>
-      <p className="tempori-sync-note">{account ? '새 원본은 계정 보관함에 저장합니다. 필기·연습 위치·템포·보기 설정은 이 기기에만 보관합니다.' : '현재 이 기기의 보관함입니다. 로그인하면 원본을 계정에 저장하여 다른 기기에서 열 수 있습니다.'}</p>
+      <div className="tempori-cloud-toolbar"><Button variant="secondary" disabled={isLoading} onClick={() => void loadTemporiItems()}>보관함 새로고침</Button></div>
+      <p className="tempori-sync-note">{account ? '계정에 저장한 악보의 필기·템포·연습 위치를 다른 기기에서도 이어서 사용할 수 있습니다.' : '현재 이 기기의 보관함입니다. 로그인하면 원본을 계정에 저장하여 다른 기기에서 열 수 있습니다.'}</p>
       {syncMessage && <p role="status">{syncMessage}</p>}
       {temporiItems.some((item) => item.serverListUnavailable) && <p role="alert">서버 보관함을 새로 확인하지 못했습니다. 기존 목록과 이 기기의 저장 대기 원본을 표시합니다. 연결을 확인하고 새로고침해 주세요.</p>}
       {temporiItems.some((item) => item.offline) && <p role="status">오프라인 보관함입니다. 이미 내려받은 원본만 열 수 있으며 다른 기기의 삭제 여부는 연결 후 확인합니다.</p>}
-      {migrationOpen && account && <CloudLibraryMigration account={account} accountLabel={accountLabel} onClose={() => setMigrationOpen(false)} onComplete={() => void loadTemporiItems()} />}
       {!isLoading && temporiItems.length > 0 && (
         <div className="library-search library-search--toolbar">
           <label className="library-search-label" htmlFor="library-search-input">
@@ -256,6 +257,7 @@ function TemporiLibraryPageInner() {
       {pendingDelete && (
         <TemporiDeleteConfirm
           title={pendingDelete.title}
+          scope={pendingDelete.syncState === 'saved' ? 'account' : 'device'}
           isDeleting={isDeleting}
           error={deleteError}
           onCancel={() => {
@@ -294,31 +296,17 @@ function TemporiLibraryPageInner() {
         )}
         <ul className="tempori-list">
           {filteredTemporiItems.map((tempori) => (
-            <li key={tempori.id} className="tempori-list-row">
-              <Link
-                to={`/hobbies/tempori/${tempori.id}`}
-                className="tempori-list-item tempori-list-item--link"
-              >
-                <strong>{tempori.title}</strong>
-                <span className="tempori-sync-note">{tempori.syncState === 'saved' ? '서버에 저장됨' : tempori.syncState === 'failed' ? '서버 저장 실패 · 기기 원본 보관 중' : '이 기기에만 있음'}</span>
-                {tempori.artist && <span className="tempori-artist">{tempori.artist}</span>}
-              </Link>
-              <div className="tempori-list-actions">
-                {tempori.syncState === 'failed' && <Button variant="secondary" disabled={uploadingId !== null} onClick={async () => { setUploadingId(tempori.id); setError(null); try { await retryTemporiUpload(tempori.id); if (mounted.current) await loadTemporiItems(); } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : '서버 저장 실패'); } finally { if (mounted.current) setUploadingId(null); } }}>{uploadingId === tempori.id ? '서버에 저장 중…' : '서버 저장 재시도'}</Button>}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="tempori-list-delete"
-                  aria-label={t('library.deleteTemporiAria', { title: tempori.title })}
-                  onClick={() => {
-                    setDeleteError(null);
-                    setPendingDelete(tempori);
-                  }}
-                >
-                  {t('common.delete')}
-                </Button>
-              </div>
-            </li>
+            <TemporiLibraryItem key={tempori.id} item={tempori} account={!!account} uploading={uploadingId === tempori.id} open={openItem === tempori.id}
+              onOpenChange={(open) => setOpenItem(open ? tempori.id : null)}
+              onDelete={() => { setDeleteError(null); setPendingDelete(tempori); }}
+              onUpload={() => {
+                if (uploadingRef.current !== null) return;
+                uploadingRef.current = tempori.id;
+                setUploadingId(tempori.id); setError(null);
+                void retryTemporiUpload(tempori.id).then(async () => { if (mounted.current && currentAccount() === account) { setOpenItem(null); await loadTemporiItems(); } })
+                  .catch((failure: unknown) => { if (mounted.current && currentAccount() === account) { setError(failure instanceof Error ? failure.message : '업로드에 실패했습니다.'); setTemporiItems((items) => items.map((item) => item.id === tempori.id ? { ...item, syncState: 'failed' } : item)); } })
+                  .finally(() => { uploadingRef.current = null; if (mounted.current) setUploadingId(null); });
+              }} />
           ))}
         </ul>
       </section>

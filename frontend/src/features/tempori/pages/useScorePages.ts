@@ -46,6 +46,7 @@ export function useScorePages(source: ScoreSource, transpose: number, annotation
   const request = useCallback((input: PageTurnRequest) => { pendingRequest.current = input; void controller.request(input); }, [controller]);
   const follow = useCallback((measure: number) => { const next = doc?.measurePages?.[measure]; if (next !== undefined && next !== indexRef.current) void controller.goTo(next, { delta: next > indexRef.current ? 1 : -1, origin: 'playback', timestamp: performance.now() }); }, [controller, doc]);
   return { doc, index, content, layout, error, busy, zoom, setZoom, manualRevision, request, follow,
+    goToPage(next: number) { if (next === indexRef.current) return Promise.resolve(true); return controller.goTo(next, { delta: next > indexRef.current ? 1 : -1, origin: 'playback', timestamp: performance.now() }); },
     retry() { if (doc && pendingRequest.current) request({ ...pendingRequest.current, timestamp: performance.now() }); else setRetry((value) => value + 1); },
   };
 }

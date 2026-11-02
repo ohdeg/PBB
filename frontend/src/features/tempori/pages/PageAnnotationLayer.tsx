@@ -1,10 +1,15 @@
+import { useAnnotationState } from '../services/useAnnotationState';
 import { applyEraserAtPoint } from '../utils/annotationEraser';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type { AnnotationBrushSizes, AnnotationLayerHandle, AnnotationToolMode } from '../types/temporiAnnotation';
 import { loadPageAnnotations, savePageAnnotations, type PageAnnotationDocument, type PagePoint, type PageStroke } from './pageAnnotations';
-interface Props { id: string; layout: string; page: number; width: number; height: number; tool: AnnotationToolMode; sizes: AnnotationBrushSizes; ref?: Ref<AnnotationLayerHandle> }
-export function PageAnnotationLayer({ id, layout, page, width, height, tool, sizes, ref }: Props) {
-  const [loaded] = useState(() => loadPageAnnotations(id, layout));
+interface Props { storageId?: string; id: string; layout: string; page: number; width: number; height: number; tool: AnnotationToolMode; sizes: AnnotationBrushSizes; ref?: Ref<AnnotationLayerHandle> }
+export function PageAnnotationLayer(props: Props) {
+  const sync = useAnnotationState('pages', props.layout, props.id);
+  return <>{sync.error && <p role="status">{sync.error}</p>}{sync.ready && <PageAnnotationLayerInner key={`${sync.storageId}:${sync.revision}`} {...props} storageId={sync.storageId} />}</>;
+}
+function PageAnnotationLayerInner({ id, storageId = id, layout, page, width, height, tool, sizes, ref }: Props) {
+  const [loaded] = useState(() => loadPageAnnotations(storageId, layout));
   const documentRef = useRef<PageAnnotationDocument>(loaded.ok ? loaded.document : { version: 1, pages: [] });
   const strokeRef = useRef<PageStroke | null>(null); const pointer = useRef<number | null>(null); const dirty = useRef(false);
   const [revision, redraw] = useState(0); const [error, setError] = useState(loaded.ok ? '' : '저장된 페이지 필기를 읽지 못했습니다. 원본 저장 내용을 보존했습니다.');
@@ -14,9 +19,9 @@ export function PageAnnotationLayer({ id, layout, page, width, height, tool, siz
     if (!loaded.ok) return false;
     if (strokeRef.current) { const stroke = strokeRef.current; strokeRef.current = null; pointer.current = null; if (stroke.points.length >= 2) replace([...(documentRef.current.pages.find((item) => item.pageIndex === page)?.strokes ?? []), stroke]); }
     if (!dirty.current) return true;
-    try { savePageAnnotations(id, layout, documentRef.current); dirty.current = false; setError(''); return true; }
+    try { savePageAnnotations(storageId, layout, documentRef.current); dirty.current = false; setError(''); return true; }
     catch { setError('필기를 저장하지 못했습니다. 저장 공간을 확인한 후 다시 시도해 주세요.'); return false; }
-  }, [id, layout, loaded.ok, page, replace]);
+  }, [storageId, layout, loaded.ok, page, replace]);
   useImperativeHandle(ref, () => ({ flush }), [flush]);
   useEffect(() => () => { flush(); }, [flush]);
   useEffect(() => {

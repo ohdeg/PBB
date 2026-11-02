@@ -24,3 +24,21 @@ PDF.js6.4.299 worker is bundled by Vite. Its versioned CMaps/fonts/WASM, MediaPi
 Managed access denied both safe-template access attempts in this session, despite listed exceptions. No actual `.env` was read or changed. Manually add the four variable names above to your own `.env` or deployment configuration. Existing `.env.example` content was not accessed or overwritten.
 
 Required live acceptance after configuration: two independent sessions with the same account upload/list/open and compare original SHA256; foreign account/stale token404/401; concurrent quota and deletion interleavings on MySQL; kill/retry around R2/DB writes; private bucket/CORS check; real iPhone/iPad Safari, Android Chrome and desktop camera permission/rotation/accuracy/ten-minute false-positive tests. Unit mocks and synthetic browser results do not establish these outcomes.
+
+## Per-score practice state (2026-11-02)
+
+Before deploying the backend, the operator runs from this repository on the production host:
+
+```bash
+bash scripts/migrate-tempori-prod.sh
+```
+
+The script applies the original score table first, then `20261102_tempori_score_states.sql`, in one fail-fast MySQL batch and verifies required columns. Compose uses `.env.prod`; MySQL authentication uses `MYSQL_ROOT_PASSWORD` and `MYSQL_DATABASE` injected into the **running mysql container** when it was created. Editing `.env.prod` does not change credentials in an existing database volume. No new environment variables are required. The script never sources/copies environment files and never prints passwords. Back up the database using your normal operating procedure before applying migrations.
+
+State is private and owner-checked. Documents use revision compare-and-set with durable mutation IDs; conflicts preserve both versions for explicit resolution. Limits: annotation document 2 MiB, practice/position 64 KiB each, total current state 20 MiB per score and 512 document layouts. Mutation receipts store hashes/revisions, not duplicate payloads. Account and score deletion remove state and receipts at logical deletion while retaining original object cleanup jobs.
+
+Local state and pending writes are account/score scoped. Guests never call state APIs. Legacy annotation storage remains untouched; incompatible wrapped layouts are preserved and not inferred. A synchronous scoped recovery copy backs annotation flush, followed by atomic IndexedDB outbox persistence. Network errors preserve pending writes; use the displayed retry/conflict controls. Original download failures and state-sync failures are separate.
+
+Operational validation remains required: real MySQL concurrent requests/deletion, two physical devices with one account, R2 download/cache, offline recovery, and native iPhone/iPad Safari drawing and touch gestures. Automated mocked service tests do not prove database locking behavior.
+
+Mutation receipts retain the latest 1,000 requests per score. An older expired retry safely receives a revision conflict instead of overwriting current state; the client keeps both copies for explicit resolution. Cleanup uses bulk DML under the existing owner→score lock order, including account-deletion transactions with an older repeatable-read snapshot.

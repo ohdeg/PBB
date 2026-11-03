@@ -1,8 +1,9 @@
+import { isPdfMetronomeSettings, type PdfMetronomeSettings } from '../utils/pdfMetronome';
 import { cloudCache, updateCloudCache } from './cloudCache';
 import type { TempoChange } from '../types/tempoChange';
 export const STATE_LIMITS = { annotation: 2 * 1024 * 1024, small: 64 * 1024, score: 20 * 1024 * 1024 };
 export interface StateIdentity { owner: string; scoreId: string; originalHash: string; accountId: string | null; initializationError?: string }
-export interface PracticeState { bpm: number; tempoChanges: TempoChange[]; startMeasure: number; endMeasure: number; isRepeatMode: boolean }
+export interface PracticeState { pdfMetronome?: PdfMetronomeSettings; bpm: number; tempoChanges: TempoChange[]; startMeasure: number; endMeasure: number; isRepeatMode: boolean }
 export type PositionState = { kind: 'musicxml'; measureIndex: number; progress: number } | { kind: 'pdf'; pageIndex: number; y: number };
 export interface ServerDocument { revision: number; updatedAt: string | null; schemaVersion: number; payload: unknown }
 export interface Mutation { baseRevision: number; mutationId: string; schemaVersion: number; payload: unknown; generation: number }
@@ -27,7 +28,7 @@ export function validateStatePayload(key: string, payload: unknown, enforceSize 
   if (!/^(practice|position|annotations:(pages|wrapped|horizontal):[a-zA-Z0-9_-]{1,160})$/.test(key) || !obj(payload)) throw new Error('유효하지 않은 연습 상태입니다.');
   let valid = true;
   if (key === 'practice') {
-    valid = num(payload.bpm, 20, 300) && int(payload.startMeasure, 1, 1000000) && int(payload.endMeasure, 1, 1000000) && Number(payload.startMeasure) <= Number(payload.endMeasure) && typeof payload.isRepeatMode === 'boolean' && Array.isArray(payload.tempoChanges) && payload.tempoChanges.length <= 2000 && payload.tempoChanges.every((t: unknown) => obj(t) && typeof t.id === 'string' && t.id.length <= 100 && int(t.startMeasure, 1, 1000000) && int(t.endMeasure, 1, 1000000) && Number(t.startMeasure) <= Number(t.endMeasure) && num(t.bpm, 20, 300) && int(t.beatsPerMeasure, 1, 16) && int(t.beatType, 1, 16));
+    valid = (!('pdfMetronome' in payload) || isPdfMetronomeSettings(payload.pdfMetronome)) && num(payload.bpm, 20, 300) && int(payload.startMeasure, 1, 1000000) && int(payload.endMeasure, 1, 1000000) && Number(payload.startMeasure) <= Number(payload.endMeasure) && typeof payload.isRepeatMode === 'boolean' && Array.isArray(payload.tempoChanges) && payload.tempoChanges.length <= 2000 && payload.tempoChanges.every((t: unknown) => obj(t) && typeof t.id === 'string' && t.id.length <= 100 && int(t.startMeasure, 1, 1000000) && int(t.endMeasure, 1, 1000000) && Number(t.startMeasure) <= Number(t.endMeasure) && num(t.bpm, 20, 300) && int(t.beatsPerMeasure, 1, 16) && int(t.beatType, 1, 16));
   } else if (key === 'position') valid = payload.kind === 'musicxml' ? int(payload.measureIndex, 0, 999999) && num(payload.progress, 0, 1) : payload.kind === 'pdf' && int(payload.pageIndex, 0, 999999) && num(payload.y, 0, 1);
   else {
     const pages = key.startsWith('annotations:pages:'); const horizontal = key.startsWith('annotations:horizontal:'); let strokes = 0; let points = 0;

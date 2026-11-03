@@ -8,11 +8,16 @@ import { AppErrorBoundary } from './AppErrorBoundary';
 
 type DockSlot = 'annotation' | 'beat' | 'playback' | 'pages' | 'settings' | 'title' | 'status';
 type DockTargets = Record<DockSlot, HTMLDivElement | null>;
-const DockContext = createContext<(DockTargets & { menuOpen: boolean }) | undefined>(undefined);
+const DockContext = createContext<(DockTargets & { menuOpen: boolean; openSettings: () => void }) | undefined>(undefined);
 
 /** Standalone settings have no parent menu to dismiss them. */
 export function useTemporiViewerMenuOpen(): boolean {
   return useContext(DockContext)?.menuOpen ?? true;
+}
+
+/** Open the existing menu and move keyboard focus to the score settings. */
+export function useTemporiViewerSettingsOpen(): (() => void) | undefined {
+  return useContext(DockContext)?.openSettings;
 }
 
 /** Outside a viewer frame, retain the component's ordinary standalone rendering. */
@@ -22,12 +27,20 @@ export function TemporiDockSlot({ slot, children }: { slot: DockSlot; children: 
   return targets[slot] ? createPortal(children, targets[slot]) : null;
 }
 
+function focusScoreSettings(settings: HTMLDivElement | null) {
+  const target = settings?.querySelector<HTMLElement>('[data-tempori-settings-focus]:not(:disabled)')
+    ?? settings?.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), button:not(:disabled)');
+  target?.focus({ preventScroll: true });
+  target?.scrollIntoView?.({ block: 'nearest' });
+}
+
 /** The exit survives score chunk loading, storage errors, and rendering failures. */
 export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   const dockRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const focusMenuOnOpen = useRef(false);
+  const focusSettingsOnOpen = useRef(false);
   const [pages, setPages] = useState<HTMLDivElement | null>(null);
   const [annotation, setAnnotation] = useState<HTMLDivElement | null>(null);
   const [beat, setBeat] = useState<HTMLDivElement | null>(null);
@@ -41,11 +54,14 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   useLayoutEffect(() => applyTemporiScoreSurface(document), []);
 
   useLayoutEffect(() => {
-    if (toolsOpen && focusMenuOnOpen.current) {
+    if (toolsOpen && focusSettingsOnOpen.current) {
+      focusScoreSettings(settings);
+      focusSettingsOnOpen.current = false;
+    } else if (toolsOpen && focusMenuOnOpen.current) {
       menuRef.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]')?.focus({ preventScroll: true });
       focusMenuOnOpen.current = false;
     }
-  }, [toolsOpen]);
+  }, [toolsOpen, settings]);
 
   // Native bubbling follows portal DOM targets; React bubbling follows their score owner.
   useEffect(() => {
@@ -86,7 +102,7 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <DockContext.Provider value={{ annotation, beat, playback, pages, settings, title, status, menuOpen: toolsOpen }}>
+    <DockContext.Provider value={{ annotation, beat, playback, pages, settings, title, status, menuOpen: toolsOpen, openSettings: () => { focusSettingsOnOpen.current = true; setToolsOpen(true); if (toolsOpen) { focusScoreSettings(settings); focusSettingsOnOpen.current = false; } } }}>
       <div ref={frameRef} className="tempori-viewer-frame">
         <AppErrorBoundary>
           <Suspense fallback={<main className="viewer-page"><p className="tempori-status" role="status">악보를 불러오는 중입니다.</p></main>}>

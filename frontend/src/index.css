@@ -8404,7 +8404,7 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 .tempori-pages { min-width: 0; width: 100%; }
 .tempori-page-controls { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; padding: .25rem .5rem; }
 .tempori-page-controls button, .tempori-page-controls select, .tempori-page-error button, .tempori-page-save-error button { min-height: 44px; border: 1px solid var(--border-color, #cbd5e1); border-radius: .5rem; padding: .35rem .65rem; background: var(--surface, #fff); color: var(--text-primary, #1e293b); }
-.tempori-page-viewport { width: 100%; overflow: auto; overscroll-behavior: contain; background: #e5e7eb; padding: 8px; box-sizing: border-box; }
+.tempori-page-viewport { position: relative; width: 100%; overflow: auto; overscroll-behavior: contain; background: #e5e7eb; padding: 8px; box-sizing: border-box; }
 .tempori-page-sheet { position: relative; margin: 0 auto; flex-shrink: 0; background: white; box-shadow: 0 2px 12px #0002; }
 .tempori-page-art, .tempori-page-render { width: 100%; height: 100%; }
 .tempori-page-render svg, .tempori-page-render canvas { display: block; }
@@ -8453,6 +8453,8 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 .tempori-viewer-dock .tempori-page-turn-bar button { min-width: 44px; padding-inline: .5rem; }
 .tempori-viewer-dock .tempori-page-turn-bar output { white-space: nowrap; }
 .tempori-page-turn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tempori-page-counter { display: block; text-align: center; white-space: nowrap; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.tempori-page-tap-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 2; margin: 0; padding: .45rem .7rem; border-radius: .5rem; background: #1e293b; color: #fff; font-size: .8rem; white-space: nowrap; pointer-events: none; }
 @media (max-width: 620px) {
   .tempori-viewer-dock-row { flex-wrap: wrap; }
   .tempori-viewer-dock-pages:not(:empty) { order: 1; flex-basis: 100%; }
@@ -8460,6 +8462,7 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
   .tempori-viewer-dock .floating-playback-countin { display: none; }
   .tempori-viewer-dock .tempori-page-turn-bar { justify-content: space-between; }
 }
+.tempori-viewer-dock-pages:has(> .tempori-page-counter) { order: 0; flex: 0 1 auto; margin-left: auto; }
 
 
 /* Library actions share one layer; the score keeps its full readable width. */
@@ -8492,3 +8495,17 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 [data-theme='dark'] .tempori-library-actions button:first-child { color: #ff9999; }
 [data-theme='dark'] .tempori-library-menu:hover, [data-theme='dark'] .tempori-library-actions button:hover { background: #ffffff18; }
 [data-theme='dark'] .tempori-library-actions { border-color: #ffffff30; }
+
+/* PDF settings share the existing score menu and beat-strength controls. */
+.tempori-pdf-settings { width: 100%; min-width: 0; }
+.tempori-pdf-settings h2 { margin: .4rem 0; font-size: 1rem; font-weight: 600; }
+.tempori-pdf-settings fieldset { border: 0; min-width: 0; margin: 0; padding: 0; }
+.tempori-pdf-meter-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.tempori-pdf-meter-row label { display: inline-flex; align-items: center; gap: .35rem; }
+.tempori-pdf-meter-row :is(input, select) { width: 4rem; min-height: 44px; padding-inline: .4rem; border: 1px solid #d0d0d0; border-radius: .4rem; background: #fff; color: #222; }
+.tempori-pdf-settings-hint { margin: .4rem 0; font-size: .8rem; color: #555; }
+.tempori-pdf-settings .beat-strength-grid { justify-content: flex-start; }
+.tempori-pdf-settings .beat-strength-bar { min-width: 44px; }
+.tempori-pdf-metronome button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; touch-action: manipulation; }
+.tempori-pdf-metronome button:hover { background: #f1f1f1; }
+.tempori-pdf-tempo-shortcut { font-variant-numeric: tabular-nums; white-space: nowrap; }

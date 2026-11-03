@@ -69,6 +69,11 @@ public class TemporiStateService {
         if(p==null || !p.isObject()) throw invalid();
         if(key.equals("practice")) {
             if(!number(p.get("bpm"),20,300) || !integer(p.get("startMeasure"),1,1000000) || !integer(p.get("endMeasure"),1,1000000) || p.path("startMeasure").asInt()>p.path("endMeasure").asInt() || !p.path("isRepeatMode").isBoolean() || !p.path("tempoChanges").isArray() || p.path("tempoChanges").size()>2000) throw invalid();
+            if(p.has("pdfMetronome")) {
+                var meter=p.get("pdfMetronome");
+                if(!meter.isObject() || !integer(meter.get("beatsPerMeasure"),1,16) || !integer(meter.get("beatType"),1,16) || !Set.of(1,2,4,8,16).contains(meter.path("beatType").asInt()) || !meter.path("beatStrengths").isArray() || meter.path("beatStrengths").size()!=meter.path("beatsPerMeasure").asInt()) throw invalid();
+                for(var strength:meter.path("beatStrengths")) if(!strength.isTextual() || !Set.of("strong","medium","weak","silent").contains(strength.asText())) throw invalid();
+            }
             for(var t:p.path("tempoChanges")) if(!t.isObject() || !t.path("id").isTextual() || t.path("id").asText().length()>100 || !integer(t.get("startMeasure"),1,1000000) || !integer(t.get("endMeasure"),1,1000000) || t.path("startMeasure").asInt()>t.path("endMeasure").asInt() || !number(t.get("bpm"),20,300) || !integer(t.get("beatsPerMeasure"),1,16) || !integer(t.get("beatType"),1,16)) throw invalid();
         } else if(key.equals("position")) {
             if(p.path("kind").asText().equals("musicxml")) { if(!integer(p.get("measureIndex"),0,999999) || !number(p.get("progress"),0,1)) throw invalid(); }

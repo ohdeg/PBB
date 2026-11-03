@@ -72,14 +72,16 @@ const USER_SCROLL_INTERRUPT_TOUCH_THRESHOLD_PX = 10;
 export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml }: TemporiProps) {
   const t = useTranslation();
   const scoreState = useTemporiState();
+  const practiceBase = useRef<PracticeState | null>(null);
   const practiceGeneration = useRef(0); const practiceApplied = useRef(-1); const practiceText = useRef('');
   const positionGeneration = useRef(0); const positionApplied = useRef(-1);
   const positionTarget = useRef<string | null>(null); const positionLast = useRef(''); const positionLastSavedAt = useRef(0);
   const positionLatest = useRef<PositionState | null>(null);
   const stateRef = useRef(scoreState); stateRef.current = scoreState;
   const persistPractice = useCallback((payload: PracticeState) => {
-    if (practiceText.current === JSON.stringify(payload)) return;
-    try { stateRef.current?.save('practice', payload, practiceGeneration.current); practiceText.current = JSON.stringify(payload); practiceGeneration.current += 1; practiceApplied.current = practiceGeneration.current; }
+    const value = { ...practiceBase.current, ...payload };
+    if (practiceText.current === JSON.stringify(value)) return;
+    try { stateRef.current?.save('practice', value, practiceGeneration.current); practiceBase.current = value; practiceText.current = JSON.stringify(value); practiceGeneration.current += 1; practiceApplied.current = practiceGeneration.current; }
     catch (failure) { stateRef.current?.reportError(failure instanceof Error ? failure.message : '연습 설정을 저장하지 못했습니다.'); }
   }, []);
 
@@ -411,7 +413,7 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
     if (!scoreState?.ready || snapshot.timings.length === 0 || isPlaying || isCountingIn || isAnnotationToolActive || isSettingsOpen) return;
     const doc = scoreState.state.documents.practice;
     if (doc?.payload && doc.generation !== practiceApplied.current && !doc.conflict) {
-      const value = doc.payload as PracticeState; const range = clampMeasureRange(value.startMeasure, value.endMeasure, totalMeasures);
+      const value = doc.payload as PracticeState; practiceBase.current = value; const range = clampMeasureRange(value.startMeasure, value.endMeasure, totalMeasures);
       setBpm(value.bpm); setTempoChanges(normalizeTempoChanges(value.tempoChanges, totalMeasures)); setStartMeasure(range.startMeasure); setEndMeasure(range.endMeasure); setIsRepeatMode(value.isRepeatMode);
       practiceGeneration.current = doc.generation; practiceApplied.current = doc.generation; practiceText.current = JSON.stringify({ ...value, startMeasure: range.startMeasure, endMeasure: range.endMeasure, tempoChanges: normalizeTempoChanges(value.tempoChanges, totalMeasures) });
     } else if (!doc?.payload && practiceApplied.current < 0 && (doc?.serverKnown || !scoreState.identity.accountId || temporiId.startsWith('tempori-'))) {

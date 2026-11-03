@@ -11,7 +11,8 @@ import { fetchTemporiMusicXml } from './utils/temporiLoader';
 import { useTemporiPlaybackStore } from './store/temporiPlaybackStore';
 import { TemporiViewerFrame } from '../../components/TemporiViewerDock';
 
-const boundary = vi.hoisted(() => ({ resume: vi.fn(), flush: vi.fn(() => true), restore: vi.fn() }));
+const boundary = vi.hoisted(() => ({ resume: vi.fn(), flush: vi.fn(() => true), restore: vi.fn(), state: null as ReturnType<typeof import('./services/TemporiStateProvider').useTemporiState> }));
+vi.mock('./services/TemporiStateProvider', () => ({ useTemporiState: () => boundary.state }));
 vi.mock('./utils/temporiLoader', () => ({ fetchTemporiMusicXml: vi.fn() }));
 vi.mock('./utils/scrollAnchor', () => ({ cancelScrollAnimation: vi.fn(), scrollToAnchoredMeasure: vi.fn() }));
 vi.mock('./utils/metronomeAudio', () => ({ MetronomeAudio: class { resume = boundary.resume; dispose() {} playClick() {} } }));
@@ -36,7 +37,7 @@ vi.mock('./components/OsmdViewer', () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks(); boundary.flush.mockReturnValue(true); localStorage.clear();
+  vi.clearAllMocks(); boundary.state = null; boundary.flush.mockReturnValue(true); localStorage.clear();
   localStorage.setItem('tempori:guide:tempori-seen', '1');
   useTemporiPlaybackStore.setState({ bpm: 120, measuresPerLine: 4, beatsPerMeasure: 4, beatType: 4, isPlaying: false, elapsedMs: 0, currentMeasureIndex: 0 });
   vi.mocked(fetchTemporiMusicXml).mockResolvedValue('<score-partwise><part><measure><attributes><time><beats>4</beats><beat-type>4</beat-type></time></attributes></measure></part></score-partwise>');
@@ -275,4 +276,13 @@ describe('view mode session and persistence', () => {
     expect(screen.getByTestId('score-view')).toHaveAttribute('data-mode', 'wrapped');
     expect(localStorage.getItem('tempori:view-mode')).toBe('horizontal');
   });
+});
+
+it('preserves optional PDF and unknown practice fields when MusicXML settings are applied', async () => {
+  const save = vi.fn();
+  const base = { bpm: 120, tempoChanges: [], startMeasure: 1, endMeasure: 8, isRepeatMode: false, pdfMetronome: { beatsPerMeasure: 2, beatType: 8, beatStrengths: ['strong', 'silent'] }, futureSetting: 'retained' };
+  boundary.state = { ready: true, busy: false, identity: { owner: 'account:A', scoreId: 'a', accountId: 'A', originalHash: 'a'.repeat(64) }, state: { documents: { practice: { payload: base, revision: 2, generation: 4, dirty: false, serverKnown: true } } }, save, setBusy: vi.fn(), reportError: vi.fn(), refresh: vi.fn(), adoptRecovery: vi.fn() };
+  await openTempori(); finishRender(); openSettings(); changeBpm('90');
+  fireEvent.click(screen.getByRole('button', { name: '적용' }));
+  expect(save.mock.calls.find(call => call[0] === 'practice')).toEqual(['practice', { ...base, bpm: 90 }, 4]);
 });

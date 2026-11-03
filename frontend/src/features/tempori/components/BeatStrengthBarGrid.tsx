@@ -11,6 +11,7 @@ import BeatSubdivisionIcon from './BeatSubdivisionIcon';
 import BeatSubdivisionPicker from './BeatSubdivisionPicker';
 
 interface BeatStrengthBarGridProps {
+  showSubdivisions?: boolean;
   beatCount: number;
   beatStrengths: BeatStrengthLevel[];
   beatSubdivisions: BeatSubdivisionId[];
@@ -77,6 +78,7 @@ function BeatStrengthBar({ strength, isActive, onCycle, ariaLabel }: BeatStrengt
 }
 
 export default function BeatStrengthBarGrid({
+  showSubdivisions = true,
   beatCount,
   beatStrengths,
   beatSubdivisions,
@@ -129,7 +131,7 @@ export default function BeatStrengthBarGrid({
                   }) + (isActive ? t('beatStrength.beatAriaActive') : '')
                 }
               />
-              <button
+              {showSubdivisions && <button
                 type="button"
                 className="beat-subdivision-trigger"
                 onClick={() => setPickerBeatIndex(beatIndex)}
@@ -139,7 +141,7 @@ export default function BeatStrengthBarGrid({
                   subdivisionId={subdivisionId}
                   className="beat-subdivision-trigger-icon"
                 />
-              </button>
+              </button>}
               <span className={`beat-strength-beat-label${isActive ? ' active' : ''}`}>
                 {beatIndex + 1}
               </span>

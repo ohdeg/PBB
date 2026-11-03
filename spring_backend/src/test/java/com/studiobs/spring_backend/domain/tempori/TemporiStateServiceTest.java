@@ -55,4 +55,25 @@ class TemporiStateServiceTest {
         var payload=json.readTree("{\"kind\":\"pdf\",\"pageIndex\":-1,\"y\":0}");
         assertThrows(BusinessException.class,()->service.put(owner,score.getId(),"position",new TemporiStateService.Write(0,"invalid-position",1,payload)));
     }
+    @Test void pdfMetronomeRoundTripsWithoutChangingOtherPracticeFields() {
+        var body=(tools.jackson.databind.node.ObjectNode)write(0,"pdf-meter-1",120).payload().deepCopy();
+        body.set("pdfMetronome",json.readTree("{\"beatsPerMeasure\":3,\"beatType\":8,\"beatStrengths\":[\"strong\",\"silent\",\"weak\"]}"));
+        var result=service.put(owner,score.getId(),"practice",new TemporiStateService.Write(0,"pdf-meter-1",1,body));
+        assertEquals(body,result.payload()); assertEquals(body,service.get(owner,score.getId(),"practice").payload());
+    }
+    @Test void pdfMetronomeValidationRejectsPartialInvalidAndWrongLengthSettings() {
+        for(var raw:List.of("null","{}","{\"beatsPerMeasure\":0,\"beatType\":4,\"beatStrengths\":[]}","{\"beatsPerMeasure\":1.5,\"beatType\":4,\"beatStrengths\":[\"strong\"]}","{\"beatsPerMeasure\":1,\"beatType\":3,\"beatStrengths\":[\"strong\"]}","{\"beatsPerMeasure\":2,\"beatType\":4,\"beatStrengths\":[\"strong\"]}","{\"beatsPerMeasure\":1,\"beatType\":4,\"beatStrengths\":[\"loud\"]}")) {
+            var body=(tools.jackson.databind.node.ObjectNode)write(0,"pdf-invalid-1",120).payload().deepCopy();body.set("pdfMetronome",json.readTree(raw));
+            assertThrows(BusinessException.class,()->TemporiStateService.validate("practice",body,"a".repeat(64)),raw);
+        }
+    }
+    @Test void pdfMetronomeAllowsBoundaryMetersAndAllSupportedBeatUnits() {
+        for(var denominator:List.of(1,2,4,8,16)) for(var count:List.of(1,16)) {
+            var body=(tools.jackson.databind.node.ObjectNode)write(0,"pdf-boundary-1",120).payload().deepCopy();
+            var meter=json.createObjectNode();meter.put("beatsPerMeasure",count);meter.put("beatType",denominator);
+            var strengths=json.createArrayNode();for(int i=0;i<count;i++)strengths.add(List.of("strong","medium","weak","silent").get(i%4));meter.set("beatStrengths",strengths);body.set("pdfMetronome",meter);
+            assertDoesNotThrow(()->TemporiStateService.validate("practice",body,"a".repeat(64)));
+            meter.put("beatsPerMeasure",17);assertThrows(BusinessException.class,()->TemporiStateService.validate("practice",body,"a".repeat(64)));
+        }
+    }
 }

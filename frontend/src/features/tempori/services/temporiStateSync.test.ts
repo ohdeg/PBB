@@ -89,3 +89,13 @@ it('syncs independent practice while a recovery-affected document is excluded fr
   expect(boundary.put.mock.calls.map((args) => args[2])).toEqual(['practice']);
   expect((await loadState(id.owner, id.scoreId, 'position')).dirty).toBe(true);
 });
+
+it('roundtrips PDF meter and accents from local cache through account sync and remote restore', async () => {
+  const payload = { ...practice(120), pdfMetronome: { beatsPerMeasure: 3, beatType: 8, beatStrengths: ['strong', 'silent', 'weak'] } };
+  await saveLocalState(id.owner, id.scoreId, 'practice', payload); await syncScoreState(id, ['practice']);
+  expect((await loadState(id.owner, id.scoreId, 'practice')).payload).toEqual(payload);
+  expect((await loadState(id.owner, id.scoreId, 'practice')).dirty).toBe(false);
+  boundary.cache.clear(); boundary.get.mockResolvedValue({ revision: 1, updatedAt: null, schemaVersion: 1, payload });
+  await syncScoreState(id, ['practice']);
+  expect((await loadState(id.owner, id.scoreId, 'practice')).payload).toEqual(payload);
+});

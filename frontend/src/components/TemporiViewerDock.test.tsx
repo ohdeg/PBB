@@ -46,7 +46,7 @@ it('retains the exit after an unexpected score rendering exception', () => {
   expect(screen.getByRole('button', { name: '새로고침' })).toBeVisible();
 });
 
-it('puts playback beside the exit and annotation and beat controls in separate dock rows', () => {
+it('keeps playback and beat status beside the exit while secondary controls start hidden', () => {
   function Controls() {
     return <>
       <TemporiDockSlot slot="playback"><button>재생</button></TemporiDockSlot>
@@ -56,19 +56,41 @@ it('puts playback beside the exit and annotation and beat controls in separate d
   }
   openScore(Controls);
   expect(screen.getByRole('button', { name: '재생' }).closest('.tempori-viewer-dock-row')).toContainElement(screen.getByRole('link', { name: '보관함으로' }));
-  expect(screen.getByRole('button', { name: '펜' }).closest('.tempori-viewer-dock-annotation')).not.toBeNull();
+  expect(screen.queryByRole('button', { name: '펜' })).toBeNull();
+  expect(screen.getByRole('button', { name: '펜', hidden: true })).not.toBeVisible();
   expect(screen.getByRole('status').closest('.tempori-viewer-dock-beat')).not.toBeNull();
 });
 
-it('offers an accessible disclosure for compact landscape tools without removing playback or exit', () => {
+it('opens the score menu and restores focus with Escape without removing playback or exit', () => {
   openScore(() => <TemporiDockSlot slot="annotation"><button>펜</button></TemporiDockSlot>);
-  const toggle = screen.getByRole('button', { name: '필기 도구' });
+  const toggle = screen.getByRole('button', { name: '메뉴' });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   const target = document.getElementById(toggle.getAttribute('aria-controls')!);
-  expect(target).toContainElement(screen.getByRole('button', { name: '펜' }));
+  expect(target).toContainElement(screen.getByRole('button', { name: '펜', hidden: true }));
   fireEvent.click(toggle);
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  fireEvent.keyDown(toggle, { key: 'Escape' });
+  const pen = screen.getByRole('button', { name: '펜' });
+  expect(pen).toHaveFocus();
+  pen.focus();
+  fireEvent.keyDown(pen, { key: 'Escape' });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(toggle).toHaveFocus();
   expect(screen.getByRole('link', { name: '보관함으로' })).toBeVisible();
+});
+
+it('preserves secondary control state while the menu is closed and leaves urgent status visible', () => {
+  openScore(() => <>
+    <TemporiDockSlot slot="settings"><label>확대<input defaultValue="150" /></label></TemporiDockSlot>
+    <TemporiDockSlot slot="status"><button>카메라 끄기</button></TemporiDockSlot>
+    <TemporiDockSlot slot="playback"><button>일시정지</button></TemporiDockSlot>
+  </>);
+  expect(screen.getByRole('button', { name: '카메라 끄기' })).toBeVisible();
+  expect(screen.getByRole('button', { name: '일시정지' })).toBeVisible();
+  expect(screen.queryByRole('textbox', { name: '확대' })).toBeNull();
+  const toggle = screen.getByRole('button', { name: '메뉴' });
+  fireEvent.click(toggle);
+  fireEvent.change(screen.getByRole('textbox', { name: '확대' }), { target: { value: '200' } });
+  fireEvent.click(toggle);
+  fireEvent.click(toggle);
+  expect(screen.getByRole('textbox', { name: '확대' })).toHaveValue('200');
 });

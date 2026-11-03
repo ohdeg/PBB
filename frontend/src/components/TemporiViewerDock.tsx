@@ -1,4 +1,4 @@
-import { createContext, Suspense, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, Suspense, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { applyTemporiScoreSurface } from '../features/tempori/utils/focusMode';
@@ -6,9 +6,14 @@ import { setScoreDockBounds } from '../features/tempori/utils/scoreViewport';
 import { scrollToTop } from '../features/tempori/utils/scrollAnchor';
 import { AppErrorBoundary } from './AppErrorBoundary';
 
-type DockSlot = 'annotation' | 'beat' | 'playback' | 'pages';
+type DockSlot = 'annotation' | 'beat' | 'playback' | 'pages' | 'settings' | 'title' | 'status';
 type DockTargets = Record<DockSlot, HTMLDivElement | null>;
-const DockContext = createContext<DockTargets | undefined>(undefined);
+const DockContext = createContext<(DockTargets & { menuOpen: boolean }) | undefined>(undefined);
+
+/** Standalone settings have no parent menu to dismiss them. */
+export function useTemporiViewerMenuOpen(): boolean {
+  return useContext(DockContext)?.menuOpen ?? true;
+}
 
 /** Outside a viewer frame, retain the component's ordinary standalone rendering. */
 export function TemporiDockSlot({ slot, children }: { slot: DockSlot; children: ReactNode }) {
@@ -21,14 +26,38 @@ export function TemporiDockSlot({ slot, children }: { slot: DockSlot; children: 
 export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   const dockRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const focusMenuOnOpen = useRef(false);
   const [pages, setPages] = useState<HTMLDivElement | null>(null);
   const [annotation, setAnnotation] = useState<HTMLDivElement | null>(null);
   const [beat, setBeat] = useState<HTMLDivElement | null>(null);
   const [playback, setPlayback] = useState<HTMLDivElement | null>(null);
+  const [settings, setSettings] = useState<HTMLDivElement | null>(null);
+  const [title, setTitle] = useState<HTMLDivElement | null>(null);
+  const [status, setStatus] = useState<HTMLDivElement | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsId = useId();
 
   useLayoutEffect(() => applyTemporiScoreSurface(document), []);
+
+  useLayoutEffect(() => {
+    if (toolsOpen && focusMenuOnOpen.current) {
+      menuRef.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]')?.focus({ preventScroll: true });
+      focusMenuOnOpen.current = false;
+    }
+  }, [toolsOpen]);
+
+  // Native bubbling follows portal DOM targets; React bubbling follows their score owner.
+  useEffect(() => {
+    const dock = dockRef.current;
+    const closeMenu = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !toolsOpen || event.defaultPrevented || (event.target as Element).closest('[role="dialog"]')) return;
+      setToolsOpen(false);
+      dock?.querySelector<HTMLButtonElement>('.tempori-viewer-tools-toggle')?.focus();
+    };
+    dock?.addEventListener('keydown', closeMenu);
+    return () => dock?.removeEventListener('keydown', closeMenu);
+  }, [toolsOpen]);
 
   useLayoutEffect(() => {
     const dock = dockRef.current;
@@ -57,27 +86,26 @@ export function TemporiViewerFrame({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <DockContext.Provider value={{ annotation, beat, playback, pages }}>
+    <DockContext.Provider value={{ annotation, beat, playback, pages, settings, title, status, menuOpen: toolsOpen }}>
       <div ref={frameRef} className="tempori-viewer-frame">
         <AppErrorBoundary>
           <Suspense fallback={<main className="viewer-page"><p className="tempori-status" role="status">악보를 불러오는 중입니다.</p></main>}>
             {children}
           </Suspense>
         </AppErrorBoundary>
-        <div ref={dockRef} className="tempori-viewer-dock" data-tools-open={toolsOpen}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape' && toolsOpen) {
-              setToolsOpen(false);
-              dockRef.current?.querySelector<HTMLButtonElement>('.tempori-viewer-tools-toggle')?.focus();
-            }
-          }}>
-          <div ref={setPages} className="tempori-viewer-dock-pages" />
-          <div id={toolsId} ref={setAnnotation} className="tempori-viewer-dock-annotation" />
-          <div ref={setBeat} className="tempori-viewer-dock-beat" />
+        <div ref={dockRef} className="tempori-viewer-dock" data-tools-open={toolsOpen}>
+          <div ref={menuRef} id={toolsId} className="tempori-viewer-menu" hidden={!toolsOpen} aria-label="악보 메뉴">
+            <div ref={setTitle} className="tempori-viewer-menu-title" />
+            <div ref={setSettings} className="tempori-viewer-menu-settings" />
+            <div ref={setAnnotation} className="tempori-viewer-dock-annotation" />
+            <button type="button" className="tempori-viewer-top" onClick={() => { scrollToTop(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'); setToolsOpen(false); dockRef.current?.querySelector<HTMLButtonElement>('.tempori-viewer-tools-toggle')?.focus({ preventScroll: true }); }}>악보 맨 위로</button>
+          </div>
+          <div ref={setStatus} className="tempori-viewer-dock-status" />
           <div className="tempori-viewer-dock-row">
             <Link className="tempori-viewer-exit" to="/hobbies/tempori/library">보관함으로</Link>
-            <button type="button" className="tempori-viewer-top" aria-label="악보 맨 위로" title="악보 맨 위로" onClick={() => scrollToTop(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')}><span aria-hidden="true">↑</span></button>
-            <button type="button" className="tempori-viewer-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} onClick={() => setToolsOpen(open => !open)}>필기 도구</button>
+            <button type="button" className="tempori-viewer-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} onClick={(event) => { focusMenuOnOpen.current = !toolsOpen && event.detail === 0; setToolsOpen(open => !open); }}>메뉴</button>
+            <div ref={setPages} className="tempori-viewer-dock-pages" />
+            <div ref={setBeat} className="tempori-viewer-dock-beat" />
             <div ref={setPlayback} className="tempori-viewer-dock-playback" />
           </div>
         </div>

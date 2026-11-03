@@ -8,18 +8,20 @@ import { captureCloudSession, currentAccount, cloudScoreDetail, deleteCloudScore
 import { cloudCache } from './cloudCache';
 import { initializeUploadedState, migrateLocalScore, migrationJobs, restartDeletedMigration } from './temporiMigration';
 import { cleanupDeletedTemporiAnnotations } from '../utils/temporiAnnotations';
+import { downloadError, downloadStep, TemporiDownloadError } from './temporiDownloadError';
 
 interface CachedOriginal { blob: Blob; detail: CloudScore }
 const originalBlob = (value: Blob | CachedOriginal | undefined) => value instanceof Blob ? value : value?.blob;
 const canUseCachedMetadata = (error: unknown) => { const status = (error as { response?: { status?: number } })?.response?.status; return status === undefined || status >= 500; };
 async function availableDetail(id: string, account: string): Promise<CloudScore> {
+  let metadataFailure: Error | null = null;
   try { if (typeof navigator === 'undefined' || navigator.onLine) return await cloudScoreDetail(id); }
-  catch (error) { if (!canUseCachedMetadata(error)) throw error; }
-  const cached = await cloudCache<Blob | CachedOriginal>(`blob:${account}:${id}`);
+  catch (error) { if (error instanceof DOMException && error.name === 'AbortError') throw error; if (!canUseCachedMetadata(error)) throw downloadError('METADATA', error); metadataFailure = downloadError('METADATA', error); }
+  const cached = await downloadStep('CACHE-READ', () => cloudCache<Blob | CachedOriginal>(`blob:${account}:${id}`));
   if (cached && !(cached instanceof Blob)) return cached.detail;
-  const list = await cloudCache<CloudScore[]>(`list:${account}`); const found = list?.find((score) => score.id === id);
+  const list = await downloadStep('CACHE-READ', () => cloudCache<CloudScore[]>(`list:${account}`)); const found = list?.find((score) => score.id === id);
   if (found && originalBlob(cached)) return found;
-  throw new Error('오류가 발생하여 다운로드에 실패하였습니다');
+  throw metadataFailure ?? downloadError('METADATA', null);
 }
 const accountOwner = (account: string) => `account:${account}`;
 async function localOwner(id: string): Promise<string> {
@@ -76,17 +78,17 @@ export async function fetchTemporiContent(id: string): Promise<Blob> {
   if (!session.account) throw new Error('계정에 로그인해 주세요.');
   try {
     const key = `blob:${session.account}:${id}`;
-    const detail = await availableDetail(id, session.account); const cached = originalBlob(await cloudCache<Blob | CachedOriginal>(key)); session.assert();
-    if (cached && cached.size === detail.sizeBytes && await scoreHash(cached) === detail.sha256) { session.assert(); return cached; }
-    const blob = await downloadCloudScore(id); session.assert();
-    if (blob.size !== detail.sizeBytes || await scoreHash(blob) !== detail.sha256) throw new Error('Original integrity check failed');
+    const detail = await availableDetail(id, session.account); const cached = originalBlob(await downloadStep('CACHE-READ', () => cloudCache<Blob | CachedOriginal>(key))); session.assert();
+    if (cached && cached.size === detail.sizeBytes && await downloadStep('CACHE-HASH', () => scoreHash(cached)) === detail.sha256) { session.assert(); return cached; }
+    const blob = await downloadStep('OBJECT-FETCH', () => downloadCloudScore(id)); session.assert();
+    if (blob.size !== detail.sizeBytes) throw new TemporiDownloadError('INTEGRITY', 'SIZE');
+    if (await downloadStep('DOWNLOAD-HASH', () => scoreHash(blob)) !== detail.sha256) throw new TemporiDownloadError('INTEGRITY', 'HASH');
     // The blob record is the completion marker: one atomic IDB transaction, never a memory fallback.
-    session.assert(); await cloudCache(key, { blob, detail }); session.assert(); return blob;
+    session.assert(); await downloadStep('CACHE-WRITE', () => cloudCache(key, { blob, detail })); session.assert(); return blob;
   } catch (error) {
     session.assert();
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
-    throw new Error(error instanceof DOMException && error.name === 'QuotaExceededError'
-      ? '저장공간이 부족해 다운로드에 실패했습니다' : '오류가 발생하여 다운로드에 실패하였습니다');
+    throw downloadError('OBJECT-FETCH', error);
   }
 }
 export async function saveTempori(file: File, title: string, artist: string | undefined): Promise<TemporiSummary> {

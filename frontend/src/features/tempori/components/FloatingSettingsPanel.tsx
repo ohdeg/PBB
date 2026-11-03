@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
+import { useTemporiViewerMenuOpen } from '../../../components/TemporiViewerDock';
 
 interface FloatingSettingsPanelProps {
   isOpen: boolean;
@@ -22,6 +23,11 @@ export default function FloatingSettingsPanel({
   const closeRef = useRef<HTMLButtonElement>(null);
   const closeHandlerRef = useRef(onClose);
   closeHandlerRef.current = onClose;
+  const menuOpen = useTemporiViewerMenuOpen();
+
+  useEffect(() => {
+    if (isOpen && !menuOpen) closeHandlerRef.current();
+  }, [isOpen, menuOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -37,7 +43,7 @@ export default function FloatingSettingsPanel({
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      triggerRef.current?.focus({ preventScroll: true });
+      if (!triggerRef.current?.closest('[hidden]')) triggerRef.current?.focus({ preventScroll: true });
     };
   }, [isOpen]);
 

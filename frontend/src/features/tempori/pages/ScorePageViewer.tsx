@@ -10,6 +10,7 @@ import { PageTurnBar } from './PageTurnBar';
 import { PageAnnotationLayer } from './PageAnnotationLayer';
 import { CameraTurnSettings } from './camera/CameraTurnSettings';
 import { getScoreViewport } from '../utils/scoreViewport';
+import { TemporiDockSlot } from '../../../components/TemporiViewerDock';
 interface Props { source: ScoreSource; annotationId: string; transpose?: number; currentMeasure?: number; followEnabled?: boolean; followRequestKey?: number; annotationTool: AnnotationToolMode; annotationBrushSizes: AnnotationBrushSizes; settingsOpen?: boolean; onManualNavigation?: () => void; onMeasureNavigation?: (measure: number) => void; onSnapshot?: (value: TemporiRenderSnapshot) => void; onReady?: (ready: boolean) => void; ref?: Ref<OsmdViewerHandle> }
 export function ScorePageViewer({ source, annotationId, transpose = 0, currentMeasure = 0, followEnabled = true, followRequestKey = 0, annotationTool, annotationBrushSizes, settingsOpen = false, onManualNavigation, onMeasureNavigation, onSnapshot, onReady, ref }: Props) {
   const scoreState = useTemporiState(); const stateRef = useRef(scoreState); stateRef.current = scoreState;
@@ -61,9 +62,8 @@ export function ScorePageViewer({ source, annotationId, transpose = 0, currentMe
   useEffect(() => { const flush = () => flushRef.current(); window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', flush); return () => { flush(); if (positionTimer.current) clearTimeout(positionTimer.current); window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', flush); }; }, []);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   return <section className="tempori-pages" aria-label="악보 페이지 보기">
-    <div className="tempori-page-controls"><button type="button" onClick={() => pages.setZoom(1)} aria-pressed={pages.zoom === 1}>페이지 맞춤</button><button type="button" onClick={() => pages.setZoom((value) => value >= 2 ? 1 : value + .5)} aria-label="악보 확대">확대 {Math.round(pages.zoom * 100)}%</button>
+    <TemporiDockSlot slot="settings"><div className="tempori-page-controls"><button type="button" onClick={() => pages.setZoom(1)} aria-pressed={pages.zoom === 1}>페이지 맞춤</button><button type="button" onClick={() => pages.setZoom((value) => value >= 2 ? 1 : value + .5)} aria-label="악보 확대">확대 {Math.round(pages.zoom * 100)}%</button></div></TemporiDockSlot>
       <CameraTurnSettings onSettingsChange={setCameraOpen} onTurn={(delta) => pages.request({ delta, origin: 'camera', timestamp: performance.now() })} suspended={annotationTool !== 'none' || pages.zoom !== 1 || nativeZoom > 1 || pages.busy || !!pages.error || settingsOpen} manualRevision={pages.manualRevision} />
-    </div>
     {source.kind === 'musicxml' && annotationTool !== 'none' && <p className="tempori-view-notice">페이지 필기는 조옮김 설정별로 따로 저장됩니다.</p>}
     {pages.error && <div className="tempori-page-error" role="alert">{pages.error} <button type="button" onClick={pages.retry}>페이지 다시 시도</button></div>}
     {!pages.doc && !pages.error && <p role="status">페이지를 준비하고 있습니다…</p>}

@@ -4,6 +4,7 @@ import { ScorePageViewer } from './pages/ScorePageViewer';
 import { TEMPORI_STORAGE } from './constants/temporiStorage';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { TemporiDockSlot } from '../../components/TemporiViewerDock';
 import { canStartPendingPlayback, getResumeMeasureIndex, selectPracticeMeasure, type MeasureInteractionMode, type PendingPlayback, type TemporiRenderStatus } from './utils/practiceInteraction';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import OsmdViewer, { type TemporiRenderSnapshot, type OsmdViewerHandle } from './components/OsmdViewer';
@@ -1085,7 +1086,7 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
             isCountingIn={isCountingIn}
           />
           {!isImmersive && (
-          <>
+          <TemporiDockSlot slot="settings">
           <div className="viewer-quick-stats">
             <div className="viewer-quick-stat">
               <span>{t('viewer.statCurrentMeasure')}</span>
@@ -1265,23 +1266,23 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
               {prefsMessage && <p className="practice-message" role="status">{prefsMessage}</p>}
             </FloatingSettingsPanel>
           </div>
-          </>
+          </TemporiDockSlot>
           )}
 
-          {!isImmersive && <div className="tempori-range-toolbar">
+          {!isImmersive && viewMode !== 'pages' && <TemporiDockSlot slot="settings"><div className="tempori-range-toolbar">
             <Button variant="secondary" disabled={renderState.status !== 'ready' || isSettingsOpen || isAnnotationToolActive} onClick={() => { setMeasureInteractionMode('range'); setRangeSelectionStartMeasure(null); }} aria-pressed={measureInteractionMode === 'range'}>{t('viewer.selectRange')}</Button>
             {measureInteractionMode === 'range' && <>
               <span role="status">{t(rangeSelectionStartMeasure === null ? 'viewer.selectRangeStart' : 'viewer.selectRangeEnd')}</span>
               <Button variant="outline" onClick={cancelRangeSelection}>{t('common.cancel')}</Button>
             </>}
-          </div>}
+          </div></TemporiDockSlot>}
           {viewPreferenceFailed && <p className="tempori-view-notice" role="status">{t('viewer.viewPreferenceFailed')}</p>}
           {pendingViewMode && <div className="tempori-view-notice" role="alert">
             <p>{t('viewer.annotationsSaveFailed')}</p>
             <Button onClick={() => changeViewMode(pendingViewMode.mode, pendingViewMode.persist)}>{t('viewer.retryViewSwitch')}</Button>
           </div>}
           {viewMode !== 'wrapped' && <div className="tempori-follow-actions">
-            {viewMode === 'horizontal' && horizontalGuideVisible && !isImmersive && <p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p>}
+            {viewMode === 'horizontal' && horizontalGuideVisible && !isImmersive && <TemporiDockSlot slot="settings"><p className="tempori-view-notice">{t(navigator.maxTouchPoints > 0 ? 'viewer.horizontalHintTouch' : 'viewer.horizontalHintDesktop')} <button type="button" onClick={() => setHorizontalGuideVisible(false)}>{t('common.close')}</button></p></TemporiDockSlot>}
             {followSuspended && <Button onClick={() => { setAnnotationTool('none'); setFollowSuspended(false); setFollowRequestKey((key) => key + 1); }}>{t('viewer.resumeFollow')}</Button>}
           </div>}
           {renderState.status === 'error' && <div className="tempori-recovery-actions">{viewMode === 'horizontal' && <Button onClick={() => changeViewMode('wrapped', false)}>{t('viewer.switchWrapped')}</Button>}<Button onClick={handleRetryRender}>{t('viewer.retry')}</Button><Link to="/hobbies/tempori/library">{t('viewer.backToLibrary')}</Link></div>}

@@ -36,6 +36,7 @@ export function PdfTempori({ source, annotationId }: { source: Extract<ScoreSour
   return <div className="tempori tempori-pdf">
     <TemporiAnnotationToolbar visible pageMode tool={tool} brushSizes={sizes} onToolChange={setTool} onBrushSizeChange={(key, value) => { const next = { ...sizes, [key]: value }; setSizes(next); saveAnnotationBrushSizes(next); }} onClear={() => { if (window.confirm('이 페이지의 필기를 지울까요?')) dispatchAnnotationClear(annotationId, 'pages'); }} onUndo={() => dispatchAnnotationUndo(annotationId, 'pages')} />
     <ScorePageViewer source={source} annotationId={annotationId} annotationTool={tool} annotationBrushSizes={sizes} />
-    <TemporiDockSlot slot="playback"><div className="tempori-pdf-metronome"><label>BPM <input aria-label="PDF 메트로놈 BPM" type="number" min={20} max={300} value={bpm} onChange={(event) => changeBpm(Math.min(300, Math.max(20, Number(event.target.value) || 120)))} /></label><button type="button" onClick={() => { void audio.current?.resume(); setPlaying((value) => !value); }}>{playing ? '메트로놈 정지' : '메트로놈 시작'}</button><output aria-label="메트로놈 박자">{playing ? beat : '—'}</output></div></TemporiDockSlot>
+    <TemporiDockSlot slot="settings"><label className="tempori-pdf-bpm">BPM <input aria-label="PDF 메트로놈 BPM" type="number" min={20} max={300} value={bpm} onChange={(event) => changeBpm(Math.min(300, Math.max(20, Number(event.target.value) || 120)))} /></label></TemporiDockSlot>
+    <TemporiDockSlot slot="playback"><div className="tempori-pdf-metronome"><button type="button" onClick={() => { void audio.current?.resume(); setPlaying((value) => !value); }}>{playing ? '메트로놈 정지' : '메트로놈 시작'}</button><output aria-label="메트로놈 박자">{playing ? beat : '—'}</output></div></TemporiDockSlot>
   </div>;
 }

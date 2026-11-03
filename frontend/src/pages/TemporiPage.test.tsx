@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TemporiPage } from './TemporiPage';
 import { fetchTemporiDetail, fetchTemporiContent } from '../features/tempori/services/temporiRepository';
+import { TemporiDownloadError } from '../features/tempori/services/temporiDownloadError';
+import { useAuthStore } from '../stores/authStore';
 vi.mock('../features/tempori/services/temporiRepository', () => ({ fetchTemporiDetail: vi.fn(), fetchTemporiContent: vi.fn(async () => new Blob(['score'])), temporiStateIdentity: vi.fn(async (id: string, originalHash: string) => ({ owner: 'guest', scoreId: id, originalHash, accountId: null })) }));
 vi.mock('../features/tempori/services/temporiCloudApi', () => ({ scoreHash: async () => 'a'.repeat(64) }));
 vi.mock('../features/tempori/services/TemporiStateProvider', () => ({ TemporiStateProvider: ({ children }: { children: React.ReactNode }) => children }));
@@ -11,7 +13,7 @@ vi.mock('../features/tempori/pages/scoreSource', () => ({ sourceFromBlob: vi.fn(
 vi.mock('../features/tempori/Tempori', () => ({ Tempori: ({ temporiId }: { temporiId: string }) => <div>Tempori {temporiId}</div> }));
 const detail = { id: 'a', title: 'No artist score', artist: null, createdAt: '', storagePath: '' };
 beforeEach(() => vi.clearAllMocks());
-afterEach(cleanup);
+afterEach(() => { cleanup(); useAuthStore.setState({ userId: null }); });
 function openPage() { render(<MemoryRouter initialEntries={['/tempori/a']}><Routes><Route path="/tempori/:id" element={<TemporiPage />} /></Routes></MemoryRouter>); }
 it('omits the subtitle after loading a score with no artist', async () => {
   vi.mocked(fetchTemporiDetail).mockResolvedValue(detail); openPage();
@@ -45,4 +47,35 @@ it('does not mount the viewer before original caching completes, and a cache fai
 it('shows the exact general download error without mounting a memory-only viewer', async () => {
   vi.mocked(fetchTemporiDetail).mockResolvedValue(detail); vi.mocked(fetchTemporiContent).mockRejectedValueOnce(new Error('오류가 발생하여 다운로드에 실패하였습니다'));
   openPage(); expect(await screen.findByRole('alert')).toHaveTextContent('오류가 발생하여 다운로드에 실패하였습니다'); expect(screen.queryByText('Tempori a')).toBeNull();
+});
+
+it('shows a fixed diagnostic beside the unchanged message and clears it when retrying', async () => {
+  vi.mocked(fetchTemporiDetail).mockResolvedValue(detail);
+  vi.mocked(fetchTemporiContent).mockRejectedValueOnce(new TemporiDownloadError('OBJECT-FETCH', 'NETWORK'));
+  openPage();
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^오류가 발생하여 다운로드에 실패하였습니다$/);
+  expect(screen.getByText('TD-OBJECT-FETCH-NETWORK')).toBeVisible();
+  let finish!: (value: Blob) => void;
+  vi.mocked(fetchTemporiContent).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+  expect(screen.queryByText('TD-OBJECT-FETCH-NETWORK')).toBeNull();
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  await act(async () => finish(new Blob(['abc'])));
+  await screen.findByText('Tempori a');
+  expect(screen.queryByText(/진단 코드/)).toBeNull();
+});
+
+it.each(['score', 'account'])('clears an old diagnostic when the %s changes', async (change) => {
+  vi.mocked(fetchTemporiDetail).mockResolvedValue(detail);
+  vi.mocked(fetchTemporiContent).mockRejectedValueOnce(new TemporiDownloadError('CACHE-WRITE', 'SECURITY'));
+  function RoutedScore() {
+    const navigate = useNavigate();
+    return <><button onClick={() => navigate('/tempori/b')}>다른 악보</button><TemporiPage /></>;
+  }
+  render(<MemoryRouter initialEntries={['/tempori/a']}><Routes><Route path="/tempori/:id" element={<RoutedScore />} /></Routes></MemoryRouter>);
+  await screen.findByText('TD-CACHE-WRITE-SECURITY');
+  vi.mocked(fetchTemporiDetail).mockImplementationOnce(() => new Promise(() => {}));
+  if (change === 'score') fireEvent.click(screen.getByRole('button', { name: '다른 악보' }));
+  else act(() => useAuthStore.setState({ userId: 'next-account' }));
+  expect(screen.queryByText('TD-CACHE-WRITE-SECURITY')).toBeNull();
 });

@@ -34,6 +34,38 @@ describe('cloud repository account boundaries', () => {
     boundary.download.mockRejectedValueOnce(new Error('network'));
     await expect(fetchTemporiContent('remote-a')).rejects.toThrow('오류가 발생하여 다운로드에 실패하였습니다');
   });
+  it('distinguishes cache writes from original fetch failures without exposing raw errors', async () => {
+    vi.mocked(cloudCache).mockImplementationOnce(async () => undefined).mockRejectedValueOnce(new DOMException('private storage detail', 'SecurityError'));
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ message: '오류가 발생하여 다운로드에 실패하였습니다', diagnosticCode: 'TD-CACHE-WRITE-SECURITY' });
+  });
+  it('distinguishes original size and hash integrity failures', async () => {
+    boundary.download.mockResolvedValueOnce(new Blob(['wrong size']));
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-INTEGRITY-SIZE' });
+    boundary.hash.mockResolvedValueOnce('wrong hash');
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-INTEGRITY-HASH' });
+    expect(boundary.cache.has('blob:A:remote-a')).toBe(false);
+  });
+  it('keeps the metadata failure stage if offline fallback has no usable original', async () => {
+    boundary.remote.mockRejectedValueOnce({ response: { status: 503 } });
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-METADATA-HTTP503' });
+    expect(boundary.download).not.toHaveBeenCalled();
+  });
+  it('retains usable cached metadata on a server failure while preserving permission failures', async () => {
+    const blob = new Blob(['abc']); boundary.cache.set('blob:A:remote-a', { blob, detail: score });
+    boundary.remote.mockRejectedValueOnce({ response: { status: 503 } });
+    expect(await fetchTemporiContent('remote-a')).toBe(blob);
+    boundary.remote.mockRejectedValueOnce({ response: { status: 403 } });
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-METADATA-HTTP403' });
+    expect(boundary.download).not.toHaveBeenCalled();
+  });
+  it('separates cache reads and digest availability failures', async () => {
+    vi.mocked(cloudCache).mockRejectedValueOnce(new DOMException('private detail', 'SecurityError'));
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-CACHE-READ-SECURITY' });
+    boundary.cache.set('blob:A:remote-a', new Blob(['abc'])); boundary.hash.mockRejectedValueOnce(new TypeError('private detail'));
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-CACHE-HASH-UNKNOWN' });
+    boundary.cache.clear(); boundary.hash.mockRejectedValueOnce(new TypeError('private detail'));
+    await expect(fetchTemporiContent('remote-a')).rejects.toMatchObject({ diagnosticCode: 'TD-DOWNLOAD-HASH-UNKNOWN' });
+  });
   it('keeps failed local drafts visible when the first cloud list fails', async () => {
     boundary.localList.mockResolvedValue([{ id: 'tempori-draft', title: 'Unsent original', artist: null, createdAt: '' }]); boundary.list.mockRejectedValue(new Error('unavailable'));
     expect(await fetchLibraryTemporiItems()).toMatchObject([{ id: 'tempori-draft', syncState: 'failed', serverListUnavailable: true }]);

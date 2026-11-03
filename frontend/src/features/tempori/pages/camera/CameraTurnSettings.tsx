@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useCameraPageTurn } from './useCameraPageTurn';
+import { TemporiDockSlot } from '../../../../components/TemporiViewerDock';
 export function CameraTurnSettings({ onTurn, suspended, manualRevision, onSettingsChange }: { onSettingsChange?: (open: boolean) => void; onTurn: (delta: -1 | 1) => void; suspended: boolean; manualRevision: number }) {
   const [open, setOpen] = useState(false); const camera = useCameraPageTurn(onTurn, suspended || open, manualRevision);
   useEffect(() => { onSettingsChange?.(open); }, [open, onSettingsChange]);
   const active = camera.status !== 'off' && camera.status !== 'error';
   return <div className="tempori-camera-settings">
-    <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>카메라 넘김 · {active ? '사용 중' : '꺼짐'}</button>
+    <TemporiDockSlot slot="settings"><button className="tempori-camera-trigger" type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>카메라 넘김 · {active ? '사용 중' : '꺼짐'}</button></TemporiDockSlot>
     <div role={open ? "dialog" : undefined} aria-label={open ? "카메라 넘김 설정" : undefined} className={open ? 'tempori-camera-panel' : 'tempori-camera-panel tempori-camera-panel--closed'}>
       <h3>카메라로 넘기기 <small>실험 기능</small></h3>
       <p>영상은 기기에서만 처리하며 저장하거나 전송하지 않습니다. 고개를 오른쪽으로 돌려 유지하면 다음, 왼쪽이면 이전 페이지입니다.</p>
@@ -19,6 +20,6 @@ export function CameraTurnSettings({ onTurn, suspended, manualRevision, onSettin
       {active ? <><button type="button" onClick={camera.stop}>카메라 즉시 끄기</button><button type="button" onClick={camera.recalibrate}>다시 보정</button></> : <button type="button" onClick={() => void camera.start()}>카메라로 넘기기 켜기</button>}
       <button type="button" onClick={() => setOpen(false)}>설정 닫기</button>
     </div>
-    {active && !open && <span className="tempori-camera-live"><span aria-hidden="true">●</span> 카메라 사용 중 <button type="button" onClick={camera.stop}>끄기</button></span>}
+    <TemporiDockSlot slot="status">{active && <span className="tempori-camera-live"><span aria-hidden="true">●</span> 카메라 사용 중 <button type="button" onClick={() => setOpen(true)}>설정</button><button type="button" onClick={camera.stop}>카메라 끄기</button></span>}{camera.error && !open && <p className="tempori-page-error" role="alert">{camera.error} <button type="button" onClick={() => setOpen(true)}>카메라 설정</button></p>}</TemporiDockSlot>
   </div>;
 }

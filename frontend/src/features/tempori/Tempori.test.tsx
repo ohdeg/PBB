@@ -9,12 +9,14 @@ import type TemporiMetronome from './components/TemporiMetronome';
 import type { TemporiRenderSnapshot } from './components/OsmdViewer';
 import { fetchTemporiMusicXml } from './utils/temporiLoader';
 import { useTemporiPlaybackStore } from './store/temporiPlaybackStore';
+import { TemporiViewerFrame } from '../../components/TemporiViewerDock';
 
 const boundary = vi.hoisted(() => ({ resume: vi.fn(), flush: vi.fn(() => true), restore: vi.fn() }));
 vi.mock('./utils/temporiLoader', () => ({ fetchTemporiMusicXml: vi.fn() }));
 vi.mock('./utils/scrollAnchor', () => ({ cancelScrollAnimation: vi.fn(), scrollToAnchoredMeasure: vi.fn() }));
 vi.mock('./utils/metronomeAudio', () => ({ MetronomeAudio: class { resume = boundary.resume; dispose() {} playClick() {} } }));
 vi.mock('./components/TemporiAutoScroller', () => ({ default: () => null }));
+vi.mock('./pages/ScorePageViewer', () => ({ ScorePageViewer: () => null }));
 vi.mock('./components/TemporiMetronome', () => ({ default: (props: ComponentProps<typeof TemporiMetronome>) => <output data-testid="audio-context" data-bpm={props.bpm} data-counting={String(props.isCountingIn)} data-duration={props.windows?.[0]?.durationMs} /> }));
 vi.mock('./components/OsmdViewer', () => ({
   default: function RenderBoundary(props: ComponentProps<typeof OsmdViewer>) {
@@ -49,6 +51,38 @@ function openSettings() { fireEvent.click(screen.getByRole('button', { name: '�
 function changeBpm(value: string) { fireEvent.change(screen.getByRole('spinbutton', { name: 'BPM' }), { target: { value } }); }
 
 describe('score practice flow', () => {
+  it('keeps practice controls in the score menu and closes only the settings dialog on Escape', async () => {
+    render(<MemoryRouter><TemporiViewerFrame><Tempori temporiId="a" /></TemporiViewerFrame></MemoryRouter>);
+    await screen.findByRole('button', { name: 'Finish render' });
+    finishRender();
+    expect(screen.queryByRole('button', { name: '설정 열기' })).toBeNull();
+    const menu = screen.getByRole('button', { name: '메뉴' });
+    fireEvent.click(menu);
+    openSettings();
+    expect(screen.getByRole('dialog', { name: '연습 설정' })).toBeVisible();
+    changeBpm('80');
+    fireEvent.keyDown(screen.getByRole('spinbutton', { name: 'BPM' }), { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: '연습 설정' })).toBeNull();
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: '설정 열기' })).toHaveFocus();
+    openSettings();
+    expect(screen.getByRole('spinbutton', { name: 'BPM' })).toHaveValue(120);
+  });
+  it('cancels a practice draft when its parent menu closes and restores playback', async () => {
+    render(<MemoryRouter><TemporiViewerFrame><Tempori temporiId="a" /></TemporiViewerFrame></MemoryRouter>);
+    await screen.findByRole('button', { name: 'Finish render' });
+    finishRender();
+    const menu = screen.getByRole('button', { name: '메뉴' });
+    fireEvent.click(menu);
+    openSettings();
+    changeBpm('80');
+    fireEvent.click(menu);
+    expect(screen.getByRole('button', { name: '재생' })).toBeVisible();
+    fireEvent.click(menu);
+    expect(screen.queryByRole('dialog', { name: '연습 설정' })).toBeNull();
+    openSettings();
+    expect(screen.getByRole('spinbutton', { name: 'BPM' })).toHaveValue(120);
+  });
   it('blocks playback until rendering is ready and allows retry after a rendering error', async () => {
     await openTempori();
     expect(screen.getByRole('button', { name: '재생' })).toBeDisabled();
@@ -159,6 +193,13 @@ describe('score practice flow', () => {
 
 
 describe('view mode session and persistence', () => {
+  it('omits the measure range action when the score changes to page mode', async () => {
+    await openTempori(); finishRender();
+    expect(screen.getByRole('button', { name: '구간 선택' })).toBeVisible();
+    openSettings();
+    fireEvent.click(screen.getByRole('radio', { name: '페이지' }));
+    expect(screen.queryByRole('button', { name: '구간 선택' })).toBeNull();
+  });
   it('offers both modes on desktop, preserves physical position and settings across mode/resize, and restores the preference next score', async () => {
     await openTempori(); finishRender();
     fireEvent.click(screen.getByRole('button', { name: 'Measure 5' }));

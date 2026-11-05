@@ -53,3 +53,15 @@ logging:
 sranko:
   try-on:
     body-cache-enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev & !prod & !test"
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "20261031"
+    clean-disabled: true
+    validate-migration-naming: true

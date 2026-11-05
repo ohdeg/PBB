@@ -1,0 +1,8 @@
+# Local Flyway adoption
+Goal: on dev startup, apply pending versioned migrations before Hibernate validation, without replacing existing rows or running DDL on production.
+- Keep Compose initialization and production scripts intact. Package the two existing forward-only Tempori SQL files in the backend; do not replay historical migration/draft scripts. New versions go in db/migration.
+- Adopt an existing PBB schema at version 20261031, after checking the connection is local and prerequisite schema exists. The initial Compose snapshot may already contain either or both Tempori changes; CREATE IF NOT EXISTS preserves data. An empty/unrecognized database should fail before baselining.
+- Default Flyway off; enable for dev excluding prod/test. Keep Hibernate validate and clean disabled. Check existing data and idempotency on disposable MySQL; validate resources and profiles without real environment files. Do not start the user’s DB or app.
+- Review: check isolation, baseline/preconditions, no destructive SQL, startup ordering, reruns, packaging (Docker builds from spring_backend only) and documented future workflow.
+
+Review and verification: checked the 20261031 adoption marker, actual JDBC target, default/additional schemas and mixed profiles. The Boot 4.1.0 config loader enabled Flyway only for dev and dev,e2e in the six checked combinations. Both packaged SQL files matched the existing migration scripts byte-for-byte. The disposable MySQL integration test covers adoption, target rejection, preserved score data and restart; local Gradle startup was blocked by its socket permission before tests ran.

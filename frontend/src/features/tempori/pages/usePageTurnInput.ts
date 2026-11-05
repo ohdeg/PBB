@@ -8,7 +8,7 @@ type Gesture = { id: number; x: number; y: number; lastX: number; lastY: number;
 function trackMovement(start: Gesture, x: number, y: number) {
   start.distance += Math.hypot(x - start.lastX, y - start.lastY); start.lastX = x; start.lastY = y;
 }
-export function usePageTurnInput(ref: RefObject<HTMLElement | null>, enabled: boolean, request: (input: PageTurnRequest) => void, tapEnabled = false) {
+export function usePageTurnInput(ref: RefObject<HTMLElement | null>, enabled: boolean, request: (input: PageTurnRequest) => void, tapEnabled = false, onCenterTap?: () => void, navigationEnabled = enabled) {
   const pointers = useRef(new Set<number>());
   const gesture = useRef<Gesture | null>(null);
   useEffect(() => { gesture.current = null; }, [enabled, tapEnabled]);
@@ -29,12 +29,12 @@ export function usePageTurnInput(ref: RefObject<HTMLElement | null>, enabled: bo
   }, [ref]);
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
-      if (!enabled || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || interactive(event.target) || document.querySelector('[role="dialog"]')) return;
+      if (!navigationEnabled || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || interactive(event.target) || document.querySelector('[role="dialog"]')) return;
       const delta = ['ArrowRight', 'PageDown'].includes(event.key) ? 1 : ['ArrowLeft', 'PageUp'].includes(event.key) ? -1 : null;
       if (delta !== null) { event.preventDefault(); request({ delta, origin: 'keyboard', timestamp: performance.now() }); }
     };
     window.addEventListener('keydown', keyboard); return () => window.removeEventListener('keydown', keyboard);
-  }, [enabled, request]);
+  }, [navigationEnabled, request]);
   return {
     onPointerDown(event: ReactPointerEvent) {
       if (!enabled || nativeZoomed() || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !event.isPrimary || event.button !== 0 || !['mouse', 'touch'].includes(event.pointerType) || pointers.current.size !== 1 || interactive(event.target) || document.querySelector('[role="dialog"]')) { gesture.current = null; return; }
@@ -55,12 +55,14 @@ export function usePageTurnInput(ref: RefObject<HTMLElement | null>, enabled: bo
       if (!enabled || nativeZoomed() || !start || start.id !== event.pointerId || interactive(event.target) || document.querySelector('[role="dialog"]')) return;
       const now = performance.now(); const duration = now - start.time;
       const delta = swipeDirection(event.clientX - start.x, event.clientY - start.y, duration, ref.current?.clientWidth ?? 0);
-      if (delta) { request({ delta, origin: 'swipe', timestamp: now }); return; }
+      if (delta) { if (navigationEnabled) request({ delta, origin: 'swipe', timestamp: now }); return; }
       trackMovement(start, event.clientX, event.clientY);
       if (!tapEnabled || duration > 350 || start.distance > 10) return;
       const bounds = ref.current?.getBoundingClientRect();
       if (!bounds || bounds.width <= 0 || [start.x, event.clientX].some((x) => x < bounds.left || x > bounds.right) || [start.y, event.clientY].some((y) => y < bounds.top || y > bounds.bottom)) return;
-      request({ delta: event.clientX < bounds.left + bounds.width / 2 ? -1 : 1, origin: 'tap', timestamp: now });
+      const fraction = (event.clientX - bounds.left) / bounds.width;
+      if (onCenterTap && fraction >= 1 / 3 && fraction <= 2 / 3) { onCenterTap(); return; }
+      if (navigationEnabled) request({ delta: fraction < .5 ? -1 : 1, origin: 'tap', timestamp: now });
     },
     onPointerCancel() { gesture.current = null; },
     onPointerLeave() { gesture.current = null; },

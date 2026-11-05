@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { TemporiDockSlot, TemporiViewerFrame } from '../../../components/TemporiViewerDock';
+import { TemporiDockSlot, TemporiViewerFrame, useTemporiViewerPresentation } from '../../../components/TemporiViewerDock';
 import { PdfTempori } from './PdfTempori';
 import { emptyDocument, type ScoreState } from '../services/temporiStateRepository';
 const boundary = vi.hoisted(() => ({ context: null as unknown, click: vi.fn(), resume: vi.fn(), dispose: vi.fn() }));
@@ -16,7 +16,8 @@ let context: { ready: boolean; identity: { accountId: string | null }; state: Sc
 afterEach(() => vi.restoreAllMocks());
 let frame: FrameRequestCallback | undefined;
 let now = 0;
-function Viewer() { return <MemoryRouter><TemporiViewerFrame><TemporiDockSlot slot="settings"><button>Page fit fixture</button></TemporiDockSlot><PdfTempori source={source} annotationId="saved-pdf" /></TemporiViewerFrame></MemoryRouter>; }
+function Presentation() { useTemporiViewerPresentation(true, false); return null; }
+function Viewer({ immersive = false }: { immersive?: boolean }) { return <MemoryRouter><TemporiViewerFrame>{immersive && <Presentation />}<TemporiDockSlot slot="settings"><button>Page fit fixture</button></TemporiDockSlot><PdfTempori source={source} annotationId="saved-pdf" /></TemporiViewerFrame></MemoryRouter>; }
 function change(name: string, value: string) { fireEvent.change(screen.getByRole('spinbutton', { name }), { target: { value } }); }
 function tick(time: number) { now = time; act(() => { frame?.(time); }); }
 beforeEach(() => {
@@ -101,4 +102,18 @@ it('adopts an explicit conflict resolution below optimistic generations after qu
   expect(screen.getByRole('button', { name: 'PDF 메트로놈 설정' })).toHaveTextContent('80');
   change('PDF 메트로놈 BPM', '85');
   expect(context.save.mock.calls.at(-1)?.[2]).toBe(7);
+});
+
+it('keeps the running metronome mounted and on tempo while PDF controls hide and reappear', () => {
+  render(<Viewer immersive />);
+  fireEvent.click(screen.getByRole('button', { name: '악보 컨트롤 표시' }));
+  fireEvent.click(screen.getByRole('button', { name: '메트로놈 시작' })); tick(0);
+  const stop = screen.getByRole('button', { name: '메트로놈 정지' });
+  fireEvent.click(screen.getByRole('button', { name: '컨트롤 숨기기' })); tick(500);
+  expect(stop).not.toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: '악보 컨트롤 표시' })); tick(1000);
+  expect(screen.getByRole('button', { name: '메트로놈 정지' })).toBe(stop);
+  expect(boundary.click).toHaveBeenCalledTimes(3);
+  expect(boundary.resume).toHaveBeenCalledTimes(1);
+  expect(boundary.dispose).not.toHaveBeenCalled();
 });

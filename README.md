@@ -430,7 +430,9 @@ docker compose up -d
 | Redis | 6379 | 비밀번호 없음 |
 
 신규 컨테이너는 `infra/mysql/init.sql`로 전체 스키마가 생성됩니다.  
-이미 떠 있는 볼륨은 `init.sql`이 다시 실행되지 않으므로, 스키마가 뒤처지면 해당 `infra/mysql/migrate_*.sql` 또는 `infra/mysql/migrations/`를 적용하세요. 데이터를 버려도 되면 `docker compose down -v && docker compose up -d`로 맞출 수 있습니다.
+기존 로컬 볼륨은 그대로 둔 채 Spring을 평소처럼 `dev`로 시작하세요. Flyway가 로컬 MySQL의 `baseball_db`에 미적용 SQL을 버전 순서로 실행하고, 이후 Hibernate가 스키마를 검증합니다. 최초 도입 기준은 2026-10-31 Dieta 변경까지 반영된 PBB DB입니다. 이미 있는 Tempori 테이블은 재생성하지 않습니다. 기준보다 오래된 DB는 누락된 기존 마이그레이션(예: `infra/mysql/migrations/20261031_dieta_recipe_kind.sql`)을 검토·적용한 뒤 다시 시작하세요. 빈 DB는 먼저 위 Compose 초기화 절차를 사용하세요.
+
+새 로컬 변경은 `spring_backend/src/main/resources/db/migration/V<고유 버전>__<설명>.sql`에 추가하세요. 이미 적용된 파일은 수정하지 않습니다. 새 DB용 `init.sql`도 같은 최종 스키마로 유지하고, 해당 버전은 초기화가 끝난 새 볼륨에서도 안전하게 실행될 수 있게 작성하세요. 적용 이력은 `flyway_schema_history`에서 확인할 수 있습니다. 운영은 기존 배포 절차로 SQL을 별도 적용하며 Flyway는 비활성입니다.
 
 ### 2. Spring Backend
 

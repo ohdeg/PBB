@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { lazy, Suspense, type ComponentType } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
-import { TemporiDockSlot, TemporiViewerFrame } from './TemporiViewerDock';
+import { TemporiDockSlot, TemporiViewerFrame, useTemporiViewerPresentation } from './TemporiViewerDock';
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -93,4 +93,19 @@ it('preserves secondary control state while the menu is closed and leaves urgent
   fireEvent.click(toggle);
   fireEvent.click(toggle);
   expect(screen.getByRole('textbox', { name: '확대' })).toHaveValue('200');
+});
+
+function PdfControls({ locked = false }: { locked?: boolean }) {
+  useTemporiViewerPresentation(true, locked);
+  return <><TemporiDockSlot slot="status"><button>카메라 끄기</button></TemporiDockSlot><TemporiDockSlot slot="settings"><input aria-label="설정 초안" defaultValue="120" /></TemporiDockSlot></>;
+}
+it('keeps urgent camera stop outside hidden PDF controls and retains an explicitly opened recovery menu', () => {
+  const view = render(<MemoryRouter><TemporiViewerFrame><PdfControls locked /></TemporiViewerFrame></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: '메뉴' }));
+  fireEvent.change(screen.getByRole('textbox', { name: '설정 초안' }), { target: { value: '90' } });
+  view.rerender(<MemoryRouter><TemporiViewerFrame><PdfControls /></TemporiViewerFrame></MemoryRouter>);
+  expect(screen.getByRole('textbox', { name: '설정 초안' })).toHaveValue('90');
+  fireEvent.click(screen.getByRole('button', { name: '컨트롤 숨기기' }));
+  expect(screen.queryByRole('button', { name: '메뉴' })).toBeNull();
+  expect(screen.getByRole('button', { name: '카메라 끄기' })).toBeVisible();
 });

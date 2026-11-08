@@ -205,11 +205,11 @@ Auth: Bearer access token · `AccessTokenResolver.requireEmail` → `users.id` U
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/api/v1/dieta/meal-queue?loggedOn=` | Redis day queue; DB queueTotals preserves done after Redis expiry; expired pending lease becomes failed |
+| GET | `/api/v1/dieta/meal-queue?loggedOn=` | Redis day queue; DB queueTotals preserves done after Redis expiry; stage availability, unreflected item count, eligible yesterday retry |
 | GET | `/api/v1/dieta/meal-queue/{loggedOn}` | Same as query form |
 | POST | `/api/v1/dieta/meal-queue/items` | `{ loggedOn, mealType, text }` — reject if status `done` or active `pending` |
 | DELETE | `/api/v1/dieta/meal-queue/items/{itemId}?loggedOn=` | Remove item; reject done or active pending |
-| POST | `/api/v1/dieta/meal-queue/finalize` | `{ loggedOn }` — requires `geminiMealConsent`; Gemini on **queue only** + `knownRecipes` from DB → merge into `dieta_intake_logs` |
+| POST | `/api/v1/dieta/meal-queue/finalize` | `{ loggedOn, stage?: MAIN or SUPPLEMENT }` — requires `geminiMealConsent`; Gemini on **queue only** + `knownRecipes` from DB → merge into `dieta_intake_logs` |
 | POST | `/api/v1/dieta/meal-queue/auto-finalize-yesterday` | Finalize yesterday if open+items+consent; else 204 |
 | GET | `/api/v1/dieta/intakes?loggedOn=` | List intake logs (optional date filter) |
 | GET | `/api/v1/dieta/recipes?loggedOn=` | With loggedOn → day LEGACY/INTAKE rows; omit → LIBRARY/LEGACY rows, filtered before newest-first limit 100 |
@@ -223,7 +223,7 @@ Config: existing `dieta.gemini.api-key` / `base-url` / `model`. Missing key disa
 - `frontend/src/api/dietaApi.ts` uses `apiClient` → `/api/v1/dieta/**` (Bearer + refresh like brew).
 - 404 profile → `null` → onboarding redirect; guest landing stays client-only (no API).
 - Check-in preview → server proposal API; confirm sends `keepTargets`, `plateauChoice`, `revisionToken`. Records and fingerprint are checked under the same profile row lock. Late UI responses are discarded. A changed record requires a fresh preview and confirmation. Target-reaching previews show maintenance kcal=TDEE and activity=0, matching apply.
-- Meal finalize/auto-finalize → live Redis queue + Gemini; failures preserve queue input and expose retry. Recipe failures preserve form input.
+- Meal finalize/auto-finalize → live Redis queue + Gemini; pre-dispatch failures preserve the attempt for manual retry; a dispatched failure exhausts that stage. Recipe failures preserve form input.
 - Historical `dietaStubStore` remains unused by live routes. Server aggregation uses only recorded dates as the average denominator; missing dates are not zero-calorie days. Existing coaching constants and no-intake fallback remain unchanged.
 
 ### Phase 5 / 5b (homemade recipe → DB + knownRecipes)
@@ -242,9 +242,9 @@ Config: existing `dieta.gemini.api-key` / `base-url` / `model`. Missing key disa
 ## 11. Reliability and deployment (2026-10-31)
 
 - Apply `infra/mysql/migrations/20261031_dieta_recipe_kind.sql` once before deploying the matching backend/frontend together. Do not run old and new backend versions concurrently: old code includes library rows in day totals. Reload old browser sessions. Historical intake is not recalculated or deleted by the migration.
-- Queue retention is unchanged: 48-hour TTL, no new scheduler or permanent queue storage, yesterday auto-finalize still triggered by visiting Meals.
+- Queue retention is unchanged: 48-hour Redis TTL. Opted-in users get server-scheduled MAIN analysis. Visiting Meals triggers the legacy yesterday check for users with scheduling off.
 - Queue add/remove, lease claim/recovery, reset, and final DB commit serialize under a per-user profile write lock at READ_COMMITTED. This is intentionally coarser than per-day locking. No external AI call runs inside that transaction.
-- pending.updatedAt identifies a 120-second analysis lease. GET recovers expired pending to failed. Every takeover and final ownership check uses the same DB lock, so an expired worker cannot save after a replacement claims the queue. Pending edits and concurrent finalization return 409.
+- pending.updatedAt identifies a 120-second analysis lease. An expired pre-dispatch lease permits manual retry. An expired dispatched lease consumes that stage. Every takeover and final ownership check uses the same DB lock, so an expired worker cannot save after a replacement claims the queue. Pending edits and concurrent finalization return 409.
 - The final DB transaction re-reads day recipes. A successful commit writes queueTotals as durable completion evidence before Redis done is attempted. Redis completion failure is recoverable from DB without reanalysis. Repeated done finalization returns the persisted intake, including after Redis expiry.
 - Recipe registration and weekly apply API semantics changed; deploy clients with the backend. Old apply requests without revisionToken receive 409 and must reload/re-preview.
 

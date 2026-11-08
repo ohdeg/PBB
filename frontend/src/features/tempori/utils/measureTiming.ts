@@ -458,7 +458,7 @@ const getLineBounds = (line: MeasureLayoutInContainer[]) => {
     };
 };
 
-const getWindowIndexByElapsed = (windows: MeasureWindow[], elapsedMs: number): number => {
+export const getWindowIndexByElapsed = (windows: MeasureWindow[], elapsedMs: number): number => {
     if (windows.length === 0) return 0;
 
     let left = 0;

@@ -3,6 +3,7 @@ package com.studiobs.spring_backend.domain.dieta.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
+import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaMealSchedule;
 import java.time.LocalDate;
 
 public record DietaProfilePatchRequest(
@@ -34,6 +35,7 @@ public record DietaProfilePatchRequest(
         Boolean geminiMealConsent,
         LocalDate weekStartsOn,
         Integer weekActivityExtraKcal,
-        Boolean onboardingComplete
+        Boolean onboardingComplete,
+        DietaMealSchedule mealSchedule
 ) {
 }

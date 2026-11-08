@@ -18,6 +18,11 @@ public class DietaGeminiTestConfiguration {
     GeminiMealClient fixtureGeminiClient(ObjectMapper mapper) {
         return new GeminiMealClient(new DietaGeminiProperties("", null, null), mapper, org.springframework.web.client.RestClient.create()) {
             @Override
+            public java.util.function.Supplier<DietaGeminiMealResponse> prepare(DietaGeminiMealRequest request) {
+                return () -> analyze(request);
+            }
+
+            @Override
             public DietaGeminiMealResponse analyze(DietaGeminiMealRequest request) {
                 org.assertj.core.api.Assertions.assertThat(
                         org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();

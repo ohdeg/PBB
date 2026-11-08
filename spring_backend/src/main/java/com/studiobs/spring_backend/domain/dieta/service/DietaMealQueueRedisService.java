@@ -77,7 +77,7 @@ public class DietaMealQueueRedisService {
         List<DietaMealQueueItemDto> items = new ArrayList<>(
                 day.items() != null ? day.items() : List.of());
         items.add(new DietaMealQueueItemDto(
-                UUID.randomUUID().toString(),
+                ("SUPPLEMENT".equals(day.availableStage()) ? "extra:" : "") + UUID.randomUUID(),
                 mealType,
                 text,
                 Instant.now()));

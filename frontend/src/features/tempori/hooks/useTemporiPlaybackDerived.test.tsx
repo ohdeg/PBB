@@ -139,3 +139,15 @@ it('keeps physical measure selection separate from repeated playback steps', () 
   expect(result.current.practiceRange).toEqual({ startMeasure: 2, endMeasure: 2 });
   expect(result.current.sectionStartIndex).toBe(1);
 });
+
+it('keeps a full count-in before a short pickup', () => {
+  const pickup = { ...snapshot.timings[0], durationSum: 1, isPickup: true };
+  const { result } = renderHook(() => useTemporiPlaybackDerived({
+    snapshot: { ...snapshot, timings: [pickup], playbackSequence: [0] }, bpm: 120, tempoChanges: [],
+    startMeasure: 1, endMeasure: 1, settingsDraft, currentMeasureIndex: 0,
+    rangeSelectionStartMeasure: null, isPlaying: false, isCountingIn: true,
+    elapsedMs: 0, countInElapsedMs: 0, timeSignature: { beatsPerMeasure: 4, beatType: 4 },
+  }));
+  expect(result.current.windows[0].durationMs).toBe(500);
+  expect(result.current.countInMetronomeWindows[0].durationMs).toBe(2000);
+});

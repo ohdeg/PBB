@@ -374,11 +374,12 @@ export const dietaApi = {
   async finalizeMealDay(
     loggedOn: string,
     _key?: string | null,
+    stage: 'MAIN' | 'SUPPLEMENT' = 'MAIN',
   ): Promise<{ intake: DietaIntakeLog; queue: DietaMealQueueDay }> {
     try {
       const { data } = await apiClient.post<DietaMealFinalizeApi>(
         `${BASE}/meal-queue/finalize`,
-        { loggedOn },
+        { loggedOn, stage },
       );
       return {
         intake: mapIntakeLog(data.intake),

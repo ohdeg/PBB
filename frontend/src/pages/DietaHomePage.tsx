@@ -74,7 +74,7 @@ export function DietaHomePage() {
 
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
-  const today = todayIsoDate();
+  const today = todayIsoDate(new Date(), profile?.mealSchedule?.zone);
 
   useEffect(() => {
     if (!accessToken) {
@@ -354,7 +354,10 @@ export function DietaHomePage() {
         </div>
         <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
           {meals.some(m => m.loggedOn === today) ? '분석된 식사만 반영했어요.' : '아직 분석된 식사 기록이 없어요.'}
-          {queue && queue.status !== 'done' && queue.items.length > 0 ? ` ${queue.items.length}개 음식이 ${queue.status === 'pending' ? '분석 중이에요.' : '분석을 기다리고 있어요.'}` : ''}
+          {queue?.status === 'exhausted' ? ' 이번 분석에 실패했어요.' :
+            queue?.status === 'pending' ? ' 식사를 분석하고 있어요.' :
+            queue?.availableStage === 'SUPPLEMENT' && queue.newItemCount ? ` 추가한 음식 ${queue.newItemCount}개를 분석할 수 있어요.` :
+            queue && queue.status !== 'done' && queue.items.length > 0 ? ` 음식 ${queue.items.length}개가 분석을 기다리고 있어요.` : ''}
         </p>
         {macros ? (
           <div className="dieta-macro-rows" style={{ marginTop: '0.85rem' }}>

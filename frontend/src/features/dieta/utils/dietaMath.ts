@@ -149,7 +149,10 @@ export function estimateTdeeFromIntake(params: {
   };
 }
 
-export function todayIsoDate(now = new Date()): string {
+export function todayIsoDate(now = new Date(), zone?: string | null): string {
+  if (zone) {
+    return new Intl.DateTimeFormat('sv-SE', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  }
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');

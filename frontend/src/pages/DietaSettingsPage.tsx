@@ -7,7 +7,7 @@ import { useDietaUserKey } from '../features/dieta/useDietaUserKey';
 import { useAuthStore } from '../stores/authStore';
 import { DietaLoadState } from '../components/dieta/DietaLoadState';
 
-type Draft = { target: string; weekly: string; cut: string; activity: string; ceiling: string; consent: boolean };
+type Draft = { target: string; weekly: string; cut: string; activity: string; ceiling: string; consent: boolean; scheduled: boolean; time: string; zone: string };
 let savedDraft: { key: string; value: Partial<Draft> } | null = null;
 let sessionGeneration = 0;
 function rememberDraft(key: string, value: Draft, baseline: Draft) {
@@ -23,7 +23,7 @@ const warnBeforeUnload = (event: BeforeUnloadEvent) => {
 };
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', warnBeforeUnload);
 if (import.meta.hot) import.meta.hot.dispose(() => { window.removeEventListener('beforeunload', warnBeforeUnload); unsubscribeDraft(); });
-const fromProfile = (p: DietaProfile): Draft => ({ target: p.targetWeightKg == null ? '' : String(p.targetWeightKg), weekly: String(p.weeklyTargetKg), cut: String(p.lossCutKcal), activity: String(p.lossActivityKcal), ceiling: String(p.gainCeilingDeltaKcal), consent: p.geminiMealConsent });
+const fromProfile = (p: DietaProfile): Draft => ({ target: p.targetWeightKg == null ? '' : String(p.targetWeightKg), weekly: String(p.weeklyTargetKg), cut: String(p.lossCutKcal), activity: String(p.lossActivityKcal), ceiling: String(p.gainCeilingDeltaKcal), consent: p.geminiMealConsent, scheduled: !!p.mealSchedule?.enabled, time: p.mealSchedule?.time ?? '21:30', zone: p.mealSchedule?.zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone });
 
 export function DietaSettingsPage() {
   const navigate = useNavigate();
@@ -69,7 +69,8 @@ export function DietaSettingsPage() {
   const maintain = profile.goalType === 'MAINTAIN';
   const targetDirty = draft.target !== baseline.target || draft.weekly !== baseline.weekly;
   const advancedDirty = draft.cut !== baseline.cut || draft.activity !== baseline.activity || draft.ceiling !== baseline.ceiling;
-  const consentDirty = draft.consent !== baseline.consent;
+  const consentDirty = draft.consent !== baseline.consent || draft.scheduled !== baseline.scheduled
+    || draft.time !== baseline.time || draft.zone !== baseline.zone;
   const run = async (action: () => Promise<void>) => {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setError(''); setMsg('');
@@ -89,20 +90,24 @@ export function DietaSettingsPage() {
     } else if(section === 'advanced') {
       if ([draft.cut,draft.activity,draft.ceiling].some(v => !v.trim() || !Number.isFinite(Number(v)) || Number(v) < 0)) throw new Error('조절량은 0 이상 숫자로 입력해 주세요.');
       patch = {lossCutKcal:Number(draft.cut), lossActivityKcal:Number(draft.activity), gainCeilingDeltaKcal:Number(draft.ceiling)}; fields = ['cut','activity','ceiling'];
-    } else { patch = {geminiMealConsent:draft.consent}; fields = ['consent']; }
+     } else {
+      if (draft.consent && draft.scheduled && !draft.time) throw new Error('예약 시각을 선택해 주세요.');
+      patch = {geminiMealConsent: draft.consent, mealSchedule: {enabled: draft.consent && draft.scheduled, time: draft.time, zone: draft.zone}};
+      fields = ['consent','scheduled','time','zone'];
+    }
     const next = await dietaApi.updateProfile(patch,userKey);
     if (!isCurrent()) return;
     const normalized = fromProfile(next);
     const updated = {...draft};
     for (const field of fields) Object.assign(updated, {[field]:normalized[field]});
     setProfile(next); setDraft(updated); rememberDraft(userKey, updated, normalized);
-    setMsg(section === 'target' ? '목표를 저장했어요.' : section === 'advanced' ? '조절량을 저장했어요.' : 'AI 분석 동의를 저장했어요.');
+    setMsg(section === 'target' ? '목표를 저장했어요.' : section === 'advanced' ? '조절량을 저장했어요.' : '분석 설정을 저장했어요.');
   });
   const cancel = (fields: Array<keyof Draft>) => {
     const next = {...draft}; for(const field of fields) Object.assign(next,{[field]:baseline[field]});
     setDraft(next); rememberDraft(userKey, next, baseline); setError(''); setMsg('변경을 취소했어요.');
   };
-  const field = (key: keyof Omit<Draft,'consent'>, label: string) => <div className="dieta-field"><label htmlFor={`dieta-setting-${key}`}>{label}</label><input id={`dieta-setting-${key}`} name={key} inputMode="decimal" autoComplete="off" aria-describedby={error ? 'dieta-settings-error' : undefined} value={draft[key]} disabled={busy} onChange={e => edit({[key]:e.target.value})} /></div>;
+  const field = (key: 'target' | 'weekly' | 'cut' | 'activity' | 'ceiling', label: string) => <div className="dieta-field"><label htmlFor={`dieta-setting-${key}`}>{label}</label><input id={`dieta-setting-${key}`} name={key} inputMode="decimal" autoComplete="off" aria-describedby={error ? 'dieta-settings-error' : undefined} value={draft[key]} disabled={busy} onChange={e => edit({[key]:e.target.value})} /></div>;
   return <>
     <div className="dieta-title-row"><div><h1>설정</h1><p className="dieta-muted">내 목표와 식사 리듬을 조절하세요.</p></div></div>
     {dirty && <p className="dieta-notice" role="status">저장하지 않은 변경이 있어요. 각 항목에서 저장하거나 취소해 주세요.</p>}
@@ -117,7 +122,16 @@ export function DietaSettingsPage() {
       <div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !targetDirty} onClick={() => save('target')}>{busy ? '저장 중…' : '목표 저장'}</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !targetDirty} onClick={() => cancel(['target','weekly'])}>목표 변경 취소</button></div>
     </section>
     <details className="dieta-card dieta-details"><summary>고급 조절</summary><p className="dieta-muted">주간 체크인에서 사용할 조절량입니다.</p>{field('cut','정체 시 식사 감소량 (kcal)')}{field('activity','정체 시 추가 활동량 (kcal)')}{field('ceiling','증량 시 추가 식사량 상한 (kcal)')}<div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !advancedDirty} onClick={() => save('advanced')}>조절량 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !advancedDirty} onClick={() => cancel(['cut','activity','ceiling'])}>조절량 변경 취소</button></div></details>
-    <section className="dieta-card"><h2>AI 식사 분석</h2><label className="dieta-check"><input type="checkbox" checked={draft.consent} disabled={busy} onChange={e => edit({consent:e.target.checked})} />식사 내용을 AI로 분석하는 데 동의합니다.</label><p className="dieta-muted">분석을 요청하면 기록한 음식과 레시피를 Gemini로 보내 영양 정보를 추정합니다.</p><div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !consentDirty} onClick={() => save('consent')}>동의 설정 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !consentDirty} onClick={() => cancel(['consent'])}>동의 변경 취소</button></div></section>
+    <section className="dieta-card"><h2>AI 식사 분석</h2><label className="dieta-check"><input type="checkbox" checked={draft.consent} disabled={busy} onChange={e => edit({consent:e.target.checked})} />식사 내용을 AI로 분석하는 데 동의합니다.</label><p className="dieta-muted">분석을 요청하면 기록한 음식과 레시피를 Gemini로 보내 영양 정보를 추정합니다.</p>
+      <label className="dieta-check"><input type="checkbox" checked={draft.scheduled && draft.consent} disabled={busy || !draft.consent}
+        onChange={e => edit({scheduled: e.target.checked})} />매일 식사 자동 분석</label>
+      {draft.scheduled && draft.consent && <div className="dieta-field">
+        <label htmlFor="dieta-analysis-time">예약 시각 ({draft.zone})</label>
+        <input id="dieta-analysis-time" type="time" value={draft.time} disabled={busy} onChange={e => edit({time:e.target.value})} />
+        {draft.zone !== Intl.DateTimeFormat().resolvedOptions().timeZone && <button type="button" className="dieta-link" onClick={() => edit({zone:Intl.DateTimeFormat().resolvedOptions().timeZone})}>현재 기기 시간대로 변경</button>}
+        <p className="dieta-muted">먼저 직접 분석하면 그날 예약은 건너뛰어요. 이후 새 음식은 한 번 더 직접 분석할 수 있어요.</p>
+        {!consentDirty && profile.mealSchedule?.nextRunAt && <p>다음 분석 {new Date(profile.mealSchedule.nextRunAt).toLocaleString('ko-KR', {timeZone:draft.zone})}</p>}
+      </div>}<div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !consentDirty} onClick={() => save('consent')}>분석 설정 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !consentDirty} onClick={() => cancel(['consent','scheduled','time','zone'])}>동의 변경 취소</button></div></section>
     <section className="dieta-card dieta-danger-zone"><h2>데이터 관리</h2><p className="dieta-muted">체중, 식사, 레시피, 활동과 체크인 기록을 모두 삭제하고 처음부터 설정합니다. 삭제한 기록은 복구할 수 없어요.</p><button className="dieta-btn dieta-btn--ghost" disabled={busy} onClick={() => { if(window.confirm('모든 Dieta 기록(체중·식사·레시피·활동·체크인)을 삭제합니다. 복구할 수 없습니다. 삭제 후 다시 시작할까요?')) void run(async () => { await dietaApi.resetAll(userKey); if (!isCurrent()) return; savedDraft=null; void navigate('/hobbies/dieta/onboarding',{replace:true}); }); }}>모든 기록 삭제 후 다시 시작</button></section>
   </>;
 }

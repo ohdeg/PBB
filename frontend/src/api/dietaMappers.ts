@@ -8,6 +8,7 @@ import type {
   DietaKetoEvent,
   DietaMacroPercents,
   DietaMealQueueDay,
+  DietaMealSchedule,
   DietaMealQueueItem,
   DietaMealQueueStatus,
   DietaMealType,
@@ -27,6 +28,7 @@ export interface DietaMacroPercentsApi {
 }
 
 export interface DietaProfileApi {
+  mealSchedule?: DietaMealSchedule;
   userId: string;
   heightCm: number;
   goalType: string;
@@ -114,10 +116,13 @@ export interface DietaMealQueueItemApi {
   id: string;
   mealType: string;
   text: string;
-  addedAt: string;
+  addedAt: string | null;
 }
 
 export interface DietaMealQueueDayApi {
+  availableStage?: 'MAIN' | 'SUPPLEMENT' | null;
+  newItemCount?: number;
+  retryableYesterday?: string | null;
   loggedOn: string;
   status: string;
   items: DietaMealQueueItemApi[];
@@ -185,6 +190,7 @@ export interface DietaRecipeApi {
 }
 
 export interface DietaProfilePatchApi {
+  mealSchedule?: DietaMealSchedule;
   heightCm?: number;
   goalType?: string;
   lastNonMaintainGoalType?: string;
@@ -296,6 +302,7 @@ export function mapProfile(api: DietaProfileApi): DietaProfile {
     gainCutKcal: api.gainCutKcal,
     gainCeilingDeltaKcal: api.gainCeilingDeltaKcal,
     geminiMealConsent: api.geminiMealConsent,
+    mealSchedule: api.mealSchedule,
     onboardingComplete: api.onboardingComplete,
     dailyKcal: api.dailyKcal,
     weekStartsOn: asIsoDate(api.weekStartsOn),
@@ -400,7 +407,7 @@ export function mapMealQueueItem(api: DietaMealQueueItemApi): DietaMealQueueItem
     id: api.id,
     mealType: api.mealType as DietaMealType,
     text: api.text,
-    addedAt: asIsoDateTime(api.addedAt),
+    addedAt: api.addedAt ? asIsoDateTime(api.addedAt) : null,
   };
 }
 
@@ -408,6 +415,9 @@ export function mapMealQueueDay(api: DietaMealQueueDayApi): DietaMealQueueDay {
   return {
     loggedOn: asIsoDate(api.loggedOn),
     status: api.status as DietaMealQueueStatus,
+    availableStage: api.availableStage,
+    newItemCount: api.newItemCount,
+    retryableYesterday: api.retryableYesterday,
     items: (api.items ?? []).map(mapMealQueueItem),
     updatedAt: asIsoDateTime(api.updatedAt),
   };
@@ -520,6 +530,7 @@ export function toProfilePatchBody(
   if (patch.gainCeilingDeltaKcal !== undefined) {
     body.gainCeilingDeltaKcal = patch.gainCeilingDeltaKcal;
   }
+  if (patch.mealSchedule !== undefined) body.mealSchedule = patch.mealSchedule;
   if (patch.geminiMealConsent !== undefined) {
     body.geminiMealConsent = patch.geminiMealConsent;
   }

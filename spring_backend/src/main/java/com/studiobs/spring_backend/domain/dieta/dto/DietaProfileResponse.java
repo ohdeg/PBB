@@ -2,6 +2,7 @@ package com.studiobs.spring_backend.domain.dieta.dto;
 
 import com.studiobs.spring_backend.domain.dieta.entity.DietaProfile;
 import java.math.BigDecimal;
+import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaMealSchedule;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -38,9 +39,10 @@ public record DietaProfileResponse(
         LocalDate weekStartsOn,
         int weekActivityExtraKcal,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        DietaMealSchedule mealSchedule
 ) {
-    public static DietaProfileResponse from(DietaProfile p, DietaMacroPercentsDto macros) {
+    public static DietaProfileResponse from(DietaProfile p, DietaMacroPercentsDto macros, DietaMealSchedule schedule) {
         return new DietaProfileResponse(
                 p.getUserId(),
                 p.getHeightCm(),
@@ -73,7 +75,7 @@ public record DietaProfileResponse(
                 p.getWeekStartsOn(),
                 p.getWeekActivityExtraKcal(),
                 p.getCreatedAt(),
-                p.getUpdatedAt()
+                p.getUpdatedAt(), schedule
         );
     }
 }

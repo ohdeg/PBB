@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { AutoScrollMode } from '../constants/userPreferences';
 import type { BeatStrengthLevel } from '../utils/beatStrength';
 import type { BeatSubdivisionId } from '../utils/beatSubdivision';
-import { collectMetronomeClickEvents } from '../utils/metronomeBeatEvents';
+import { collectMetronomeClickEvents, getRealtimeClickRangeStart } from '../utils/metronomeBeatEvents';
 import type { MetronomeAudio } from '../utils/metronomeAudio';
 import type { MeasureLayoutInContainer, MeasureWindow } from '../utils/measureTiming';
 import {
@@ -161,6 +161,7 @@ function fireMetronomeRange(
   firedKeys: Set<string>,
   fromMs: number,
   toMs: number,
+  playbackEndMs: number,
 ): number {
   if (!params.enabled || !metronome || toMs <= fromMs) {
     return toMs;
@@ -177,7 +178,7 @@ function fireMetronomeRange(
   );
 
   for (const event of events) {
-    if (firedKeys.has(event.slotKey)) continue;
+    if (event.timeMs >= playbackEndMs || firedKeys.has(event.slotKey)) continue;
     metronome.playClick(event.strength);
     firedKeys.add(event.slotKey);
   }
@@ -287,10 +288,8 @@ export default function TemporiAutoScroller({
     };
 
     const tick = (time: number) => {
-      const elapsedMs = Math.min(
-        playbackLimitMs,
-        playbackStartElapsedMs + Math.max(0, time - playbackAnchorMs),
-      );
+      const clockMs = playbackStartElapsedMs + Math.max(0, time - playbackAnchorMs);
+      const elapsedMs = Math.min(playbackLimitMs, clockMs);
 
       const metronomeParams = playbackMetronomeRef?.current;
       if (metronomeParams) {
@@ -298,8 +297,9 @@ export default function TemporiAutoScroller({
           metronomeParams,
           metronomeRef?.current ?? null,
           metronomeFiredKeysRef.current,
-          metronomeCursorRef.current,
+          getRealtimeClickRangeStart(metronomeCursorRef.current, clockMs),
           elapsedMs,
+          playbackLimitMs,
         );
       }
 

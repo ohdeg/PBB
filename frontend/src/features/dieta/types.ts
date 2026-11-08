@@ -15,7 +15,7 @@ export type DietaAdjustmentAction =
   | 'SURPLUS'
   | 'CUT_FAT_GAIN';
 
-export type DietaMealQueueStatus = 'open' | 'pending' | 'done' | 'failed';
+export type DietaMealQueueStatus = 'open' | 'pending' | 'done' | 'failed' | 'exhausted';
 
 export interface DietaMacroPercents {
   carbPct: number;
@@ -23,7 +23,15 @@ export interface DietaMacroPercents {
   fatPct: number;
 }
 
+export interface DietaMealSchedule {
+  enabled: boolean;
+  time: string | null;
+  zone: string | null;
+  nextRunAt?: string | null;
+}
+
 export interface DietaProfile {
+  mealSchedule?: DietaMealSchedule;
   userKey: string;
   heightCm: number;
   goalType: DietaGoalType;
@@ -76,11 +84,14 @@ export interface DietaMealQueueItem {
   id: string;
   mealType: DietaMealType;
   text: string;
-  addedAt: string;
+  addedAt: string | null;
 }
 
 /** Day queue (Redis `dieta:mealq:{user}:{date}` — FE stub in localStorage). */
 export interface DietaMealQueueDay {
+  availableStage?: 'MAIN' | 'SUPPLEMENT' | null;
+  newItemCount?: number;
+  retryableYesterday?: string | null;
   loggedOn: string;
   status: DietaMealQueueStatus;
   items: DietaMealQueueItem[];

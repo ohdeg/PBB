@@ -51,6 +51,13 @@ import com.studiobs.spring_backend.domain.user.service.UserService;
 import com.studiobs.spring_backend.global.exception.BusinessException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import com.studiobs.spring_backend.domain.dieta.service.DietaAnalysisStore.Stage;
+import com.studiobs.spring_backend.domain.dieta.service.DietaAnalysisStore.Origin;
+import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaMealQueueItemDto;
+import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaMealSchedule;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -66,6 +73,8 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class DietaService {
 
+    private final Clock clock;
+    private final DietaAnalysisStore analyses;
     private final UserService userService;
     private final DietaProfileRepository profileRepository;
     private final DietaBodyLogRepository bodyLogRepository;
@@ -102,27 +111,53 @@ public class DietaService {
     /** Caller holds the profile write lock, including when recovering an expired lease. */
     private DietaMealQueueDayResponse currentQueue(UUID userId, LocalDate day) {
         var queue = mealQueueRedisService.getOrEmpty(userId, day);
-        if (completedIntake(userId, day) != null) {
-            return mealQueueRedisService.withStatus(queue, "done");
+        var intake = completedIntake(userId, day);
+        Stage stage = intake == null ? Stage.MAIN : Stage.SUPPLEMENT;
+        var attempt = analyses.attempt(userId, day, stage);
+        var items = queue.items();
+        int added = items.size();
+        boolean reconstructable = true;
+        if (intake != null) {
+            var snapshot = DietaIntakeSourceDocument.parse(objectMapper, intake.getSourceMealsJson());
+            var combined = new java.util.ArrayList<DietaMealQueueItemDto>();
+            for (var meal : snapshot.meals()) {
+                for (String text : meal.items()) {
+                    combined.add(new DietaMealQueueItemDto("base:" + combined.size(), meal.mealType(), text, null));
+                }
+            }
+            reconstructable = !combined.isEmpty();
+            var extras = items.stream().filter(i -> i.id().startsWith("extra:")).toList();
+            added = extras.size();
+            if (attempt != null && "DONE".equals(attempt.state())) added = 0;
+            else combined.addAll(extras);
+            items = combined;
         }
-        if ("pending".equals(queue.status()) && (queue.updatedAt() == null
-                || queue.updatedAt().plusSeconds(120).isBefore(java.time.Instant.now()))) {
-            return mealQueueRedisService.save(userId, mealQueueRedisService.withStatus(queue, "failed"));
+        boolean pending = "pending".equals(queue.status()) && queue.updatedAt() != null
+                && queue.updatedAt().plusSeconds(120).isAfter(clock.instant())
+                && (intake == null || attempt != null);
+        String status;
+        String available = null;
+        if (attempt != null && "DONE".equals(attempt.state())) status = "done";
+        else if (pending && (attempt == null || !"FAILED".equals(attempt.state()))) status = "pending";
+        else if (attempt != null && attempt.spent()) status = "exhausted";
+        else {
+            status = intake != null ? "done" : ("failed".equals(queue.status()) || "pending".equals(queue.status()) ? "failed" : "open");
+            if (reconstructable) available = stage.name();
         }
-        return queue;
+        return new DietaMealQueueDayResponse(day, status, items, queue.updatedAt(), available, added);
     }
 
     private static void requireEditable(DietaMealQueueDayResponse queue) {
-        if ("done".equals(queue.status()) || "pending".equals(queue.status())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "분석 중이거나 마감된 기록은 수정할 수 없어요. 새로고침해 주세요.");
+        if (queue.availableStage() == null) {
+            throw new BusinessException(HttpStatus.CONFLICT, "분석 중이거나 기회를 모두 사용했어요.");
         }
     }
 
     private void requireLease(UUID userId, DietaMealQueueDayResponse claimed) {
         var current = mealQueueRedisService.getOrEmpty(userId, claimed.loggedOn());
         if (!"pending".equals(current.status()) || !java.util.Objects.equals(current.updatedAt(), claimed.updatedAt())
-                || claimed.updatedAt().plusSeconds(120).isBefore(java.time.Instant.now())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "분석 작업이 만료되었어요. 다시 시도해 주세요.");
+                || !claimed.updatedAt().plusSeconds(120).isAfter(clock.instant())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "분석 작업이 만료되었어요. 식사 화면에서 분석 상태를 확인해 주세요.");
         }
     }
 
@@ -286,6 +321,11 @@ public class DietaService {
                 request.weekActivityExtraKcal(),
                 request.onboardingComplete()
         );
+        if (!profile.isGeminiMealConsent() && request.mealSchedule() != null && request.mealSchedule().enabled()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "예약 분석에는 AI 분석 동의가 필요해요.");
+        }
+        if (!profile.isGeminiMealConsent()) analyses.configure(user.getId(), DietaMealSchedule.disabled(), clock.instant());
+        else if (request.mealSchedule() != null) analyses.configure(user.getId(), request.mealSchedule(), clock.instant());
         return toProfileResponse(profileRepository.save(profile));
     }
 
@@ -431,7 +471,22 @@ public class DietaService {
 
     public DietaMealQueueDayResponse getMealQueue(String email, LocalDate loggedOn) {
         User user = requireUser(email);
-        return locked(user.getId(), () -> currentQueue(user.getId(), loggedOn));
+        return locked(user.getId(), () -> {
+            UUID id = user.getId();
+            var queue = currentQueue(id, loggedOn);
+            var schedule = analyses.schedule(id);
+            ZoneId zone = schedule.enabled() ? ZoneId.of(schedule.zone()) : ZoneId.systemDefault();
+            LocalDate yesterday = LocalDate.now(clock.withZone(zone)).minusDays(1);
+            var attempt = analyses.attempt(id, yesterday, Stage.MAIN);
+            if (attempt != null && !attempt.spent() && !"SKIPPED".equals(attempt.state())
+                    && requireProfile(id).isGeminiMealConsent()) {
+                var previous = currentQueue(id, yesterday);
+                if ("MAIN".equals(previous.availableStage()) && previous.newItemCount() > 0) {
+                    return queue.withRetryableYesterday(yesterday);
+                }
+            }
+            return queue;
+        });
     }
 
     @Transactional(readOnly = true)
@@ -463,8 +518,8 @@ public class DietaService {
 
         DietaMealQueueDayResponse queue = currentQueue(user.getId(), request.loggedOn());
         requireEditable(queue);
-        DietaMealQueueDayResponse next = mealQueueRedisService.addItem(queue, mealType, text);
-        return mealQueueRedisService.save(user.getId(), next);
+        mealQueueRedisService.save(user.getId(), mealQueueRedisService.addItem(queue, mealType, text));
+        return currentQueue(user.getId(), request.loggedOn());
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
@@ -473,8 +528,11 @@ public class DietaService {
         requireProfile(user.getId());
         DietaMealQueueDayResponse queue = currentQueue(user.getId(), loggedOn);
         requireEditable(queue);
-        DietaMealQueueDayResponse next = mealQueueRedisService.removeItem(queue, itemId);
-        return mealQueueRedisService.save(user.getId(), next);
+        if ("SUPPLEMENT".equals(queue.availableStage()) && !itemId.startsWith("extra:")) {
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 분석한 음식은 삭제할 수 없어요.");
+        }
+        mealQueueRedisService.save(user.getId(), mealQueueRedisService.removeItem(queue, itemId));
+        return currentQueue(user.getId(), loggedOn);
     }
 
     @Transactional(readOnly = true)
@@ -685,40 +743,78 @@ public class DietaService {
     }
 
     public DietaMealFinalizeResponse finalizeMealDay(String email, LocalDate loggedOn) {
-        User user = requireUser(email);
-        // Timestamp is the lease token. Claim/reclaim/commit all hold the same DB row lock.
-        DietaMealQueueDayResponse pending = locked(user.getId(), () -> {
-            DietaProfile profile = requireProfile(user.getId());
-            if (!profile.isGeminiMealConsent()) {
-                throw new BusinessException(HttpStatus.FORBIDDEN, "식단 AI 분석 동의가 필요해요. 설정에서 켜 주세요.");
+        return finalizeMealDay(email, loggedOn, Stage.MAIN);
+    }
+
+    public DietaMealFinalizeResponse finalizeMealDay(String email, LocalDate day, Stage stage) {
+        return finalizeDay(requireUser(email).getId(), day, stage == null ? Stage.MAIN : stage, Origin.MANUAL, null);
+    }
+
+    private record Claim(DietaMealQueueDayResponse queue, DietaIntakeLogResponse existing) {}
+
+    private DietaMealFinalizeResponse finalizeDay(UUID userId, LocalDate loggedOn, Stage stage, Origin origin,
+            DietaAnalysisStore.Due due) {
+        UUID claim = UUID.randomUUID();
+        Claim work = locked(userId, () -> {
+            var profile = requireProfile(userId);
+            if (origin != Origin.MANUAL) {
+                if (!profile.isGeminiMealConsent() || !automaticEligible(userId, loggedOn, origin, due)) return null;
+            } else if (!profile.isGeminiMealConsent()) {
+                throw new BusinessException(HttpStatus.FORBIDDEN, "식단 AI 분석 동의가 필요해요.");
             }
-            var queue = currentQueue(user.getId(), loggedOn);
-            if ("done".equals(queue.status())) return queue;
-            requireEditable(queue);
-            if (queue.items() == null || queue.items().isEmpty()) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "오늘 큐가 비어 있어요.");
+            var queue = currentQueue(userId, loggedOn);
+            var completed = completedIntake(userId, loggedOn);
+            var attempt = analyses.attempt(userId, loggedOn, stage);
+            if (completed != null && (stage == Stage.MAIN || attempt != null && "DONE".equals(attempt.state()))) {
+                return origin == Origin.MANUAL ? new Claim(queue, DietaIntakeLogResponse.from(completed)) : null;
             }
-            return mealQueueRedisService.save(user.getId(), mealQueueRedisService.withStatus(queue, "pending"));
+            if (!stage.name().equals(queue.availableStage()) || queue.newItemCount() == 0) {
+                if (origin != Origin.MANUAL) {
+                    if (origin == Origin.SCHEDULED && "MAIN".equals(queue.availableStage()) && queue.items().isEmpty()) {
+                        analyses.reserve(userId, loggedOn, stage, origin, claim);
+                        analyses.transition(userId, loggedOn, stage, claim, "READY", "SKIPPED");
+                    }
+                    return null;
+                }
+                throw new BusinessException(HttpStatus.CONFLICT, "새 기록과 남은 분석 기회를 확인해 주세요.");
+            }
+            analyses.reserve(userId, loggedOn, stage, origin, claim);
+            return new Claim(mealQueueRedisService.save(userId, mealQueueRedisService.withStatus(queue, "pending")), null);
         });
-        if ("done".equals(pending.status())) {
-            return new DietaMealFinalizeResponse(DietaIntakeLogResponse.from(completedIntake(user.getId(), loggedOn)), pending);
-        }
+        if (work == null) return null;
+        if (work.existing() != null) return new DietaMealFinalizeResponse(work.existing(), work.queue());
+        var pending = work.queue();
         DietaIntakeLogResponse saved;
         try {
-            DietaGeminiMealRequest geminiRequest = locked(user.getId(), () -> {
-                requireLease(user.getId(), pending);
-                var activity = activityLogRepository.findByUserIdAndLoggedOn(user.getId(), loggedOn).orElse(null);
-                return DietaGeminiRequestBuilder.build(loggedOn, pending.items(), requireProfile(user.getId()), activity,
-                        DietaGeminiRequestBuilder.toKnownRecipes(dayRecipes(user.getId(), loggedOn)));
+            DietaGeminiMealRequest geminiRequest = locked(userId, () -> {
+                requireLease(userId, pending);
+                var activity = activityLogRepository.findByUserIdAndLoggedOn(userId, loggedOn).orElse(null);
+                return DietaGeminiRequestBuilder.build(loggedOn, pending.items(), requireProfile(userId), activity,
+                        DietaGeminiRequestBuilder.toKnownRecipes(dayRecipes(userId, loggedOn)));
             });
             // No Spring transaction is active across the external call.
-            DietaGeminiMealResponse geminiResponse = geminiMealClient.analyze(geminiRequest);
-            saved = locked(user.getId(), () -> {
-                requireLease(user.getId(), pending);
-                if (!requireProfile(user.getId()).isGeminiMealConsent()) {
+            var send = geminiMealClient.prepare(geminiRequest);
+            locked(userId, () -> {
+                requireLease(userId, pending);
+                if (!requireProfile(userId).isGeminiMealConsent()
+                        || origin != Origin.MANUAL && !automaticEligible(userId, loggedOn, origin, due)
+                        || !analyses.transition(userId, loggedOn, stage, claim, "READY", "SENT")) {
+                    throw new BusinessException(HttpStatus.CONFLICT, "분석 설정 또는 처리 상태가 변경되었어요.");
+                }
+                return null;
+            });
+            DietaGeminiMealResponse geminiResponse;
+            try {
+                geminiResponse = send.get();
+            } catch (BusinessException ex) {
+                throw new BusinessException(ex.getStatus(), "분석에 실패해 이 분석 기회를 사용했어요. 입력한 기록은 보관돼요.");
+            }
+            saved = locked(userId, () -> {
+                requireLease(userId, pending);
+                if (!requireProfile(userId).isGeminiMealConsent()) {
                     throw new BusinessException(HttpStatus.FORBIDDEN, "식단 AI 분석 동의가 해제되었어요.");
                 }
-                var dayRecipes = dayRecipes(user.getId(), loggedOn);
+                var dayRecipes = dayRecipes(userId, loggedOn);
                 var knownRecipes = DietaGeminiRequestBuilder.toKnownRecipes(dayRecipes);
                 BigDecimal queueCarb = geminiResponse.totals().carbG();
                 BigDecimal queueProtein = geminiResponse.totals().proteinG();
@@ -732,7 +828,7 @@ public class DietaService {
                 MacroTotals recipeSum = sumRecipeMacros(dayRecipes);
 
                 DietaIntakeLog existing = intakeLogRepository
-                        .findByUserIdAndLoggedOn(user.getId(), loggedOn)
+                        .findByUserIdAndLoggedOn(userId, loggedOn)
                         .orElse(null);
                 DietaIntakeSourceDocument prior = existing == null
                         ? DietaIntakeSourceDocument.empty()
@@ -779,7 +875,7 @@ public class DietaService {
                     intake = intakeLogRepository.save(existing);
                 } else {
                     intake = intakeLogRepository.save(DietaIntakeLog.builder()
-                            .userId(user.getId())
+                            .userId(userId)
                             .loggedOn(loggedOn)
                             .carbG(combined.carbG())
                             .proteinG(combined.proteinG())
@@ -791,16 +887,21 @@ public class DietaService {
                 }
 
 
+                if (!analyses.transition(userId, loggedOn, stage, claim, "SENT", "DONE")) {
+                    throw new BusinessException(HttpStatus.CONFLICT, "분석 처리권이 만료되었어요.");
+                }
                 return DietaIntakeLogResponse.from(intake);
             });
         } catch (RuntimeException ex) {
             // Never overwrite a replacement worker's state. Recovery remains possible if Redis is unavailable.
             try {
-                locked(user.getId(), () -> {
-                    var current = mealQueueRedisService.getOrEmpty(user.getId(), loggedOn);
-                    if ("pending".equals(current.status()) && java.util.Objects.equals(current.updatedAt(), pending.updatedAt())
-                            && completedIntake(user.getId(), loggedOn) == null) {
-                        mealQueueRedisService.save(user.getId(), mealQueueRedisService.withStatus(current, "failed"));
+                locked(userId, () -> {
+                    if (!analyses.transition(userId, loggedOn, stage, claim, "SENT", "FAILED")) {
+                        analyses.transition(userId, loggedOn, stage, claim, "READY", "RETRYABLE");
+                    }
+                    var current = mealQueueRedisService.getOrEmpty(userId, loggedOn);
+                    if ("pending".equals(current.status()) && java.util.Objects.equals(current.updatedAt(), pending.updatedAt())) {
+                        mealQueueRedisService.save(userId, mealQueueRedisService.withStatus(current, "failed"));
                     }
                     return null;
                 });
@@ -810,26 +911,62 @@ public class DietaService {
         // DB commit already succeeded. A Redis error must not turn a successful analysis into a failure.
         var done = mealQueueRedisService.withStatus(pending, "done");
         try {
-            locked(user.getId(), () -> {
-                var current = mealQueueRedisService.getOrEmpty(user.getId(), loggedOn);
+            locked(userId, () -> {
+                var current = mealQueueRedisService.getOrEmpty(userId, loggedOn);
                 if (java.util.Objects.equals(current.updatedAt(), pending.updatedAt())) {
-                    mealQueueRedisService.save(user.getId(), done);
+                    mealQueueRedisService.save(userId, done);
                 }
                 return null;
             });
         } catch (RuntimeException ignored) { /* durable queueTotals allows recovery on the next request */ }
-        return new DietaMealFinalizeResponse(saved, done);
+        var reflected = new java.util.ArrayList<DietaMealQueueItemDto>();
+        for (var item : pending.items()) {
+            reflected.add(new DietaMealQueueItemDto("base:" + reflected.size(), item.mealType(), item.text(), item.addedAt()));
+        }
+        var result = new DietaMealQueueDayResponse(loggedOn, "done", reflected, done.updatedAt(),
+                stage == Stage.MAIN ? "SUPPLEMENT" : null, 0);
+        return new DietaMealFinalizeResponse(saved, result);
+    }
+
+    private boolean automaticEligible(UUID userId, LocalDate day, Origin origin, DietaAnalysisStore.Due due) {
+        var schedule = analyses.schedule(userId);
+        if (origin == Origin.LEGACY_AUTO && schedule.enabled()) return false;
+        if (origin == Origin.SCHEDULED && (!schedule.enabled() || !due.at().equals(schedule.nextRunAt()))) return false;
+        var attempt = analyses.attempt(userId, day, Stage.MAIN);
+        return attempt == null || "READY".equals(attempt.state()) && !Origin.MANUAL.name().equals(attempt.origin());
     }
 
     public DietaMealFinalizeResponse autoFinalizeYesterday(String email) {
-        User user = requireUser(email);
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-        boolean eligible = locked(user.getId(), () -> {
-            var queue = currentQueue(user.getId(), yesterday);
-            return requireProfile(user.getId()).isGeminiMealConsent()
-                    && !queue.items().isEmpty() && !"done".equals(queue.status()) && !"pending".equals(queue.status());
+        UUID userId = requireUser(email).getId();
+        return finalizeDay(userId, LocalDate.now(clock.withZone(ZoneId.systemDefault())).minusDays(1),
+                Stage.MAIN, Origin.LEGACY_AUTO, null);
+    }
+
+    void runDue(DietaAnalysisStore.Due due) {
+        UUID id = due.userId();
+        var schedule = analyses.schedule(id);
+        if (!due.at().equals(schedule.nextRunAt())) return;
+        LocalDate day = due.at().atZone(ZoneId.of(schedule.zone())).toLocalDate();
+        // Leave the due cursor in place until dispatch finishes. A restart can recover a pre-send claim.
+        if (!due.at().isBefore(clock.instant().minus(java.time.Duration.ofHours(48)))) {
+            try {
+                finalizeDay(id, day, Stage.MAIN, Origin.SCHEDULED, due);
+            } finally {
+                advanceDueUnlessPreparing(due, day);
+            }
+        } else {
+            locked(id, () -> { analyses.advance(due, schedule, clock.instant()); return null; });
+        }
+    }
+
+    private void advanceDueUnlessPreparing(DietaAnalysisStore.Due due, LocalDate day) {
+        locked(due.userId(), () -> {
+            var schedule = analyses.schedule(due.userId());
+            if (!due.at().equals(schedule.nextRunAt())) return null;
+            var queue = currentQueue(due.userId(), day);
+            if (!"pending".equals(queue.status())) analyses.advance(due, schedule, clock.instant());
+            return null;
         });
-        return eligible ? finalizeMealDay(email, yesterday) : null;
     }
 
     private List<DietaRecipe> dayRecipes(UUID userId, LocalDate day) {
@@ -1000,7 +1137,7 @@ public class DietaService {
         try {
             // An opaque freshness fingerprint, not an authorization token. User auth is still mandatory.
             byte[] state = objectMapper.writeValueAsBytes(new Object[] {
-                    userId, day, weight.stripTrailingZeros().toPlainString(), choice, toProfileResponse(profile),
+                    userId, day, weight.stripTrailingZeros().toPlainString(), choice, DietaProfileResponse.from(profile, parseMacros(profile.getMacrosJson()), null),
                     baseline == null ? null : DietaBodyLogResponse.from(baseline),
                     intakes.stream().map(DietaIntakeLogResponse::from).toList()
             });
@@ -1107,7 +1244,7 @@ public class DietaService {
     }
 
     private DietaProfileResponse toProfileResponse(DietaProfile profile) {
-        return DietaProfileResponse.from(profile, parseMacros(profile.getMacrosJson()));
+        return DietaProfileResponse.from(profile, parseMacros(profile.getMacrosJson()), analyses.schedule(profile.getUserId()));
     }
 
     private String serializeMacros(DietaMacroPercentsDto macros) {

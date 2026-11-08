@@ -47,11 +47,28 @@ public class GeminiMealClient {
     }
 
     public DietaGeminiMealResponse analyze(DietaGeminiMealRequest request) {
+        return prepare(request).get();
+    }
+
+    /** Build the HTTP request before the durable send marker consumes an attempt. */
+    public java.util.function.Supplier<DietaGeminiMealResponse> prepare(DietaGeminiMealRequest request) {
         if (!properties.hasApiKey()) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "식단 분석을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.");
         }
         try {
-            return callGemini(request);
+            var httpRequest = buildRequest(request);
+            return () -> readResponse(request, httpRequest);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.warn("[DietaGemini] request preparation failed (type={})", ex.getClass().getSimpleName());
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "분석 요청을 준비하지 못했어요. 다시 시도해 주세요.");
+        }
+    }
+
+    private DietaGeminiMealResponse readResponse(DietaGeminiMealRequest request, RestClient.RequestBodySpec httpRequest) {
+        try {
+            return parseResponse(request, httpRequest.retrieve().body(JsonNode.class));
         } catch (Exception ex) {
             if (ex instanceof RestClientResponseException response) {
                 logHttpFailure(response);
@@ -91,7 +108,7 @@ public class GeminiMealClient {
                 response.getStatusCode().value(), apiStatus, reason);
     }
 
-    private DietaGeminiMealResponse callGemini(DietaGeminiMealRequest request) {
+    private RestClient.RequestBodySpec buildRequest(DietaGeminiMealRequest request) {
         String requestJson;
         try {
             requestJson = objectMapper.writeValueAsString(request);
@@ -114,17 +131,18 @@ public class GeminiMealClient {
                 """.formatted(requestJson);
 
         String path = "/v1beta/models/" + properties.model() + ":generateContent";
-        JsonNode body = restClient.post()
+        return restClient.post()
                 .uri(uriBuilder -> uriBuilder
                         .path(path)
                         .queryParam("key", properties.apiKey())
                         .build())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new GeminiGenerateContentBody(
+                .body(objectMapper.writeValueAsString(new GeminiGenerateContentBody(
                         List.of(new GeminiContent(List.of(new GeminiPart(prompt)))),
-                        new GeminiGenerationConfig("application/json")))
-                .retrieve()
-                .body(JsonNode.class);
+                        new GeminiGenerationConfig("application/json"))));
+    }
+
+    private DietaGeminiMealResponse parseResponse(DietaGeminiMealRequest request, JsonNode body) {
 
         if (body == null) {
             throw new BusinessException(HttpStatus.BAD_GATEWAY, "Gemini 응답이 비었습니다.");

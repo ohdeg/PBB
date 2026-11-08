@@ -25,7 +25,7 @@ import {
   getElapsedMsForMeasure,
   parseTimeSignatureFromMusicXml,
 } from './utils/measureTiming';
-import { collectMetronomeClickEvents } from './utils/metronomeBeatEvents';
+import { collectMetronomeClickEvents, getRealtimeClickRangeStart } from './utils/metronomeBeatEvents';
 import {
   DEFAULT_BEAT_SUBDIVISION,
   getSubdivisionPattern,
@@ -503,12 +503,12 @@ export function Tempori({ temporiId, annotationId = temporiId, suppliedMusicXml 
       // the count-in → playback transition).
       const params = countInAudioRef.current;
       const metronome = metronomeRef.current;
-      if (params.enabled && metronome && params.windows.length > 0) {
+      if (params.enabled && metronome && params.windows.length > 0 && countInProgress < params.countInDurationMs) {
         const rangeEnd = Math.min(countInProgress, params.countInDurationMs - 0.5);
         if (rangeEnd > prevProgress) {
           const events = collectMetronomeClickEvents(
             params.windows,
-            prevProgress,
+            getRealtimeClickRangeStart(prevProgress, countInProgress),
             rangeEnd,
             params.bpm,
             params.beatsPerMeasure,

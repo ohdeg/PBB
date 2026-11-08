@@ -33,3 +33,12 @@ it('explains missing AI consent without discarding food input', async () => {
  expect(await screen.findByRole('button',{name:'오늘 기록 확정하고 분석'})).toBeDisabled();
  expect(screen.getByText(/분석에는 AI 동의가 필요해요/)).toBeInTheDocument();
 });
+it.each([0, 1])('enables the last analysis only after new food is recorded (%i extras)', async count => {
+ const items = [{id:'base:0', mealType:'LUNCH' as const, text:'밥', addedAt:null}];
+ if (count) items.push({...items[0], id:'extra:1', text:'사과'});
+ vi.mocked(dietaApi.getMealQueue).mockResolvedValue({loggedOn:'2026-11-08',status:'done',availableStage:'SUPPLEMENT',newItemCount:count,items});
+ render(<MemoryRouter><DietaMealsPage /></MemoryRouter>);
+ const button = await screen.findByRole('button',{name:/추가 음식 포함해 다시 분석/});
+ expect(button).toHaveProperty('disabled',count === 0);
+ expect(screen.getByLabelText('오늘 먹은 것')).toBeEnabled();
+});

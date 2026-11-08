@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useEffect, useImperativeHandle, type ComponentProps } from 'react';
+import { useImperativeHandle, useLayoutEffect, type ComponentProps } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Tempori } from './Tempori';
@@ -11,18 +11,19 @@ import { fetchTemporiMusicXml } from './utils/temporiLoader';
 import { useTemporiPlaybackStore } from './store/temporiPlaybackStore';
 import { TemporiViewerFrame } from '../../components/TemporiViewerDock';
 
-const boundary = vi.hoisted(() => ({ resume: vi.fn(), flush: vi.fn(() => true), restore: vi.fn(), state: null as ReturnType<typeof import('./services/TemporiStateProvider').useTemporiState> }));
+const boundary = vi.hoisted(() => ({ resume: vi.fn(), click: vi.fn(), flush: vi.fn(() => true), restore: vi.fn(), state: null as ReturnType<typeof import('./services/TemporiStateProvider').useTemporiState> }));
 vi.mock('./services/TemporiStateProvider', () => ({ useTemporiState: () => boundary.state }));
 vi.mock('./utils/temporiLoader', () => ({ fetchTemporiMusicXml: vi.fn() }));
 vi.mock('./utils/scrollAnchor', () => ({ cancelScrollAnimation: vi.fn(), scrollToAnchoredMeasure: vi.fn() }));
-vi.mock('./utils/metronomeAudio', () => ({ MetronomeAudio: class { resume = boundary.resume; dispose() {} playClick() {} } }));
+vi.mock('./utils/metronomeAudio', () => ({ MetronomeAudio: class { resume = boundary.resume; dispose() {} playClick = boundary.click; } }));
 vi.mock('./components/TemporiAutoScroller', () => ({ default: () => null }));
 vi.mock('./pages/ScorePageViewer', () => ({ ScorePageViewer: () => null }));
 vi.mock('./components/TemporiMetronome', () => ({ default: (props: ComponentProps<typeof TemporiMetronome>) => <output data-testid="audio-context" data-bpm={props.bpm} data-counting={String(props.isCountingIn)} data-duration={props.windows?.[0]?.durationMs} /> }));
 vi.mock('./components/OsmdViewer', () => ({
   default: function RenderBoundary(props: ComponentProps<typeof OsmdViewer>) {
     useImperativeHandle(props.ref, () => ({ flush: boundary.flush, restoreMeasure: boundary.restore }), []);
-    useEffect(() => { props.onRenderStatusChange?.('loading', props.renderRevision ?? 0); }, [props.renderRevision]);
+    // Announce loading before the test can finish this revision, as the real renderer does.
+    useLayoutEffect(() => { props.onRenderStatusChange?.('loading', props.renderRevision ?? 0); }, [props.renderRevision]);
     const snapshot: TemporiRenderSnapshot = {
       timings: Array.from({ length: 8 }, (_, measureIndex) => ({ measureIndex, measureNumber: measureIndex + 1, divisions: 1, durationSum: 4, expectedDurationDivisions: 4, beatsPerMeasure: 4, beatType: 4, tempoBpm: 120, fermataFactor: 1, isPickup: false })),
       playbackSequence: [0, 1, 2, 3, 4, 5, 6, 7], measureOffsets: [], measureLayoutsInContainer: [],
@@ -247,7 +248,11 @@ describe('view mode session and persistence', () => {
   });
   it('restores the selected physical measure when returning to wrapped after the matching render and closing settings', async () => {
     localStorage.setItem('tempori:view-mode', 'horizontal'); await openTempori(); finishRender();
-    fireEvent.click(screen.getByRole('button', { name: 'Measure 5' })); openSettings();
+    const fifthMeasure = screen.getByRole('button', { name: 'Measure 5' });
+    expect(fifthMeasure).toBeEnabled();
+    fireEvent.click(fifthMeasure);
+    expect(useTemporiPlaybackStore.getState().currentMeasureIndex).toBe(4);
+    openSettings();
     fireEvent.click(screen.getByRole('radio', { name: '여러 줄' }));
     expect(boundary.restore).not.toHaveBeenCalled(); finishRender();
     expect(boundary.restore).not.toHaveBeenCalled();
@@ -285,4 +290,22 @@ it('preserves optional PDF and unknown practice fields when MusicXML settings ar
   await openTempori(); finishRender(); openSettings(); changeBpm('90');
   fireEvent.click(screen.getByRole('button', { name: '적용' }));
   expect(save.mock.calls.find(call => call[0] === 'practice')).toEqual(['practice', { ...base, bpm: 90 }, 4]);
+});
+
+it('resumes from a delayed count-in frame with only the score downbeat', async () => {
+  await openTempori(); finishRender();
+  let frame: FrameRequestCallback;
+  const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frame = callback; return 1; });
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(100);
+  try {
+    fireEvent.click(screen.getByRole('button', { name: '재생' }));
+    act(() => frame(100));
+    boundary.click.mockClear();
+    act(() => frame(10100));
+    expect(boundary.click).toHaveBeenCalledTimes(1);
+    expect(useTemporiPlaybackStore.getState().isPlaying).toBe(true);
+  } finally {
+    request.mockRestore();
+    clock.mockRestore();
+  }
 });

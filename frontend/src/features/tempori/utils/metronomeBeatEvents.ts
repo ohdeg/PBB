@@ -5,8 +5,7 @@ import {
   type BeatSubdivisionId,
 } from './beatSubdivision';
 import {
-  getActiveMeasureWindow,
-  getMetronomeBeatContext,
+  getWindowIndexByElapsed,
   type MeasureWindow,
 } from './measureTiming';
 
@@ -16,32 +15,11 @@ export interface MetronomeClickEvent {
   slotKey: string;
 }
 
-function getBeatStartMs(
-  windows: MeasureWindow[],
-  timeMs: number,
-  bpm: number,
-  beatsPerMeasure: number,
-): {
-  beatStartMs: number;
-  beatInMeasure: number;
-  beatIntervalMs: number;
-  activeWindow: MeasureWindow | null;
-} {
-  const ctx = getMetronomeBeatContext(windows, timeMs, bpm, beatsPerMeasure);
-  const beatIntervalMs = Math.max(ctx.beatIntervalMs, 1);
-  const activeWindow = getActiveMeasureWindow(windows, timeMs);
-  const positionInWindow = activeWindow ? timeMs - activeWindow.startMs : timeMs;
-  const beats = Math.max(ctx.beatsPerMeasure, 1);
-  const beatInMeasure =
-    activeWindow !== null
-      ? Math.floor(positionInWindow / beatIntervalMs) % beats
-      : ctx.beatInMeasure;
-  const beatStartMs =
-    activeWindow !== null
-      ? activeWindow.startMs + beatInMeasure * beatIntervalMs
-      : Math.floor(Math.max(0, timeMs) / beatIntervalMs) * beatIntervalMs;
+const TIME_EPSILON_MS = 0.001;
 
-  return { beatStartMs, beatInMeasure, beatIntervalMs, activeWindow };
+// After a suspended tab or a long render, play only onsets near the current beat.
+export function getRealtimeClickRangeStart(previousMs: number, nowMs: number): number {
+  return nowMs - previousMs > 250 ? nowMs - 75 : previousMs;
 }
 
 export function collectMetronomeClickEvents(
@@ -53,45 +31,41 @@ export function collectMetronomeClickEvents(
   beatStrengths: BeatStrengthLevel[],
   beatSubdivisions: BeatSubdivisionId[],
 ): MetronomeClickEvent[] {
-  if (toMs < fromMs) {
-    return [];
-  }
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) return [];
 
   const events: MetronomeClickEvent[] = [];
-  const rangeStart = Math.max(0, fromMs);
-  const rangeEnd = Math.max(0, toMs);
-  let cursor = rangeStart;
-  let guard = 0;
+  const rangeStart = Math.max(0, fromMs - TIME_EPSILON_MS);
+  const rangeEnd = Math.max(0, toMs + TIME_EPSILON_MS);
 
-  while (cursor <= rangeEnd + 0.001 && guard < 512) {
-    guard += 1;
-    const { beatStartMs, beatInMeasure, beatIntervalMs, activeWindow } = getBeatStartMs(
-      windows,
-      cursor,
-      bpm,
-      beatsPerMeasure,
-    );
-    const pattern = getSubdivisionPattern(beatSubdivisions[beatInMeasure] ?? DEFAULT_BEAT_SUBDIVISION);
-    const strength = beatStrengths[beatInMeasure] ?? 'strong';
-
-    for (const slot of pattern.slots) {
-      if (!slot.play) continue;
-
-      const eventMs = beatStartMs + slot.offset * beatIntervalMs;
-      if (eventMs + 0.001 < rangeStart || eventMs > rangeEnd + 0.001) continue;
-
-      const slotKey = activeWindow
-        ? `${activeWindow.playbackStepIndex}:${beatInMeasure}:${slot.offset}`
-        : `global:${Math.floor(beatStartMs / beatIntervalMs)}:${slot.offset}`;
-
-      events.push({ timeMs: eventMs, strength, slotKey });
+  function collectWindow(window: MeasureWindow | null) {
+    const origin = window?.startMs ?? 0;
+    const end = window ? origin + window.durationMs : Infinity;
+    const tempo = window && window.tempoBpm > 0 ? window.tempoBpm : bpm > 0 ? bpm : 120;
+    const interval = Math.max(1, (60000 / tempo) * (4 / Math.max(1, window?.beatType ?? 4)));
+    const beats = Math.max(1, window?.beatsPerMeasure ?? beatsPerMeasure);
+    // Advance the integer ordinal, since (beatTime - origin) / interval can round down.
+    const first = Math.max(0, Math.floor((rangeStart - origin) / interval));
+    const last = Math.floor((Math.min(rangeEnd, end) - origin) / interval);
+    for (let ordinal = first; ordinal <= last; ordinal++) {
+      const beatStart = origin + ordinal * interval;
+      if (beatStart >= end - TIME_EPSILON_MS) break;
+      const beat = ordinal % beats;
+      const pattern = getSubdivisionPattern(beatSubdivisions[beat] ?? DEFAULT_BEAT_SUBDIVISION);
+      for (const slot of pattern.slots) {
+        const timeMs = beatStart + slot.offset * interval;
+        if (!slot.play || timeMs < rangeStart || timeMs > rangeEnd || timeMs >= end - TIME_EPSILON_MS) continue;
+        const step = window?.playbackStepIndex ?? 'global';
+        events.push({ timeMs, strength: beatStrengths[beat] ?? 'strong', slotKey: `${step}:${ordinal}:${slot.offset}` });
+      }
     }
+  }
 
-    const nextCursor = beatStartMs + beatIntervalMs;
-    if (nextCursor <= cursor) {
-      cursor += beatIntervalMs;
-    } else {
-      cursor = nextCursor;
+  if (windows.length === 0) {
+    collectWindow(null);
+  } else {
+    const firstWindow = getWindowIndexByElapsed(windows, rangeStart);
+    for (let i = firstWindow; i < windows.length && windows[i].startMs <= rangeEnd; i++) {
+      collectWindow(windows[i]);
     }
   }
 

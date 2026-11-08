@@ -219,7 +219,7 @@ public class DietaController {
             @Valid @RequestBody DietaMealFinalizeRequest body
     ) {
         return dietaService.finalizeMealDay(
-                accessTokenResolver.requireEmail(request), body.loggedOn());
+                accessTokenResolver.requireEmail(request), body.loggedOn(), body.stage());
     }
 
     @PostMapping("/meal-queue/auto-finalize-yesterday")

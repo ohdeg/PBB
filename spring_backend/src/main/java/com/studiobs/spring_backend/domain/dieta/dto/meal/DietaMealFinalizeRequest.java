@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
 public record DietaMealFinalizeRequest(
-        @NotNull LocalDate loggedOn
+        @NotNull LocalDate loggedOn,
+        com.studiobs.spring_backend.domain.dieta.service.DietaAnalysisStore.Stage stage
 ) {
 }

@@ -1,5 +1,5 @@
 import { DietaLoadState } from '../components/dieta/DietaLoadState';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { dietaApi } from '../api/dietaApi';
 import { DietaRecipeLibraryModal } from '../components/dieta/DietaRecipeLibraryModal';
@@ -31,28 +31,34 @@ export function DietaMealsPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [yesterdayFailed, setYesterdayFailed] = useState(false);
+  const [yesterdayRetry, setYesterdayRetry] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const today = todayIsoDate();
+  const today = todayIsoDate(new Date(), profile?.mealSchedule?.zone);
 
+  const revision = useRef(0);
   const refresh = useCallback(async () => {
+    const request = ++revision.current;
     const p = await dietaApi.getProfile(userKey);
+    if (request !== revision.current) return;
     if (!p?.onboardingComplete) {setProfile(p); setLoaded(true); setLoadError(''); return;}
+    const loggedOn = todayIsoDate(new Date(), p.mealSchedule?.zone);
     const [q, intakes, recipes] = await Promise.all([
-      dietaApi.getMealQueue(today, userKey),
+      dietaApi.getMealQueue(loggedOn, userKey),
       dietaApi.listIntakes(undefined, userKey),
-      dietaApi.listRecipes(today, userKey),
+      dietaApi.listRecipes(loggedOn, userKey),
     ]);
+    if (request !== revision.current) return;
     setLoaded(true); setLoadError('');
     setProfile(p);
     setQueue(q);
+    setYesterdayRetry(q.retryableYesterday ?? null);
     setTodayRecipes(recipes);
-    setTodayIntake(intakes.find((r) => r.loggedOn === today) ?? null);
-    setRecent(intakes.filter((r) => r.loggedOn !== today).slice(-7).reverse());
-  }, [userKey, today]);
+    setTodayIntake(intakes.find((r) => r.loggedOn === loggedOn) ?? null);
+    setRecent(intakes.filter((r) => r.loggedOn !== loggedOn).slice(-7).reverse());
+  }, [userKey]);
 
   const loadLibraryRecipes = useCallback(async (): Promise<DietaRecipe[]> => {
     return dietaApi.listRecipes(undefined, userKey);
@@ -72,7 +78,6 @@ export function DietaMealsPage() {
           );
         }
       } catch (error: unknown) {
-        setYesterdayFailed(true);
         setMsg(error instanceof Error ? error.message : '어제 분석에 실패했어요. 다시 시도해 주세요.');
       }
       try { await refresh(); }
@@ -85,12 +90,15 @@ export function DietaMealsPage() {
   }, [retry, refresh]);
 
   useEffect(() => {
-    if (queue?.status !== 'pending') return;
+    if (!accessToken || !loaded) return;
+    const reload = () => { if (document.visibilityState === 'visible') void refresh().catch(() => {}); };
+    window.addEventListener('focus', reload);
     const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       void refresh().catch(() => setMsg('분석 상태를 확인하지 못했어요. 새로고침해 주세요.'));
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [queue?.status, today, userKey, refresh]);
+    }, queue?.status === 'pending' ? 5000 : 60000);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', reload); };
+  }, [accessToken, loaded, queue?.status, today, userKey, refresh]);
 
   if (!accessToken) {
     return (
@@ -112,6 +120,7 @@ export function DietaMealsPage() {
         { loggedOn: today, mealType, text },
         userKey,
       );
+      revision.current++;
       setQueue(next);
       setText('');
     } catch (e: unknown) {
@@ -128,6 +137,7 @@ export function DietaMealsPage() {
         { loggedOn: today, itemId },
         userKey,
       );
+      revision.current++;
       setQueue(next);
     } catch (error: unknown) {
       setMsg(error instanceof Error ? error.message : '삭제하지 못했어요.');
@@ -140,7 +150,7 @@ export function DietaMealsPage() {
     setBusy(true);
     setMsg('');
     try {
-      const { intake, queue: q } = await dietaApi.finalizeMealDay(today, userKey);
+      const { intake, queue: q } = await dietaApi.finalizeMealDay(today, userKey, queue?.availableStage ?? 'MAIN');
       setQueue(q);
       setTodayIntake(intake);
       setMsg('오늘 식사를 확정하고 영양 정보를 반영했어요.');
@@ -215,7 +225,9 @@ export function DietaMealsPage() {
     }
   };
 
-  const closed = queue?.status === 'done';
+  const supplement = queue?.availableStage === 'SUPPLEMENT';
+  const exhausted = queue?.status === 'exhausted';
+  const closed = exhausted || (queue?.status === 'done' && !supplement);
   const pending = queue?.status === 'pending';
 
   return (
@@ -301,7 +313,7 @@ export function DietaMealsPage() {
           <h2>오늘 식사</h2>
           <span className="dieta-muted">
             {queue?.status === 'done'
-              ? '확정 완료'
+              ? (supplement ? '메인 분석 완료' : '오늘 분석 완료')
               : queue?.status === 'pending'
                 ? '분석 중'
                 : `${queue?.items.length ?? 0}개`}
@@ -322,8 +334,8 @@ export function DietaMealsPage() {
                 </p>
                 {items.map((i) => (
                   <div key={i.id} className="dieta-list-row">
-                    <span>{i.text}</span>
-                    {!closed ? (
+                    <span>{i.text}{exhausted && !i.id.startsWith('base:') && ' · 분석 미반영'}</span>
+                    {!closed && !i.id.startsWith('base:') ? (
                       <button
                         type="button"
                         className="dieta-linkish"
@@ -339,15 +351,18 @@ export function DietaMealsPage() {
             );
           })
         )}
-        <p className="dieta-muted">{closed ? '오늘 기록을 확정했어요. 한 줄 음식은 더 추가할 수 없어요.' : pending ? '영양 정보를 분석하고 있어요. 완료될 때까지 잠시 기다려 주세요.' : queue?.status === 'failed' ? '분석하지 못했어요. 기록은 남아 있으니 다시 시도해 주세요.' : '확정하면 한 줄 음식을 더 추가할 수 없어요. 오늘 식사를 모두 기록했는지 확인해 주세요.'}</p>
+        <p className="dieta-muted">{exhausted ? '전송한 분석이 완료되지 않았어요. 오늘 이 분석 기회를 사용했어요.' : closed ? '오늘 분석이 끝났어요.' : pending ? '영양 정보를 분석하고 있어요.' : supplement ? '새로 먹은 음식을 모두 추가한 뒤 한 번 더 분석할 수 있어요.' : '하루 한 번 분석하고, 음식을 더 기록하면 한 번 더 분석할 수 있어요.'}</p>
+        {profile.mealSchedule?.enabled && !closed && !pending && <p className="dieta-muted">
+          {supplement ? '오늘 메인 분석이 끝났어요. 추가 분석은 직접 실행해 주세요.' : `매일 ${profile.mealSchedule.time} (${profile.mealSchedule.zone})에 분석해요.`}
+        </p>}
         {!closed ? (
           <button
             type="button"
             className="dieta-btn dieta-btn--primary dieta-btn--block"
-            disabled={busy || pending || !queue?.items.length || !profile?.geminiMealConsent}
+            disabled={busy || pending || !queue?.items.length || (supplement && !queue.newItemCount) || !profile?.geminiMealConsent}
             onClick={() => void finalize()}
           >
-            {busy || pending ? '분석 중…' : queue?.status === 'failed' ? '분석 다시 시도' : '오늘 기록 확정하고 분석'}
+            {busy || pending ? '분석 중…' : supplement ? '추가 음식 포함해 다시 분석 (마지막 1회)' : queue?.status === 'failed' ? '분석 다시 시도' : '오늘 기록 확정하고 분석'}
           </button>
         ) : null}
         {!profile?.geminiMealConsent ? (
@@ -380,12 +395,12 @@ export function DietaMealsPage() {
       ) : null}
 
       {msg ? <p role="status" className="dieta-muted">{msg}</p> : null}
-      {yesterdayFailed ? <button type="button" className="dieta-btn dieta-btn--soft" disabled={busy}
+      {yesterdayRetry ? <button type="button" className="dieta-btn dieta-btn--soft" disabled={busy}
         onClick={() => { void (async () => {
           setBusy(true);
           try {
-            await dietaApi.autoFinalizeYesterday(userKey);
-            setYesterdayFailed(false);
+            await dietaApi.finalizeMealDay(yesterdayRetry, userKey);
+            setYesterdayRetry(null);
             setMsg('어제 기록을 확인했어요.');
             await refresh();
           } catch (error: unknown) {

@@ -112,12 +112,11 @@ export function useTemporiPlaybackDerived({
     );
   }, [windows, currentMeasureIndex]);
 
+  const countInDurationMs = countInWindow ? getCountInDurationMs(countInWindow) : 0;
   const countInMetronomeWindows = useMemo(() => {
     if (!countInWindow) return [];
-    return [{ ...countInWindow, startMs: 0, playbackStepIndex: 0 }];
-  }, [countInWindow]);
-
-  const countInDurationMs = countInWindow ? getCountInDurationMs(countInWindow) : 0;
+    return [{ ...countInWindow, startMs: 0, durationMs: countInDurationMs, playbackStepIndex: 0 }];
+  }, [countInWindow, countInDurationMs]);
 
   const highlightElapsedMs = useMemo(() => {
     if (isCountingIn) {

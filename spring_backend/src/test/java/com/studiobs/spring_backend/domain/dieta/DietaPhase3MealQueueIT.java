@@ -81,14 +81,14 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
         stringRedisTemplate.delete("dieta:mealq:" + userId + ":" + today);
         mockMvc.perform(get("/api/v1/dieta/meal-queue/" + today)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(jsonPath("$.status").value("done"));
-        org.assertj.core.api.Assertions.assertThat(addFood(token, today, "빵").getResponse().getStatus()).isEqualTo(409);
+        org.assertj.core.api.Assertions.assertThat(addFood(token, today, "빵").getResponse().getStatus()).isEqualTo(200);
     }
 
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     private com.studiobs.spring_backend.domain.dieta.service.DietaMealQueueRedisService queueStore;
 
     @Test
-    void analysisFailurePreservesQueueAndCanBeRetried() throws Exception {
+    void dispatchedFailurePreservesQueueAndConsumesMain() throws Exception {
         String token = newQueueUser("retry");
         LocalDate day = LocalDate.now();
         addFood(token, day, "밥");
@@ -98,11 +98,11 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
         try {
             finish(token, day).andExpect(status().isBadGateway());
             mockMvc.perform(get("/api/v1/dieta/meal-queue/" + day).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                    .andExpect(jsonPath("$.status").value("failed")).andExpect(jsonPath("$.items.length()").value(1));
+                    .andExpect(jsonPath("$.status").value("exhausted")).andExpect(jsonPath("$.items.length()").value(1));
             mockMvc.perform(get("/api/v1/dieta/intakes").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                     .andExpect(jsonPath("$.length()").value(0));
         } finally { org.mockito.Mockito.reset(analysisClient); }
-        finish(token, day).andExpect(status().isOk()).andExpect(jsonPath("$.intake.kcal").value(270));
+        finish(token, day).andExpect(status().isConflict());
     }
 
     @Test
@@ -128,7 +128,7 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void expiredWorkerCannotOverwriteReplacementResult() throws Exception {
+    void expiredDispatchedWorkerCannotBeReplacedOrCommit() throws Exception {
         String token = newQueueUser("lease");
         LocalDate day = LocalDate.now();
         addFood(token, day, "밥");
@@ -154,14 +154,14 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                 expired.put("updatedAt", java.time.Instant.now().minusSeconds(121).toString());
                 stringRedisTemplate.opsForValue().set(key, mapper.writeValueAsString(expired), java.time.Duration.ofHours(48));
                 mockMvc.perform(get("/api/v1/dieta/meal-queue/" + day).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                        .andExpect(jsonPath("$.status").value("failed"));
-                finish(token, day).andExpect(status().isOk());
+                        .andExpect(jsonPath("$.status").value("exhausted"));
+                finish(token, day).andExpect(status().isConflict());
                 release.countDown();
                 org.assertj.core.api.Assertions.assertThat(old.get().getResponse().getStatus()).isEqualTo(409);
                 mockMvc.perform(get("/api/v1/dieta/meal-queue/" + day).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                        .andExpect(jsonPath("$.status").value("done"));
+                        .andExpect(jsonPath("$.status").value("exhausted"));
                 mockMvc.perform(get("/api/v1/dieta/intakes").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                        .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].kcal").value(270));
+                        .andExpect(jsonPath("$.length()").value(0));
             } finally { release.countDown(); }
         } finally { org.mockito.Mockito.reset(analysisClient); }
     }
@@ -170,7 +170,7 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
     private com.studiobs.spring_backend.domain.dieta.repository.DietaIntakeLogRepository intakeRepository;
 
     @Test
-    void dbCommitFailureRollsBackIntakeAndPreservesRetryableQueue() throws Exception {
+    void dbCommitFailureRollsBackIntakeAndPreservesSpentAttempt() throws Exception {
         String token = newQueueUser("rollback");
         LocalDate day = LocalDate.now();
         addFood(token, day, "밥");
@@ -186,8 +186,8 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/v1/dieta/intakes").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(jsonPath("$.length()").value(0));
         mockMvc.perform(get("/api/v1/dieta/meal-queue/" + day).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(jsonPath("$.status").value("failed")).andExpect(jsonPath("$.items.length()").value(1));
-        finish(token, day).andExpect(status().isOk());
+                .andExpect(jsonPath("$.status").value("exhausted")).andExpect(jsonPath("$.items.length()").value(1));
+        finish(token, day).andExpect(status().isConflict());
     }
 
     @Test
@@ -223,6 +223,56 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                         .path("intake").path("kcal").asInt()).isEqualTo(540);
             } finally { release.countDown(); }
         } finally { org.mockito.Mockito.reset(analysisClient); }
+    }
+
+    @Test
+    void supplementRequiresNewFoodAndReplacesMainTotalOnlyOnce() throws Exception {
+        String token = newQueueUser("supplement");
+        LocalDate day = LocalDate.now();
+        addFood(token, day, "밥");
+        finish(token, day).andExpect(status().isOk());
+        var supplement = post("/api/v1/dieta/meal-queue/finalize")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"loggedOn\":\"" + day + "\",\"stage\":\"SUPPLEMENT\"}");
+        mockMvc.perform(supplement).andExpect(status().isConflict());
+        org.assertj.core.api.Assertions.assertThat(addFood(token, day, "사과").getResponse().getStatus()).isEqualTo(200);
+        mockMvc.perform(supplement).andExpect(status().isOk())
+                .andExpect(jsonPath("$.intake.kcal").value(270))
+                .andExpect(jsonPath("$.intake.sourceMealsJson").value(org.hamcrest.Matchers.containsString("사과")))
+                .andExpect(jsonPath("$.intake.sourceMealsJson").value(org.hamcrest.Matchers.containsString("밥")));
+        org.assertj.core.api.Assertions.assertThat(addFood(token, day, "야식").getResponse().getStatus()).isEqualTo(409);
+        mockMvc.perform(supplement).andExpect(status().isOk());
+        org.mockito.Mockito.verify(analysisClient, org.mockito.Mockito.times(2)).analyze(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Autowired
+    private com.studiobs.spring_backend.domain.dieta.service.DietaAnalysisScheduler scheduler;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void scheduledMainRunsOnceAndSkipsAfterManualMain(boolean manualFirst) throws Exception {
+        String token = newQueueUser("schedule");
+        var configured = mockMvc.perform(patch("/api/v1/dieta/profile")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"mealSchedule":{"enabled":true,"time":"21:30","zone":"Asia/Seoul"}}
+                        """)).andExpect(status().isOk()).andExpect(jsonPath("$.mealSchedule.enabled").value(true)).andReturn();
+        var json = tools.jackson.databind.json.JsonMapper.builder().build();
+        String id = json.readTree(configured.getResponse().getContentAsString()).path("userId").asString();
+        var due = java.time.Instant.now().minusSeconds(1);
+        LocalDate day = due.atZone(java.time.ZoneId.of("Asia/Seoul")).toLocalDate();
+        addFood(token, day, "사과");
+        if (manualFirst) finish(token, day).andExpect(status().isOk());
+        jdbc.update("UPDATE dieta_meal_schedules SET next_run_ms=? WHERE user_id=?", due.toEpochMilli(), id);
+        scheduler.dispatch();
+        scheduler.dispatch();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).until(() ->
+                jdbc.queryForObject("SELECT next_run_ms FROM dieta_meal_schedules WHERE user_id=?", Long.class, id)
+                        > due.toEpochMilli());
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT origin FROM dieta_meal_analysis_days WHERE user_id=? AND logged_on=? AND stage='MAIN' AND state='DONE'",
+                String.class, id, day)).isEqualTo(manualFirst ? "MANUAL" : "SCHEDULED");
+        org.mockito.Mockito.verify(analysisClient).analyze(org.mockito.ArgumentMatchers.any());
     }
 
     private String newQueueUser(String prefix) throws Exception {
@@ -337,7 +387,7 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].loggedOn").value(today.toString()));
 
-        // A completed day is immutable even for direct API callers.
+        // The original main-analysis inputs are immutable.
         mockMvc.perform(delete("/api/v1/dieta/meal-queue/items/" + itemId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .param("loggedOn", today.toString()))

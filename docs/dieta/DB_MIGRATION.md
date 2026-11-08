@@ -62,3 +62,17 @@ Docker 접근 복구 후 위 로컬 명령으로 적용하고 결과를 확인�
 참고: [MySQL ALTER TABLE](https://dev.mysql.com/doc/refman/8.0/en/alter-table.html),
 [온라인 DDL 제약](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html),
 [MySQL 환경 변수](https://dev.mysql.com/doc/refman/8.0/en/environment-variables.html).
+
+## 2026-11-08 식사 분석 예약과 일일 횟수
+
+운영 DB에서 새 백엔드를 시작하기 전에 저장소 루트에서 아래 SQL을 적용한다.
+기존 운영용 MySQL 로그인 경로와 DB 이름으로 바꿔 실행한다.
+
+```bash
+mysql --login-path=PROD_LOGIN --database=PROD_DB < infra/mysql/migrations/20261108_dieta_analysis_schedule.sql
+mysql --login-path=PROD_LOGIN --database=PROD_DB -e "SELECT DATABASE(); SHOW CREATE TABLE dieta_meal_schedules; SHOW CREATE TABLE dieta_meal_analysis_days;"
+```
+
+두 테이블은 기존 Dieta 프로필을 참조한다. 기존 사용자의 예약은 기본 꺼짐이다.
+운영에서는 구버전의 분석 요청을 중지하고 진행 중인 요청이 끝난 뒤 새 백엔드와 프런트엔드를 배포한다.
+로컬 dev 프로필은 같은 DDL을 Flyway로 적용한다.

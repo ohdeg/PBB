@@ -67,3 +67,17 @@ it('does not reset data when the deletion confirmation is cancelled', async () =
  show(); fireEvent.click(await screen.findByRole('button',{name:'모든 기록 삭제 후 다시 시작'}));
  expect(confirm).toHaveBeenCalled(); expect(dietaApi.resetAll).not.toHaveBeenCalled(); confirm.mockRestore();
 });
+
+it('saves the chosen daily analysis time with the device time zone', async () => {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const mealSchedule = {enabled:true, time:'20:45', zone, nextRunAt:'2026-11-09T11:45:00Z'};
+  vi.mocked(dietaApi.updateProfile).mockResolvedValue(mapProfile({...sampleProfile, mealSchedule}));
+  show();
+  fireEvent.click(await screen.findByLabelText('매일 식사 자동 분석'));
+  fireEvent.change(screen.getByLabelText(/예약 시각/), {target:{value:'20:45'}});
+  fireEvent.click(screen.getByRole('button', {name:'분석 설정 저장'}));
+  expect(await screen.findByText('분석 설정을 저장했어요.')).toBeInTheDocument();
+  expect(dietaApi.updateProfile).toHaveBeenCalledWith(
+    {geminiMealConsent:true, mealSchedule:{enabled:true, time:'20:45', zone}}, 'fixture');
+  expect(screen.getByText(/다음 분석/)).toBeInTheDocument();
+});

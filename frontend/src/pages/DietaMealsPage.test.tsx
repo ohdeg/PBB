@@ -42,3 +42,11 @@ it.each([0, 1])('enables the last analysis only after new food is recorded (%i e
  expect(button).toHaveProperty('disabled',count === 0);
  expect(screen.getByLabelText('오늘 먹은 것')).toBeEnabled();
 });
+
+it('accepts record-only input after both analysis attempts are spent', async()=>{
+ vi.mocked(dietaApi.getMealQueue).mockResolvedValue({loggedOn:'2026-11-09',status:'done',availableStage:null,newItemCount:0,items:[]});
+ render(<MemoryRouter><DietaMealsPage/></MemoryRouter>);
+ fireEvent.change(await screen.findByLabelText('오늘 먹은 것'),{target:{value:'사과'}});
+ expect(screen.getByRole('button',{name:'분석 없이 기록만 저장'})).toBeEnabled();
+ expect(screen.queryByRole('button',{name:/확정하고 분석/})).not.toBeInTheDocument();
+});

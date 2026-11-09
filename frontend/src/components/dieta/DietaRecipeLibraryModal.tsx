@@ -23,6 +23,7 @@ interface DietaRecipeLibraryModalProps {
   busy: boolean;
   canCreate: boolean;
   defaultMealType: DietaMealType;
+  dateLabel?:string;
   onClose: () => void;
   onLoadRecipes: () => Promise<DietaRecipe[]>;
   onAddToDay: (input: {
@@ -42,6 +43,7 @@ export function DietaRecipeLibraryModal({
   busy,
   canCreate,
   defaultMealType,
+  dateLabel="오늘",
   onClose,
   onLoadRecipes,
   onAddToDay,
@@ -121,7 +123,7 @@ export function DietaRecipeLibraryModal({
       });
       setLastAdded(result);
     } catch (e: unknown) {
-      setActionError(e instanceof Error ? e.message : '오늘 섭취에 더하지 못했어요.');
+      setActionError(e instanceof Error ? e.message : dateLabel+" 섭취에 더하지 못했어요.");
     }
   };
 
@@ -162,7 +164,7 @@ export function DietaRecipeLibraryModal({
             </button>
           </div>
           <p id={descriptionId} className="dieta-muted">
-            등록해 둔 음식을 골라 끼니를 선택한 뒤 오늘 섭취에 더하거나, 「추가하기」로
+            등록해 둔 음식을 골라 끼니를 선택한 뒤 {dateLabel} 섭취에 더하거나, 「추가하기」로
             새 레시피를 분석해요. 저장된 영양은 1인분당 값입니다.
           </p>
           {!canCreate ? (
@@ -238,7 +240,7 @@ export function DietaRecipeLibraryModal({
               <strong>추가됨 · {lastAdded.kcal}kcal</strong>
               <span className="dieta-muted">
                 {' '}
-                · 오늘 합계 {lastAdded.intake?.kcal ?? lastAdded.kcal}kcal
+                · {dateLabel} 합계 {lastAdded.intake?.kcal ?? lastAdded.kcal}kcal
               </span>
             </p>
           ) : null}
@@ -252,7 +254,7 @@ export function DietaRecipeLibraryModal({
               disabled={busy || !selected}
               onClick={() => void addSelected()}
             >
-              {busy ? '추가 중…' : '오늘 1인분 추가'}
+              {busy ? '추가 중…' : dateLabel+" 1인분 추가"}
             </button>
             <button
               type="button"

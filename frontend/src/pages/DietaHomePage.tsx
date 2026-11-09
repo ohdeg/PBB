@@ -1,3 +1,4 @@
+import { DietaRecordWeek } from '../components/dieta/DietaRecordWeek';
 import { DietaLoadState } from '../components/dieta/DietaLoadState';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
@@ -293,6 +294,7 @@ export function DietaHomePage() {
         <span className="dieta-muted">{weekDay}일차</span>
       </div>
 
+      <DietaRecordWeek day={today}/>
       <div className={`dieta-home-grid${checkInDue ? ' is-checkin-due' : ''}`}>
       <section className="dieta-card dieta-home-week">
         <span className="dieta-badge">이번 주</span><h2 style={{marginTop:12}}>{checkInDue ? '한 주를 돌아볼 시간이에요' : '내 리듬대로 기록하세요'}</h2>
@@ -334,6 +336,7 @@ export function DietaHomePage() {
             식사 기록
           </Link>
         </div>
+        {meals.some(m=>m.loggedOn===today && m.includesEstimate) && <p className="dieta-muted">내 평균 추정 포함</p>}
         <p className="dieta-kcal-hero">
           <span>{meals.some(m => m.loggedOn === today) ? todayIntake.kcal.toLocaleString() : '—'}</span>
           <span className="dieta-muted"> / {profile.dailyKcal} kcal</span>
@@ -344,7 +347,7 @@ export function DietaHomePage() {
           aria-valuemin={0}
           aria-valuemax={profile.dailyKcal}
           aria-valuenow={Math.min(todayIntake.kcal, profile.dailyKcal)}
-          aria-valuetext={`분석된 섭취 ${todayIntake.kcal} kcal, 목표 ${profile.dailyKcal} kcal`}
+          aria-valuetext={`기록한 섭취 ${todayIntake.kcal} kcal, 목표 ${profile.dailyKcal} kcal`}
           aria-label="오늘 섭취 칼로리"
         >
           <span

@@ -13,5 +13,8 @@ public interface DietaBodyLogRepository extends JpaRepository<DietaBodyLog, UUID
 
     Optional<DietaBodyLog> findByUserIdAndLoggedOn(UUID userId, LocalDate loggedOn);
 
+    Optional<DietaBodyLog> findFirstByUserIdAndLoggedOnLessThanEqualAndWeightKgGreaterThanOrderByLoggedOnDesc(
+            UUID userId, LocalDate date, java.math.BigDecimal minimumWeight);
+
     void deleteByUserId(UUID userId);
 }

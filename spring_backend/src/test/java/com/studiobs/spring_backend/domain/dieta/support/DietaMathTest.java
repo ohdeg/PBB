@@ -9,6 +9,14 @@ import org.junit.jupiter.api.Test;
 class DietaMathTest {
 
     @Test
+    void walkingEnergyUsesRecordedMeasurementsAndDistinguishesMissingFromZero() {
+        assertThat(DietaMath.walkingKcal(10000, new BigDecimal("170"), new BigDecimal("70"))).isEqualTo(247);
+        assertThat(DietaMath.walkingKcal(10000, new BigDecimal("170"), null)).isNull();
+        assertThat(DietaMath.walkingKcal(null, null, null)).isNull();
+        assertThat(DietaMath.walkingKcal(0, null, null)).isZero();
+    }
+
+    @Test
     void estimateBmr_and_tdee() {
         int bmr = DietaMath.estimateBmrKcal(
                 new BigDecimal("80"), new BigDecimal("175"), 30, "M");

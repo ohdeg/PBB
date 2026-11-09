@@ -118,8 +118,13 @@ public class GeminiMealClient {
 
         String prompt = """
                 You are a nutrition assistant. Analyze the following meal finalize JSON (schemaVersion 1).
-                Return ONLY a JSON object with keys:
+                Return ONLY a JSON object with the following required keys:
                 schemaVersion (1), loggedOn (YYYY-MM-DD), totals { carbG, proteinG, fatG, kcal }, oneLineReview (Korean).
+                Use the supplied activityKcal as recorded. Never add steps or minutes to it.
+                If estimateActivityKcalIfMissing is false, leave missing activity energy unknown.
+                For a daily meal request include mealTotals, an object keyed by each input mealType, with
+                carbG, proteinG, fatG and kcal for its one-line foods. Their sums must equal totals.
+                Never interpret missing activity as physical inactivity. Treat estimatedFields as estimates.
                 Honor instructions: missingAmountAsOneServing, includeActivityInReview, estimateActivityKcalIfMissing,
                 and when perServingOnly is true: totals MUST be macros/kcal for 1 serving only (divide the batch of
                 instructions.servings into one portion) — never return the whole-pot totals unless servings is 1.

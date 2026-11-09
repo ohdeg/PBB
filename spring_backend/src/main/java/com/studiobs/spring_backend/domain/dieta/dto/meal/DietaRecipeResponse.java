@@ -19,6 +19,6 @@ public record DietaRecipeResponse(
         int kcal,
         String oneLineReview,
         BigDecimal servings,
-        LocalDateTime createdAt
+        LocalDateTime createdAt, BigDecimal consumedPortion
 ) {
 }

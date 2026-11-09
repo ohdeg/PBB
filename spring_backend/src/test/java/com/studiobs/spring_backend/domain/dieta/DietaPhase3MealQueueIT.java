@@ -191,7 +191,7 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void recipeAddedDuringAnalysisIsIncludedInFinalTotal() throws Exception {
+    void recipeWaitsForAnalysisThenMergesWithFinalTotal() throws Exception {
         String token = newQueueUser("merge");
         LocalDate day = LocalDate.now();
         var created = mockMvc.perform(post("/api/v1/dieta/recipes/analyze")
@@ -215,12 +215,17 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                 mockMvc.perform(post("/api/v1/dieta/recipes/" + id + "/add-to-day")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loggedOn\":\"" + day + "\",\"mealType\":\"LUNCH\"}"))
-                        .andExpect(status().isOk()).andExpect(jsonPath("$.intake.kcal").value(270));
+                        .andExpect(status().isConflict());
                 release.countDown();
                 var result = analysis.get();
                 org.assertj.core.api.Assertions.assertThat(result.getResponse().getStatus()).isEqualTo(200);
                 org.assertj.core.api.Assertions.assertThat(mapper.readTree(result.getResponse().getContentAsString())
-                        .path("intake").path("kcal").asInt()).isEqualTo(540);
+                        .path("intake").path("kcal").asInt()).isEqualTo(270);
+                mockMvc.perform(post("/api/v1/dieta/recipes/" + id + "/add-to-day")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loggedOn\":\"" + day + "\",\"mealType\":\"LUNCH\"}"))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.intake.kcal").value(540));
+
             } finally { release.countDown(); }
         } finally { org.mockito.Mockito.reset(analysisClient); }
     }
@@ -240,7 +245,7 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.intake.kcal").value(270))
                 .andExpect(jsonPath("$.intake.sourceMealsJson").value(org.hamcrest.Matchers.containsString("사과")))
                 .andExpect(jsonPath("$.intake.sourceMealsJson").value(org.hamcrest.Matchers.containsString("밥")));
-        org.assertj.core.api.Assertions.assertThat(addFood(token, day, "야식").getResponse().getStatus()).isEqualTo(409);
+        org.assertj.core.api.Assertions.assertThat(addFood(token, day, "야식").getResponse().getStatus()).isEqualTo(200);
         mockMvc.perform(supplement).andExpect(status().isOk());
         org.mockito.Mockito.verify(analysisClient, org.mockito.Mockito.times(2)).analyze(org.mockito.ArgumentMatchers.any());
     }
@@ -273,6 +278,68 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                 "SELECT origin FROM dieta_meal_analysis_days WHERE user_id=? AND logged_on=? AND stage='MAIN' AND state='DONE'",
                 String.class, id, day)).isEqualTo(manualFirst ? "MANUAL" : "SCHEDULED");
         org.mockito.Mockito.verify(analysisClient).analyze(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void previousMealApplyIsAtomicAndReplayDoesNotConsumeGeminiOrDuplicateFood() throws Exception {
+        var token = newQueueUser("quick");
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        var today = LocalDate.now(java.time.Clock.systemUTC());
+        var url = "/api/v1/dieta/quick-entry/" + today;
+        addFood(token,today.minusDays(1),"사과 한 개");
+        var preview = mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION,"Bearer "+token))
+                .andExpect(status().isOk()).andReturn();
+        var document = mapper.readTree(preview.getResponse().getContentAsString());
+        var pick = document.path("previous").get(0);
+        String request = mapper.writeValueAsString(java.util.Map.of("requestId",java.util.UUID.randomUUID().toString(),
+                "revision",document.path("revision").asString(),"action","previous","picks",java.util.List.of(
+                        java.util.Map.of("id",pick.path("id").asString(),"mealType","DINNER","text","사과 반 개"))));
+        for (int i=0;i<2;i++) {
+            mockMvc.perform(post(url).header(HttpHeaders.AUTHORIZATION,"Bearer "+token)
+                    .contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isNoContent());
+        }
+        mockMvc.perform(get("/api/v1/dieta/meal-queue/"+today).header(HttpHeaders.AUTHORIZATION,"Bearer "+token))
+                .andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].text").value("사과 반 개"))
+                .andExpect(jsonPath("$.availableStage").value("MAIN"));
+        mockMvc.perform(post(url).header(HttpHeaders.AUTHORIZATION,"Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content(request.replace("사과 반 개","사과 두 개")))
+                .andExpect(status().isConflict());
+        mockMvc.perform(get("/api/v1/dieta/quick-entry/"+today.minusDays(2))
+                .header(HttpHeaders.AUTHORIZATION,"Bearer "+token)).andExpect(status().isBadRequest());
+        org.mockito.Mockito.verify(analysisClient,org.mockito.Mockito.never()).analyze(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void recipeAverageIsDisplayedWithoutAnalysisAndActualFoodRemovesIt() throws Exception {
+        String token=newQueueUser("average");
+        var today=LocalDate.now(java.time.Clock.systemUTC());
+        var mapper=tools.jackson.databind.json.JsonMapper.builder().build();
+        var created=mockMvc.perform(post("/api/v1/dieta/recipes/analyze")
+                .header(HttpHeaders.AUTHORIZATION,"Bearer "+token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"loggedOn\":\""+today+"\",\"title\":\"두부\",\"ingredients\":[\"두부\"],\"servings\":1}"))
+                .andExpect(status().isOk()).andReturn();
+        var id=mapper.readTree(created.getResponse().getContentAsString()).path("recipeId").asString();
+        for (int age : new int[]{1,2,28}) {
+            mockMvc.perform(post("/api/v1/dieta/recipes/"+id+"/add-to-day").header(HttpHeaders.AUTHORIZATION,"Bearer "+token)
+                    .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(
+                            java.util.Map.of("loggedOn",today.minusDays(age).toString(),"mealType","LUNCH"))))
+                    .andExpect(status().isOk());
+        }
+        var url="/api/v1/dieta/quick-entry/"+today;
+        var result=mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION,"Bearer "+token))
+                .andExpect(jsonPath("$.averages[0].days").value(3)).andReturn();
+        var revision=mapper.readTree(result.getResponse().getContentAsString()).path("revision").asString();
+        mockMvc.perform(post(url).header(HttpHeaders.AUTHORIZATION,"Bearer "+token).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(java.util.Map.of("requestId",java.util.UUID.randomUUID().toString(),
+                        "revision",revision,"action","estimate","mealType","LUNCH","portion",1))))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/dieta/intakes").param("loggedOn",today.toString())
+                .header(HttpHeaders.AUTHORIZATION,"Bearer "+token))
+                .andExpect(jsonPath("$[0].includesEstimate").value(true)).andExpect(jsonPath("$[0].kcal").value(270));
+        addFood(token,today,"두부 추가");
+        mockMvc.perform(get("/api/v1/dieta/intakes").param("loggedOn",today.toString())
+                .header(HttpHeaders.AUTHORIZATION,"Bearer "+token)).andExpect(jsonPath("$.length()").value(0));
+        org.mockito.Mockito.verify(analysisClient,org.mockito.Mockito.times(1)).analyze(org.mockito.ArgumentMatchers.any());
     }
 
     private String newQueueUser(String prefix) throws Exception {

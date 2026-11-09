@@ -48,14 +48,15 @@ public record DietaGeminiMealRequest(
 
     /**
      * steps / activeMinutes always present.
-     * activityKcal only when user entered burned kcal — omit when null (never fake 0).
+     * activityKcal when a stored activity energy total is available — omit when null (never fake 0).
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ActivityHint(
-            int steps,
-            int activeMinutes,
-            Integer activityKcal
+            Integer steps,
+            Integer activeMinutes,
+            Integer activityKcal, String activityName, java.util.Set<String> estimatedFields
     ) {
+        public ActivityHint(Integer steps,Integer minutes,Integer kcal) { this(steps,minutes,kcal,null,null); }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -72,7 +73,11 @@ public record DietaGeminiMealRequest(
             BigDecimal servings
     ) {
         public static Instructions productDefaults() {
-            return new Instructions(true, true, true, true, true, true, null, null);
+            return productDefaults(true);
+        }
+
+        public static Instructions productDefaults(boolean allowActivityEstimate) {
+            return new Instructions(true, true, true, true, true, allowActivityEstimate, null, null);
         }
 
         /** Homemade recipe-only call: macros + one-line review, no activity tone; per-serving. */

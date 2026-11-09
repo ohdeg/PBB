@@ -258,3 +258,7 @@ Config: existing `dieta.gemini.api-key` / `base-url` / `model`. Missing key disa
 - Profile-dependent initial reads occur after confirming onboarding; initial errors expose retry rather than showing empty data. New users are directed to onboarding.
 - Introduction assets `dieta-product-ui*.png` contain synthetic demonstration records only.
 - Isolated verification: `vitest --config vitest.dieta.config.ts`; `vite build --config vite.dieta-review.config.ts`; `playwright test --config playwright.dieta.config.ts` after that build. These configs disable environment-file loading. Browser tests mock `/api/v1/**`; they do not exercise live DB, Redis or Gemini.
+
+## 간편 기록
+
+식사·활동 화면에서 오늘 또는 어제를 선택한다. 식사를 전날에서 복사하거나 자주 먹는 식사로 저장할 때 한 줄 음식과 등록 레시피를 함께 선택할 수 있다. 날짜별 SQL 기록은 원본과 적용 요청을 보관한다. Redis는 진행 중인 분석의 소유권을 확인한다. 평균 표본은 대상 날짜 이전 28일, 최소 3일이며 미기록과 평균 입력은 제외한다. 평균 끼니에 실제 음식을 기록하면 해당 끼니 추정치를 제거한다. 주간 체크인의 섭취 평균에는 화면에 표시된 추정 포함 섭취 합계를 사용한다. 최근 7일 기록 일수에는 추정만 있는 날을 따로 표시한다.

@@ -73,6 +73,7 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class DietaService {
 
+    private final DietaEntryStore entries;
     private final Clock clock;
     private final DietaAnalysisStore analyses;
     private final UserService userService;
@@ -102,27 +103,29 @@ public class DietaService {
         });
     }
 
-    private DietaIntakeLog completedIntake(UUID userId, LocalDate day) {
+    DietaIntakeLog completedIntake(UUID userId, LocalDate day) {
         return intakeLogRepository.findByUserIdAndLoggedOn(userId, day)
                 .filter(row -> DietaIntakeSourceDocument.parse(objectMapper, row.getSourceMealsJson()).queueTotals() != null)
                 .orElse(null);
     }
 
     /** Caller holds the profile write lock, including when recovering an expired lease. */
-    private DietaMealQueueDayResponse currentQueue(UUID userId, LocalDate day) {
+    DietaMealQueueDayResponse currentQueue(UUID userId, LocalDate day) {
         var queue = mealQueueRedisService.getOrEmpty(userId, day);
         var intake = completedIntake(userId, day);
         Stage stage = intake == null ? Stage.MAIN : Stage.SUPPLEMENT;
         var attempt = analyses.attempt(userId, day, stage);
-        var items = queue.items();
+        var items = entries.items(userId, day, queue.items());
         int added = items.size();
         boolean reconstructable = true;
         if (intake != null) {
             var snapshot = DietaIntakeSourceDocument.parse(objectMapper, intake.getSourceMealsJson());
             var combined = new java.util.ArrayList<DietaMealQueueItemDto>();
-            for (var meal : snapshot.meals()) {
+            var reflected = entries.read(userId,day,"REFLECTED",DietaMealQueueItemDto[].class);
+            if (reflected != null) combined.addAll(List.of(reflected));
+            else for (var meal : snapshot.meals()) {
                 for (String text : meal.items()) {
-                    combined.add(new DietaMealQueueItemDto("base:" + combined.size(), meal.mealType(), text, null));
+                    combined.add(new DietaMealQueueItemDto("base:legacy-" + combined.size(), meal.mealType(), text, null));
                 }
             }
             reconstructable = !combined.isEmpty();
@@ -130,6 +133,7 @@ public class DietaService {
             added = extras.size();
             if (attempt != null && "DONE".equals(attempt.state())) added = 0;
             else combined.addAll(extras);
+            combined.addAll(items.stream().filter(i -> i.id().startsWith("note:")).toList());
             items = combined;
         }
         boolean pending = "pending".equals(queue.status()) && queue.updatedAt() != null
@@ -409,37 +413,121 @@ public class DietaService {
         return DietaBodyLogResponse.from(bodyLogRepository.save(log));
     }
 
+    List<DietaActivityLogResponse> activitiesInRange(UUID user, LocalDate start, LocalDate end) {
+        var records=entries.activityMetadata(user,start,end);
+        return activityLogRepository.findByUserIdAndLoggedOnBetweenOrderByLoggedOnAsc(user,start,end).stream()
+                .map(log->activityResponse(log,records.get(log.getLoggedOn()))).toList();
+    }
+
+    DietaActivityHistory.Suggestions activitySuggestions(UUID user,LocalDate day) {
+        var rows=activitiesInRange(user,day.minusDays(28),day.minusDays(1));
+        var revision=entries.hash(List.of(day,rows.stream().map(DietaActivityLogResponse::revision).toList()));
+        return DietaActivityHistory.suggestions(rows,day,revision);
+    }
+
+    void checkEntryDay(UUID user, LocalDate day, String deviceZone) {
+        var schedule=analyses.schedule(user);
+        java.time.ZoneId zone;
+        try { zone=java.time.ZoneId.of(schedule.enabled()?schedule.zone():deviceZone==null?"UTC":deviceZone); }
+        catch(java.time.DateTimeException e) { throw DietaEntryStore.invalid("시간대를 확인해 주세요."); }
+        var today=LocalDate.now(clock.withZone(zone));
+        if (day.isBefore(today.minusDays(1)) || day.isAfter(today)) throw DietaEntryStore.invalid("오늘 또는 어제 날짜를 선택해 주세요.");
+    }
+
+    private record ActivityMeta(String name, java.util.Set<String> fields) {}
+    DietaActivityLogResponse activityResponse(UUID user, DietaActivityLog log) {
+        return activityResponse(log,entries.raw(user,log.getLoggedOn(),"ACTIVITY"));
+    }
+    private DietaActivityLogResponse activityResponse(DietaActivityLog log,String json) {
+        var meta=json==null?null:objectMapper.readValue(json,ActivityMeta.class);
+        if (meta == null) meta = new ActivityMeta(null,java.util.Set.of());
+        var plain = DietaActivityLogResponse.from(log);
+        return new DietaActivityLogResponse(plain.id(),plain.loggedOn(),plain.steps(),plain.durationMin(),plain.activityKcal(),
+                plain.splitCalories(),plain.walkingKcal(),plain.exerciseKcal(),plain.note(),meta.name(),meta.fields(),
+                entries.hash(new Object[]{plain,meta.name(),meta.fields().stream().sorted().toList()}));
+    }
+
     @Transactional(readOnly = true)
     public List<DietaActivityLogResponse> listActivities(String email) {
         User user = requireUser(email);
-        return activityLogRepository.findByUserIdOrderByLoggedOnAsc(user.getId()).stream()
-                .map(DietaActivityLogResponse::from)
-                .toList();
+        return activitiesInRange(user.getId(),LocalDate.of(1000,1,1),LocalDate.of(9999,12,31));
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public DietaActivityLogResponse upsertActivity(String email, DietaActivityUpsertRequest request) {
         User user = requireUser(email);
-        requireProfile(user.getId());
-        DietaActivityLog log = activityLogRepository
-                .findByUserIdAndLoggedOn(user.getId(), request.loggedOn())
-                .map(existing -> {
-                    existing.update(
-                            request.steps(),
-                            request.durationMin(),
-                            request.activityKcal(),
-                            request.note());
-                    return existing;
-                })
-                .orElseGet(() -> DietaActivityLog.builder()
-                        .userId(user.getId())
-                        .loggedOn(request.loggedOn())
-                        .steps(request.steps())
-                        .durationMin(request.durationMin())
-                        .activityKcal(request.activityKcal())
-                        .note(request.note())
-                        .build());
-        return DietaActivityLogResponse.from(activityLogRepository.save(log));
+        var profile = requireProfile(user.getId());
+        var log = activityLogRepository.findByUserIdAndLoggedOn(user.getId(), request.loggedOn())
+                .orElseGet(() -> DietaActivityLog.builder().userId(user.getId()).loggedOn(request.loggedOn()).build());
+        var previous = activityResponse(user.getId(),log);
+        String fingerprint=entries.hash(request);
+        if (log.getId()!=null && fingerprint.equals(entries.read(user.getId(),request.loggedOn(),"ACTLAST",String.class)))
+            return previous;
+        if (request.revision() != null && !request.revision().equals(previous.revision())
+                && !(request.revision().equals("empty") && log.getId() == null)) throw DietaEntryStore.stale();
+        var fields = request.estimatedFields() == null ? new java.util.HashSet<>(previous.estimatedFields())
+                : new java.util.HashSet<>(request.estimatedFields());
+        if (!java.util.Set.of("steps","durationMin","exerciseKcal").containsAll(fields)) throw DietaEntryStore.invalid("알 수 없는 활동 지표예요.");
+        if (request.estimatedFields()==null) {
+            if (!java.util.Objects.equals(request.steps(),previous.steps())) fields.remove("steps");
+            if (!java.util.Objects.equals(request.durationMin(),previous.durationMin())) fields.remove("durationMin");
+            if (!java.util.Objects.equals(request.exerciseKcal(),previous.exerciseKcal())) fields.remove("exerciseKcal");
+        }
+        if (request.steps() == null) fields.remove("steps");
+        if (request.durationMin() == null) fields.remove("durationMin");
+        if (request.exerciseKcal() == null) fields.remove("exerciseKcal");
+        if (request.revision()!=null) checkEntryDay(user.getId(),request.loggedOn(),request.deviceZone());
+        if (request.suggestionRevision()!=null || !previous.estimatedFields().containsAll(fields)) {
+            var suggestions=activitySuggestions(user.getId(),request.loggedOn());
+            if (!suggestions.revision().equals(request.suggestionRevision())) throw DietaEntryStore.stale();
+            var allowed = suggestions.averages();
+            if (fields.stream().anyMatch(f -> !previous.estimatedFields().contains(f) && !allowed.containsKey(f)))
+                throw DietaEntryStore.stale();
+        }
+        String name = request.estimatedFields() == null ? previous.activityName() : request.activityName();
+        if (name != null && name.isBlank()) name = null;
+        if (request.estimatedFields()!=null && Integer.valueOf(0).equals(request.durationMin())
+                && (name!=null || request.exerciseKcal()!=null && request.exerciseKcal()>0))
+            throw DietaEntryStore.invalid("운동 안 함을 기록하려면 운동명과 운동 열량을 비워 주세요.");
+        if (name == null && request.steps()==null && request.durationMin()==null && request.exerciseKcal()==null
+                && request.activityKcal()==null && (request.note()==null || request.note().isBlank()))
+            throw DietaEntryStore.invalid("활동 기록을 하나 이상 입력해 주세요.");
+        boolean split = Boolean.TRUE.equals(request.splitCalories());
+        if (split && request.activityKcal() != null
+                || !split && request.exerciseKcal() != null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "활동 열량의 입력 방식을 확인해 주세요.");
+        }
+        if (request.expectedLegacyKcal() != null && (!split || log.isSplitCalories()
+                        || !request.expectedLegacyKcal().equals(log.getActivityKcal()))
+                || log.isSplitCalories() && !split
+                || split && !log.isSplitCalories() && log.getActivityKcal() != null
+                        && request.expectedLegacyKcal() == null) {
+            throw new BusinessException(HttpStatus.CONFLICT, "활동 열량 저장 방식을 확인해 주세요.");
+        }
+        Integer walking = log.getWalkingKcal();
+        if (split && (walking == null || !java.util.Objects.equals(log.getSteps(), request.steps()))) {
+            var weight = request.steps() == null || request.steps() == 0 ? null : bodyLogRepository
+                    .findFirstByUserIdAndLoggedOnLessThanEqualAndWeightKgGreaterThanOrderByLoggedOnDesc(
+                            user.getId(), request.loggedOn(), BigDecimal.ZERO)
+                    .map(DietaBodyLog::getWeightKg).orElse(null);
+            try {
+                walking = DietaMath.walkingKcal(request.steps(), profile.getHeightCm(), weight);
+            } catch (ArithmeticException ex) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "걸음 수가 너무 큽니다.");
+            }
+        }
+        log.update(request.steps(), request.durationMin(), request.activityKcal(), request.note());
+        if (split) {
+            try {
+                log.setCalorieBreakdown(walking, request.exerciseKcal());
+            } catch (ArithmeticException ex) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "활동 열량이 너무 큽니다.");
+            }
+        }
+        if (request.revision()!=null) checkEntryDay(user.getId(),request.loggedOn(),request.deviceZone());
+        entries.write(user.getId(),request.loggedOn(),"ACTLAST",fingerprint);
+        entries.write(user.getId(),request.loggedOn(),"ACTIVITY",new ActivityMeta(name,fields));
+        return activityResponse(user.getId(),activityLogRepository.save(log));
     }
 
     @Transactional(readOnly = true)
@@ -493,14 +581,28 @@ public class DietaService {
     public List<DietaIntakeLogResponse> listIntakes(String email, LocalDate loggedOn) {
         User user = requireUser(email);
         requireProfile(user.getId());
-        if (loggedOn != null) {
-            return intakeLogRepository.findByUserIdAndLoggedOn(user.getId(), loggedOn).stream()
-                    .map(DietaIntakeLogResponse::from)
-                    .toList();
+        var rows = loggedOn == null ? intakeLogRepository.findByUserIdOrderByLoggedOnAsc(user.getId())
+                : intakeLogRepository.findByUserIdAndLoggedOn(user.getId(), loggedOn).stream().toList();
+        return reportedIntakes(user.getId(), rows, loggedOn == null ? LocalDate.of(1000,1,1) : loggedOn,
+                loggedOn == null ? LocalDate.of(9999,12,31) : loggedOn);
+    }
+
+    private List<DietaIntakeLogResponse> reportedIntakes(UUID user, List<DietaIntakeLog> rows, LocalDate start, LocalDate end) {
+        var result = new java.util.TreeMap<LocalDate,DietaIntakeLogResponse>();
+        rows.forEach(r -> result.put(r.getLoggedOn(), DietaIntakeLogResponse.from(r)));
+        for (var estimate : entries.estimates(user,start,end)) {
+            var day = estimate.day();
+            var old = result.get(day);
+            var total = old == null ? estimate.value() : estimate.value().plus(
+                    new MacroTotals(old.carbG(),old.proteinG(),old.fatG(),old.kcal()));
+            var id = old == null ? UUID.nameUUIDFromBytes((user.toString()+day).getBytes(java.nio.charset.StandardCharsets.UTF_8)) : old.id();
+            var estimates = new java.util.TreeMap<String,Integer>();
+            if (old!=null) estimates.putAll(old.estimatedMealKcal());
+            estimates.put(estimate.meal(),estimate.value().kcal());
+            result.put(day,new DietaIntakeLogResponse(id,day,total.carbG(),total.proteinG(),total.fatG(),total.kcal(),
+                    old == null ? null : old.review(),old == null ? null : old.sourceMealsJson(),true,estimates));
         }
-        return intakeLogRepository.findByUserIdOrderByLoggedOnAsc(user.getId()).stream()
-                .map(DietaIntakeLogResponse::from)
-                .toList();
+        return List.copyOf(result.values());
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
@@ -517,8 +619,16 @@ public class DietaService {
         }
 
         DietaMealQueueDayResponse queue = currentQueue(user.getId(), request.loggedOn());
-        requireEditable(queue);
-        mealQueueRedisService.save(user.getId(), mealQueueRedisService.addItem(queue, mealType, text));
+        if ("pending".equals(queue.status())) throw DietaEntryStore.stale();
+        if (text.length() > 1000) throw DietaEntryStore.invalid("음식 기록은 1000자까지 입력할 수 있어요.");
+        var added = mealQueueRedisService.addItem(queue, mealType, text);
+        var items = new java.util.ArrayList<>(added.items());
+        if (queue.availableStage() == null) {
+            var item = items.removeLast();
+            items.add(new DietaMealQueueItemDto("note:" + item.id(), mealType, text, item.addedAt()));
+        }
+        entries.write(user.getId(), request.loggedOn(), "ITEMS", items);
+        entries.clearEstimate(user.getId(), request.loggedOn(), mealType);
         return currentQueue(user.getId(), request.loggedOn());
     }
 
@@ -527,11 +637,11 @@ public class DietaService {
         User user = requireUser(email);
         requireProfile(user.getId());
         DietaMealQueueDayResponse queue = currentQueue(user.getId(), loggedOn);
-        requireEditable(queue);
+        if (!itemId.startsWith("note:") || "pending".equals(queue.status())) requireEditable(queue);
         if ("SUPPLEMENT".equals(queue.availableStage()) && !itemId.startsWith("extra:")) {
             throw new BusinessException(HttpStatus.CONFLICT, "이미 분석한 음식은 삭제할 수 없어요.");
         }
-        mealQueueRedisService.save(user.getId(), mealQueueRedisService.removeItem(queue, itemId));
+        entries.write(user.getId(), loggedOn, "ITEMS", mealQueueRedisService.removeItem(queue, itemId).items());
         return currentQueue(user.getId(), loggedOn);
     }
 
@@ -655,24 +765,37 @@ public class DietaService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "끼니 유형을 선택해 주세요.");
         }
 
+        return copyRecipe(user.getId(), source, request.loggedOn(), mealType, BigDecimal.ONE);
+    }
+
+    DietaRecipeAnalyzeResponse copyRecipe(UUID userId, DietaRecipe source, LocalDate date, String mealType, BigDecimal portion) {
+        return copyRecipe(userId,source,date,mealType,portion,null);
+    }
+
+    DietaRecipeAnalyzeResponse copyRecipe(UUID userId, DietaRecipe source, LocalDate date, String mealType, BigDecimal portion,
+            DietaIntakeSourceDocument.AnalyzedRecipe legacy) {
+        if ("pending".equals(currentQueue(userId,date).status())) throw DietaEntryStore.stale();
+        entries.clearEstimate(userId, date, mealType);
+        var nutrition = DietaEntryStore.scale(recipeNutrition(source), portion);
         // Copy 1인분 (per-serving) macros into the day row.
         DietaRecipe savedRecipe = recipeRepository.save(DietaRecipe.builder()
-                .userId(user.getId())
-                .loggedOn(request.loggedOn())
+                .userId(userId)
+                .loggedOn(date)
                 .mealType(mealType)
                 .recordKind("INTAKE")
                 .title(source.getTitle())
                 .ingredientsJson(source.getIngredientsJson())
                 .steps(source.getSteps())
-                .carbG(source.getCarbG())
-                .proteinG(source.getProteinG())
-                .fatG(source.getFatG())
-                .kcal(source.getKcal())
+                .carbG(nutrition.carbG())
+                .proteinG(nutrition.proteinG())
+                .fatG(nutrition.fatG())
+                .kcal(nutrition.kcal())
                 .oneLineReview(source.getOneLineReview())
                 .servings(source.getServings() == null ? BigDecimal.ONE : source.getServings())
                 .build());
 
-        List<DietaRecipe> dayRecipes = dayRecipes(user.getId(), request.loggedOn());
+        entries.write(userId, date, "PORT:" + savedRecipe.getId(), new RecipePortion(source.getId(), portion, legacy));
+        List<DietaRecipe> dayRecipes = dayRecipes(userId, date);
         MacroTotals recipeSum = sumRecipeMacros(dayRecipes);
 
         String review = source.getOneLineReview() != null
@@ -680,8 +803,8 @@ public class DietaService {
                 : "등록 레시피를 오늘 섭취에 더했어요.";
 
         DietaIntakeLog intake = upsertIntakeWithRecipe(
-                user.getId(),
-                request.loggedOn(),
+                userId,
+                date,
                 savedRecipe.getId().toString(),
                 recipeSum,
                 review);
@@ -695,6 +818,11 @@ public class DietaService {
                 savedRecipe.getOneLineReview(),
                 savedRecipe.getServings(),
                 DietaIntakeLogResponse.from(intake));
+    }
+
+    record RecipePortion(UUID source, BigDecimal portion, DietaIntakeSourceDocument.AnalyzedRecipe legacy) {}
+    static MacroTotals recipeNutrition(DietaRecipe r) {
+        return new MacroTotals(r.getCarbG(), r.getProteinG(), r.getFatG(), r.getKcal());
     }
 
     private DietaIntakeLog upsertIntakeWithRecipe(
@@ -789,8 +917,14 @@ public class DietaService {
             DietaGeminiMealRequest geminiRequest = locked(userId, () -> {
                 requireLease(userId, pending);
                 var activity = activityLogRepository.findByUserIdAndLoggedOn(userId, loggedOn).orElse(null);
-                return DietaGeminiRequestBuilder.build(loggedOn, pending.items(), requireProfile(userId), activity,
+                var mealRequest = DietaGeminiRequestBuilder.build(loggedOn, pending.items(), requireProfile(userId), activity,
                         DietaGeminiRequestBuilder.toKnownRecipes(dayRecipes(userId, loggedOn)));
+                if (activity == null) return mealRequest;
+                var details = activityResponse(userId,activity);
+                var hint = new DietaGeminiMealRequest.ActivityHint(details.steps(),details.durationMin(),details.activityKcal(),
+                        details.activityName(),details.estimatedFields());
+                return new DietaGeminiMealRequest(mealRequest.schemaVersion(),mealRequest.locale(),loggedOn,
+                        mealRequest.goalHint(),mealRequest.meals(),mealRequest.knownRecipes(),hint,mealRequest.instructions());
             });
             // No Spring transaction is active across the external call.
             var send = geminiMealClient.prepare(geminiRequest);
@@ -825,6 +959,9 @@ public class DietaService {
                             queueCarb.doubleValue(), queueProtein.doubleValue(), queueFat.doubleValue());
                 }
                 MacroTotals queueTotals = new MacroTotals(queueCarb, queueProtein, queueFat, queueKcal);
+                entries.write(userId,loggedOn,"REFLECTED",reflectedItems(pending));
+                entries.write(userId, loggedOn, "ANALYSIS", DietaMealBreakdown.validated(
+                        geminiRequest.meals(), geminiResponse.mealTotals(), queueTotals));
                 MacroTotals recipeSum = sumRecipeMacros(dayRecipes);
 
                 DietaIntakeLog existing = intakeLogRepository
@@ -919,13 +1056,15 @@ public class DietaService {
                 return null;
             });
         } catch (RuntimeException ignored) { /* durable queueTotals allows recovery on the next request */ }
-        var reflected = new java.util.ArrayList<DietaMealQueueItemDto>();
-        for (var item : pending.items()) {
-            reflected.add(new DietaMealQueueItemDto("base:" + reflected.size(), item.mealType(), item.text(), item.addedAt()));
-        }
+        var reflected = reflectedItems(pending);
         var result = new DietaMealQueueDayResponse(loggedOn, "done", reflected, done.updatedAt(),
                 stage == Stage.MAIN ? "SUPPLEMENT" : null, 0);
         return new DietaMealFinalizeResponse(saved, result);
+    }
+
+    private static List<DietaMealQueueItemDto> reflectedItems(DietaMealQueueDayResponse pending) {
+        return pending.items().stream().map(i -> new DietaMealQueueItemDto(i.id().startsWith("base:") ? i.id() : "base:"+i.id(),
+                i.mealType(),i.text(),i.addedAt())).toList();
     }
 
     private boolean automaticEligible(UUID userId, LocalDate day, Origin origin, DietaAnalysisStore.Due due) {
@@ -969,7 +1108,7 @@ public class DietaService {
         });
     }
 
-    private List<DietaRecipe> dayRecipes(UUID userId, LocalDate day) {
+    List<DietaRecipe> dayRecipes(UUID userId, LocalDate day) {
         return recipeRepository.findByUserIdAndLoggedOnOrderByCreatedAtAsc(userId, day).stream()
                 .filter(recipe -> !"LIBRARY".equals(recipe.getRecordKind())).toList();
     }
@@ -1088,8 +1227,9 @@ public class DietaService {
         List<DietaIntakeLog> intakes = intakeLogRepository
                 .findByUserIdAndLoggedOnGreaterThanEqualAndLoggedOnLessThanOrderByLoggedOnAsc(
                         userId, profile.getWeekStartsOn(), loggedOn);
-        int days = intakes.size();
-        int avg = days == 0 ? 0 : (int) Math.round(intakes.stream().mapToLong(DietaIntakeLog::getKcal).sum() / (double) days);
+        var reported = reportedIntakes(userId,intakes,profile.getWeekStartsOn(),loggedOn.minusDays(1));
+        int days = reported.size();
+        int avg = days == 0 ? 0 : (int) Math.round(reported.stream().mapToLong(DietaIntakeLogResponse::kcal).sum() / (double) days);
         String choice = plateauChoice != null ? plateauChoice : "CUT_KCAL";
 
         DietaMath.WeekProposal proposal = DietaMath.buildWeeklyCheckInProposal(
@@ -1129,17 +1269,17 @@ public class DietaService {
                 profile.getWeekStartsOn(),
                 due,
                 reached,
-                proposalRevision(userId, loggedOn, weightKg, choice, profile, baseline, intakes));
+                proposalRevision(userId, loggedOn, weightKg, choice, profile, baseline, reported));
     }
 
     private String proposalRevision(UUID userId, LocalDate day, BigDecimal weight, String choice,
-            DietaProfile profile, DietaBodyLog baseline, List<DietaIntakeLog> intakes) {
+            DietaProfile profile, DietaBodyLog baseline, List<DietaIntakeLogResponse> intakes) {
         try {
             // An opaque freshness fingerprint, not an authorization token. User auth is still mandatory.
             byte[] state = objectMapper.writeValueAsBytes(new Object[] {
                     userId, day, weight.stripTrailingZeros().toPlainString(), choice, DietaProfileResponse.from(profile, parseMacros(profile.getMacrosJson()), null),
                     baseline == null ? null : DietaBodyLogResponse.from(baseline),
-                    intakes.stream().map(DietaIntakeLogResponse::from).toList()
+                    intakes
             });
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(state));
         } catch (java.security.NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }
@@ -1206,6 +1346,8 @@ public class DietaService {
                 ingredients = List.of();
             }
         }
+        var portion="INTAKE".equals(recipe.getRecordKind()) ?
+                entries.read(recipe.getUserId(),recipe.getLoggedOn(),"PORT:"+recipe.getId(),RecipePortion.class) : null;
         return new DietaRecipeResponse(
                 recipe.getId(),
                 recipe.getLoggedOn(),
@@ -1219,7 +1361,7 @@ public class DietaService {
                 recipe.getKcal(),
                 recipe.getOneLineReview(),
                 recipe.getServings() == null ? BigDecimal.ONE : recipe.getServings(),
-                recipe.getCreatedAt());
+                recipe.getCreatedAt(), portion==null?BigDecimal.ONE:portion.portion());
     }
 
     private DietaBodyLog findCheckInBaseline(UUID userId, LocalDate beforeIso) {
@@ -1263,14 +1405,14 @@ public class DietaService {
         }
     }
 
-    private DietaProfile requireProfile(UUID userId) {
+    DietaProfile requireProfile(UUID userId) {
         boolean writing = org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
                 && !org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly();
         return (writing ? profileRepository.findLockedByUserId(userId) : profileRepository.findById(userId))
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Dieta 프로필이 없습니다."));
     }
 
-    private User requireUser(String email) {
+    User requireUser(String email) {
         return userService.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
     }

@@ -48,13 +48,13 @@ public final class DietaGeminiRequestBuilder {
             }
         }
 
-        int steps = 0;
-        int activeMinutes = 0;
+        Integer steps = null;
+        Integer activeMinutes = null;
         Integer activityKcal = null;
         if (activity != null) {
-            steps = activity.getSteps() != null ? activity.getSteps() : 0;
-            activeMinutes = activity.getDurationMin() != null ? activity.getDurationMin() : 0;
-            // Only include user-entered burned kcal; never send 0 as a stand-in.
+            steps = activity.getSteps();
+            activeMinutes = activity.getDurationMin();
+            // Use the stored total, including the walking component when available.
             if (activity.getActivityKcal() != null) {
                 activityKcal = activity.getActivityKcal();
             }
@@ -68,7 +68,7 @@ public final class DietaGeminiRequestBuilder {
                 meals,
                 knownRecipes == null ? List.of() : knownRecipes,
                 new ActivityHint(steps, activeMinutes, activityKcal),
-                Instructions.productDefaults());
+                new Instructions(true, true, true, true, activity != null, activity != null && !activity.isSplitCalories(), null, null));
     }
 
     /**

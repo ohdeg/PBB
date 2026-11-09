@@ -109,6 +109,8 @@ export interface DietaIntakeLog {
   review: string | null;
   /** Snapshot: queue meals + recipeIds[] + optional queueTotals/knownRecipes. */
   sourceMealsJson: string | null;
+  includesEstimate?: boolean;
+  estimatedMealKcal?: Record<string,number>;
 }
 
 /** Day-scoped homemade recipe row from `dieta_recipes`. */
@@ -128,6 +130,7 @@ export interface DietaRecipe {
   oneLineReview: string | null;
   /** Batch servings entered at create; macros are per 1 serving. */
   servings: number;
+  consumedPortion?: number;
   createdAt: string | null;
 }
 
@@ -165,6 +168,12 @@ export interface DietaActivityLog {
   steps: number | null;
   durationMin: number | null;
   activityKcal: number | null;
+  walkingKcal?: number | null;
+  exerciseKcal?: number | null;
+  splitCalories?: boolean;
+  activityName?: string | null;
+  estimatedFields?: string[];
+  revision?: string;
   note: string | null;
 }
 

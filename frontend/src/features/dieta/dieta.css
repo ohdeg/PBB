@@ -769,3 +769,8 @@ button.dieta-link {
 @media (max-width: 1023px) {
   .dieta-home-grid.is-checkin-due { grid-template-areas: 'week' 'record' 'summary' 'chart'; }
 }
+
+.dieta-field .dieta-check input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}

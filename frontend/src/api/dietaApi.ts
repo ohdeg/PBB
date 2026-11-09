@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { QuickEdit, QuickPreview, RecordWeek } from '../features/dieta/quickEntry';
 import type {
   DietaActivityLog,
   DietaBodyLog,
@@ -108,6 +109,21 @@ function rethrowDieta(error: unknown, fallback: string): never {
  * `userKey` args are ignored (kept optional for call-site compatibility).
  */
 export const dietaApi = {
+  async activitySuggestions(day:string) {
+    const {data}=await apiClient.get<{previous:DietaActivityLogApi|null; averages:Partial<Record<'steps'|'durationMin'|'exerciseKcal',{value:number;days:number}>>;revision:string}>(
+      `${BASE}/activity-suggestions/${day}`,{params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}});
+    return {...data,previous:data.previous ? mapActivityLog(data.previous) : null};
+  },
+  async quickPreview(day:string): Promise<QuickPreview> {
+    return (await apiClient.get<QuickPreview>(`${BASE}/quick-entry/${day}`, {params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}})).data;
+  },
+  async quickApply(day:string, edit:QuickEdit): Promise<void> {
+    try { await apiClient.post(`${BASE}/quick-entry/${day}`, edit, {params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}}); }
+    catch (error) { rethrowDieta(error,'간편 기록을 저장하지 못했어요.'); }
+  },
+  async recordWeek(day:string): Promise<RecordWeek> {
+    return (await apiClient.get<RecordWeek>(`${BASE}/record-week/${day}`)).data;
+  },
   async getProfile(_key?: string | null): Promise<DietaProfile | null> {
     try {
       const { data } = await apiClient.get<DietaProfileApi>(`${BASE}/profile`);
@@ -481,7 +497,13 @@ export const dietaApi = {
       loggedOn: string;
       steps: number | null;
       durationMin: number | null;
-      activityKcal: number | null;
+      exerciseKcal: number | null;
+      preservedLegacyKcal?: number;
+      expectedLegacyKcal?: number;
+      activityName?: string | null;
+      estimatedFields?: string[];
+      revision?: string;
+      suggestionRevision?: string;
       note?: string | null;
     },
     _key?: string | null,
@@ -493,7 +515,15 @@ export const dietaApi = {
           loggedOn: input.loggedOn,
           steps: input.steps,
           durationMin: input.durationMin,
-          activityKcal: input.activityKcal,
+          splitCalories: input.preservedLegacyKcal == null,
+          activityKcal: input.preservedLegacyKcal,
+          exerciseKcal: input.preservedLegacyKcal == null ? input.exerciseKcal : null,
+          expectedLegacyKcal: input.expectedLegacyKcal,
+          activityName: input.activityName,
+          estimatedFields: input.estimatedFields,
+          revision: input.revision,
+          suggestionRevision: input.suggestionRevision,
+          deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           note: input.note ?? null,
         },
       );

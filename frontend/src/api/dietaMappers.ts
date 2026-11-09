@@ -79,6 +79,12 @@ export interface DietaActivityLogApi {
   steps: number | null;
   durationMin: number | null;
   activityKcal: number | null;
+  walkingKcal?: number | null;
+  exerciseKcal?: number | null;
+  splitCalories?: boolean;
+  activityName?: string | null;
+  estimatedFields?: string[];
+  revision?: string;
   note: string | null;
 }
 
@@ -110,6 +116,8 @@ export interface DietaIntakeLogApi {
   kcal: number;
   review: string | null;
   sourceMealsJson: string | null;
+  includesEstimate?: boolean;
+  estimatedMealKcal?: Record<string,number>;
 }
 
 export interface DietaMealQueueItemApi {
@@ -186,6 +194,7 @@ export interface DietaRecipeApi {
   kcal: number;
   oneLineReview: string | null;
   servings: number;
+  consumedPortion?: number;
   createdAt: string | null;
 }
 
@@ -331,6 +340,12 @@ export function mapActivityLog(api: DietaActivityLogApi): DietaActivityLog {
     steps: api.steps,
     durationMin: api.durationMin,
     activityKcal: api.activityKcal,
+    walkingKcal: api.walkingKcal,
+    exerciseKcal: api.exerciseKcal,
+    splitCalories: api.splitCalories,
+    activityName: api.activityName,
+    estimatedFields: api.estimatedFields,
+    revision: api.revision,
     note: api.note ?? null,
   };
 }
@@ -368,6 +383,8 @@ export function mapIntakeLog(api: DietaIntakeLogApi): DietaIntakeLog {
     kcal: api.kcal,
     review: api.review ?? null,
     sourceMealsJson: api.sourceMealsJson ?? null,
+    includesEstimate: api.includesEstimate,
+    estimatedMealKcal: api.estimatedMealKcal,
   };
 }
 
@@ -398,6 +415,7 @@ export function mapRecipe(api: DietaRecipeApi): DietaRecipe {
     kcal: api.kcal,
     oneLineReview: api.oneLineReview ?? null,
     servings: asNumber(api.servings ?? 1),
+    consumedPortion: api.consumedPortion,
     createdAt: api.createdAt ? asIsoDateTime(api.createdAt) : null,
   };
 }

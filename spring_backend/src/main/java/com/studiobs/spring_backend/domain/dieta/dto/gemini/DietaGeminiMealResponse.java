@@ -7,8 +7,13 @@ public record DietaGeminiMealResponse(
         int schemaVersion,
         LocalDate loggedOn,
         Totals totals,
-        String oneLineReview
+        String oneLineReview,
+        tools.jackson.databind.JsonNode mealTotals
 ) {
+    public DietaGeminiMealResponse(int schemaVersion, LocalDate loggedOn, Totals totals, String review) {
+        this(schemaVersion, loggedOn, totals, review, null);
+    }
+
     public record Totals(
             BigDecimal carbG,
             BigDecimal proteinG,

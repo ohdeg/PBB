@@ -76,3 +76,24 @@ mysql --login-path=PROD_LOGIN --database=PROD_DB -e "SELECT DATABASE(); SHOW CRE
 두 테이블은 기존 Dieta 프로필을 참조한다. 기존 사용자의 예약은 기본 꺼짐이다.
 운영에서는 구버전의 분석 요청을 중지하고 진행 중인 요청이 끝난 뒤 새 백엔드와 프런트엔드를 배포한다.
 로컬 dev 프로필은 같은 DDL을 Flyway로 적용한다.
+
+## 2026-11-09 활동 열량 분리
+
+백엔드 배포 전 운영 DB에 `infra/mysql/migrations/20261109_dieta_activity_calories.sql`을 적용한다.
+`SHOW COLUMNS FROM dieta_activity_logs`로 `split_calories`, `walking_kcal`, `exercise_kcal`을 확인한다.
+기존 행의 총열량은 유지된다. 이전 백엔드 인스턴스를 모두 교체한 뒤 새 프런트엔드를 배포한다.
+
+## 식사·활동 간편 입력
+
+운영에서는 백엔드를 교체하기 전에 `20261109_dieta_activity_calories.sql` 다음으로
+`infra/mysql/migrations/20261110_dieta_quick_entry.sql`을 적용한다.
+운영 DB에서 다음 두 결과를 확인한 뒤 백엔드와 프런트엔드를 배포한다.
+
+```sql
+SHOW CREATE TABLE dieta_day_records;
+SHOW CREATE TABLE dieta_favorite_meals;
+```
+
+두 테이블 모두 사용자 프로필 삭제 시 연관 행을 삭제한다. 기존 분석 결과는 그대로 읽고
+새 입력부터 날짜별 음식 원본을 MySQL에 보관한다. 구버전 서버와 신버전 서버의 쓰기 경로가
+다르므로 동시에 운영하지 않는다.

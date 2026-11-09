@@ -552,6 +552,9 @@ CREATE TABLE IF NOT EXISTS dieta_activity_logs (
     steps                    INT            NULL,
     duration_min             INT            NULL,
     activity_kcal            INT            NULL,
+    split_calories           BOOLEAN        NOT NULL DEFAULT FALSE,
+    walking_kcal             INT            NULL,
+    exercise_kcal            INT            NULL,
     note                     VARCHAR(255)   NULL,
     created_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at               TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -772,5 +775,23 @@ CREATE TABLE IF NOT EXISTS dieta_meal_analysis_days (
     state VARCHAR(12) NOT NULL,
     claim_id CHAR(36) NOT NULL,
     PRIMARY KEY (user_id, logged_on, stage),
+    FOREIGN KEY (user_id) REFERENCES dieta_profiles(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS dieta_day_records (
+    user_id CHAR(36) NOT NULL,
+    logged_on DATE NOT NULL,
+    record_key VARCHAR(96) NOT NULL,
+    payload JSON NOT NULL,
+    PRIMARY KEY (user_id, logged_on, record_key),
+    FOREIGN KEY (user_id) REFERENCES dieta_profiles(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS dieta_favorite_meals (
+    user_id CHAR(36) NOT NULL,
+    id CHAR(36) NOT NULL,
+    name VARCHAR(80) NOT NULL,
+    items JSON NOT NULL,
+    used_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (user_id, id),
     FOREIGN KEY (user_id) REFERENCES dieta_profiles(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

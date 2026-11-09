@@ -52,8 +52,34 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class DietaController {
 
+    private final com.studiobs.spring_backend.domain.dieta.service.DietaQuickMeals quickMeals;
     private final DietaService dietaService;
     private final AccessTokenResolver accessTokenResolver;
+
+    @GetMapping("/quick-entry/{day}")
+    public com.studiobs.spring_backend.domain.dieta.service.DietaEntryStore.Preview quickPreview(
+            HttpServletRequest req,@PathVariable LocalDate day,@RequestParam(defaultValue="UTC") String zone) {
+        return quickMeals.preview(accessTokenResolver.requireEmail(req),day,zone);
+    }
+
+    @PostMapping("/quick-entry/{day}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void applyQuickEntry(HttpServletRequest req,@PathVariable LocalDate day,@RequestParam(defaultValue="UTC") String zone,
+            @RequestBody com.studiobs.spring_backend.domain.dieta.service.DietaEntryStore.Edit edit) {
+        quickMeals.apply(accessTokenResolver.requireEmail(req),day,zone,edit);
+    }
+
+    @GetMapping("/activity-suggestions/{day}")
+    public com.studiobs.spring_backend.domain.dieta.service.DietaActivityHistory.Suggestions activitySuggestions(
+            HttpServletRequest req, @PathVariable LocalDate day, @RequestParam(defaultValue="UTC") String zone) {
+        return quickMeals.activitySuggestions(accessTokenResolver.requireEmail(req),day,zone);
+    }
+
+    @GetMapping("/record-week/{end}")
+    public com.studiobs.spring_backend.domain.dieta.service.DietaQuickMeals.Week recordWeek(
+            HttpServletRequest req,@PathVariable LocalDate end) {
+        return quickMeals.week(accessTokenResolver.requireEmail(req),end);
+    }
 
     @GetMapping("/profile")
     public DietaProfileResponse getProfile(HttpServletRequest request) {

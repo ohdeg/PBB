@@ -21,6 +21,15 @@ class DietaGeminiRequestBuilderTest {
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
     @Test
+    void splitEnergySendsStoredSumWithoutEstimatingMinutesAgain() {
+        var activity = DietaActivityLog.builder().steps(10000).durationMin(30).build();
+        activity.setCalorieBreakdown(247, 150);
+        var request = DietaGeminiRequestBuilder.build(LocalDate.of(2026, 11, 9), List.of(), sampleProfile(), activity, List.of());
+        assertThat(request.activityHint().activityKcal()).isEqualTo(397);
+        assertThat(request.instructions().estimateActivityKcalIfMissing()).isFalse();
+    }
+
+    @Test
     void activityKcal_omittedFromJson_whenNull() throws Exception {
         DietaProfile profile = sampleProfile();
         DietaActivityLog activity = DietaActivityLog.builder()

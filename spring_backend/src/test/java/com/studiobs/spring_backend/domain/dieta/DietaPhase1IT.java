@@ -100,6 +100,23 @@ class DietaPhase1IT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].steps").value(8000));
 
+        var activityUrl = "/api/v1/dieta/activities";
+        String convert = """
+                {"loggedOn":"%s","steps":8000,"durationMin":40,"exerciseKcal":120,
+                 "splitCalories":true,"expectedLegacyKcal":%s}
+                """;
+        mockMvc.perform(put(activityUrl).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(convert.formatted(today, 200)))
+                .andExpect(status().isConflict());
+        mockMvc.perform(put(activityUrl).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(convert.formatted(today, 220)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.walkingKcal").value(231))
+                .andExpect(jsonPath("$.exerciseKcal").value(120)).andExpect(jsonPath("$.activityKcal").value(351));
+        mockMvc.perform(put(activityUrl).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loggedOn\":\"" + today + "\",\"activityKcal\":220}"))
+                .andExpect(status().isConflict());
+
         mockMvc.perform(post("/api/v1/dieta/keto-events")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)

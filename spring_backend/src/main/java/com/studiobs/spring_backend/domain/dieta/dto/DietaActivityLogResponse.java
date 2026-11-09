@@ -10,7 +10,10 @@ public record DietaActivityLogResponse(
         Integer steps,
         Integer durationMin,
         Integer activityKcal,
-        String note
+        boolean splitCalories,
+        Integer walkingKcal,
+        Integer exerciseKcal,
+        String note, String activityName, java.util.Set<String> estimatedFields, String revision
 ) {
     public static DietaActivityLogResponse from(DietaActivityLog log) {
         return new DietaActivityLogResponse(
@@ -19,7 +22,10 @@ public record DietaActivityLogResponse(
                 log.getSteps(),
                 log.getDurationMin(),
                 log.getActivityKcal(),
-                log.getNote()
+                log.isSplitCalories(),
+                log.getWalkingKcal(),
+                log.getExerciseKcal(),
+                log.getNote(), null, java.util.Set.of(), null
         );
     }
 }

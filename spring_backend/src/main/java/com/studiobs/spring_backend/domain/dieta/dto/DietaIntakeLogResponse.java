@@ -13,7 +13,9 @@ public record DietaIntakeLogResponse(
         BigDecimal fatG,
         int kcal,
         String review,
-        String sourceMealsJson
+        String sourceMealsJson,
+        boolean includesEstimate,
+        java.util.Map<String,Integer> estimatedMealKcal
 ) {
     public static DietaIntakeLogResponse from(DietaIntakeLog log) {
         return new DietaIntakeLogResponse(
@@ -24,6 +26,6 @@ public record DietaIntakeLogResponse(
                 log.getFatG(),
                 log.getKcal(),
                 log.getReview(),
-                log.getSourceMealsJson());
+                log.getSourceMealsJson(),false,java.util.Map.of());
     }
 }

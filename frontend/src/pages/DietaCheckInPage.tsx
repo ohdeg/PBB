@@ -1,3 +1,4 @@
+import { DietaRecordWeek } from '../components/dieta/DietaRecordWeek';
 import { DietaLoadState } from '../components/dieta/DietaLoadState';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
@@ -32,7 +33,7 @@ export function DietaCheckInPage() {
 
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
-  const today = todayIsoDate();
+  const today = todayIsoDate(new Date(), profile?.mealSchedule?.zone);
 
   useEffect(() => {
     if (!accessToken) {
@@ -160,6 +161,7 @@ export function DietaCheckInPage() {
             홈
           </Link>
         </div>
+        <DietaRecordWeek day={today}/>
         <section className="dieta-card">
           {completed ? (
             <>
@@ -187,6 +189,7 @@ export function DietaCheckInPage() {
       <div className="dieta-title-row">
         <h1>주간 체크인</h1>
       </div>
+      <DietaRecordWeek day={today}/>
 
       {result ? <p role="status" className="dieta-muted">{result}</p> : null}
       {proposalPending ? <p role="status" className="dieta-muted">계획을 불러오는 중…</p> : null}

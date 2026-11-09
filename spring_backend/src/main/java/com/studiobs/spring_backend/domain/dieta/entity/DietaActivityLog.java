@@ -46,6 +46,15 @@ public class DietaActivityLog {
     @Column(name = "activity_kcal")
     private Integer activityKcal;
 
+    @Column(name = "split_calories", nullable = false)
+    private boolean splitCalories;
+
+    @Column(name = "walking_kcal")
+    private Integer walkingKcal;
+
+    @Column(name = "exercise_kcal")
+    private Integer exerciseKcal;
+
     @Column(length = 255)
     private String note;
 
@@ -72,6 +81,14 @@ public class DietaActivityLog {
         this.durationMin = durationMin;
         this.activityKcal = activityKcal;
         this.note = note;
+    }
+
+    public void setCalorieBreakdown(Integer walking, Integer exercise) {
+        this.splitCalories = true;
+        this.walkingKcal = walking;
+        this.exerciseKcal = exercise;
+        this.activityKcal = walking == null && exercise == null ? null :
+                Math.addExact(walking == null ? 0 : walking, exercise == null ? 0 : exercise);
     }
 
     public void update(Integer steps, Integer durationMin, Integer activityKcal, String note) {

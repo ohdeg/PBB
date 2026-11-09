@@ -15,6 +15,13 @@ public final class DietaMath {
     private static final double ACTIVITY_FACTOR_CONSERVATIVE_SCALE = 0.75;
     private static final double MIN_TDEE_ACTIVITY_FACTOR = 1.2;
 
+    public static Integer walkingKcal(Integer steps, BigDecimal heightCm, BigDecimal weightKg) {
+        if (steps == null) return null;
+        if (steps == 0) return 0;
+        if (heightCm == null || heightCm.signum() <= 0 || weightKg == null || weightKg.signum() <= 0) return null;
+        return Math.toIntExact(Math.round(steps * heightCm.doubleValue() * 0.415 / 100_000 * weightKg.doubleValue() * 0.5));
+    }
+
     private DietaMath() {
     }
 

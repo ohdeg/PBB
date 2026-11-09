@@ -103,6 +103,12 @@ function rethrowDieta(error: unknown, fallback: string): never {
   throw new Error(getErrorMessage(error, fallback));
 }
 
+const quickPreviewServerMessages = new Set([
+  '식사 큐를 읽을 수 없습니다.',
+  '매크로 JSON을 읽을 수 없습니다.',
+  '서버 내부 오류가 발생했습니다.',
+]);
+
 /**
  * Dieta HTTP client — authenticated via `apiClient` Bearer token (brew/lotto pattern).
  * Guest landing does not call these methods; logged-in routes require a session.
@@ -121,7 +127,9 @@ export const dietaApi = {
       if (!axios.isAxiosError(error)) throw new Error('간편 기록 요청을 시작하지 못했어요.');
       const status = error.response?.status;
       if (!status) throw new Error('간편 기록 조회 실패 · 브라우저가 서버 응답을 받지 못했어요.');
-      const hint = status === 401 ? '다시 로그인해 주세요.' :
+      const serverMessage = getErrorMessage(error, '');
+      const hint = status === 500 && quickPreviewServerMessages.has(serverMessage) ? serverMessage :
+        status === 401 ? '다시 로그인해 주세요.' :
         status === 404 ? '요청한 간편 기록을 찾지 못했어요.' :
         status === 400 ? getErrorMessage(error, '날짜와 시간대를 확인해 주세요.') : '잠시 후 다시 시도해 주세요.';
       throw new Error(`간편 기록 조회 실패 (HTTP ${status}). ${hint}`);

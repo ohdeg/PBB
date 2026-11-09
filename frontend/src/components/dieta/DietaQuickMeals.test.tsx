@@ -33,3 +33,11 @@ it('blocks an estimate for an already recorded meal',async()=>{
   expect(await screen.findByText('추정으로 저장')).toBeDisabled();
   fireEvent.click(screen.getByText('취소'));expect(dietaApi.quickApply).not.toHaveBeenCalled();
 });
+
+it('shows the preview failure on the phone before reopening', async()=>{
+  vi.mocked(dietaApi.quickPreview).mockRejectedValueOnce(new Error('간편 기록 조회 실패 (HTTP 404).'));
+  show(); fireEvent.click(screen.getByText('어제 식사 가져오기'));
+  expect(await screen.findByRole('status')).toHaveTextContent('HTTP 404');
+  fireEvent.click(screen.getByText('어제 식사 가져오기'));
+  expect(await screen.findByText('선택한 음식 추가')).toBeEnabled();
+});

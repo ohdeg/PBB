@@ -115,7 +115,24 @@ export const dietaApi = {
     return {...data,previous:data.previous ? mapActivityLog(data.previous) : null};
   },
   async quickPreview(day:string): Promise<QuickPreview> {
-    return (await apiClient.get<QuickPreview>(`${BASE}/quick-entry/${day}`, {params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}})).data;
+    const response = await apiClient.get<QuickPreview>(`${BASE}/quick-entry/${day}`, {
+      params: {zone: Intl.DateTimeFormat().resolvedOptions().timeZone},
+    }).catch((error: unknown) => {
+      if (!axios.isAxiosError(error)) throw new Error('간편 기록 요청을 시작하지 못했어요.');
+      const status = error.response?.status;
+      if (!status) throw new Error('간편 기록 조회 실패 · 브라우저가 서버 응답을 받지 못했어요.');
+      const hint = status === 401 ? '다시 로그인해 주세요.' :
+        status === 404 ? '요청한 간편 기록을 찾지 못했어요.' :
+        status === 400 ? getErrorMessage(error, '날짜와 시간대를 확인해 주세요.') : '잠시 후 다시 시도해 주세요.';
+      throw new Error(`간편 기록 조회 실패 (HTTP ${status}). ${hint}`);
+    });
+    const data = response.data;
+    if (!data || !Array.isArray(data.previous) || !Array.isArray(data.current) ||
+        !Array.isArray(data.favorites) || !Array.isArray(data.averages) || !data.estimates ||
+        typeof data.revision !== 'string' || typeof data.requestId !== 'string') {
+      throw new Error(`간편 기록 응답 형식을 확인할 수 없어요 (HTTP ${response.status}).`);
+    }
+    return data;
   },
   async quickApply(day:string, edit:QuickEdit): Promise<void> {
     try { await apiClient.post(`${BASE}/quick-entry/${day}`, edit, {params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}}); }

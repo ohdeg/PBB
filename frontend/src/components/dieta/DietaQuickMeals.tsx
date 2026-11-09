@@ -30,7 +30,9 @@ export function DietaQuickMeals({day,mealType,refresh,disabled,offset=0}:{offset
       setPreview(p);setMode(next);setTargetMeal(mealType);setName('');setPortion('1');
       setFav(next==='favorite' ? p.favorites[0]?.id ?? '' : '');
       choose(next==='previous'?p.previous:next==='favorite'?p.favorites[0]?.items ?? []:p.current.filter(i=>i.mealType===mealType));
-    } catch { setMessage('간편 기록을 불러오지 못했어요. 다시 열어 주세요.'); }
+    } catch (error) {
+      if (request === generation.current) setMessage(error instanceof Error ? error.message : '간편 기록을 불러오지 못했어요.');
+    }
     finally { if(request===generation.current) setBusy(false); }
   }
   async function apply(action:QuickEdit['action']) {

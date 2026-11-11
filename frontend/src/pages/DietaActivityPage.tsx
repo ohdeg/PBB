@@ -194,10 +194,10 @@ function DayPage({offset}:{offset:number}) {
         <h1>활동</h1>
       </div>
 
-      <section className="dieta-card">
+      <section className="dieta-activity-log">
         <DietaEntryDate offset={offset} day={today} disabled={busy}/>
         <h2>{label} 활동 기록</h2>
-        <div className="dieta-actions">
+        <details className="dieta-import"><summary>활동 불러오기</summary><div className="dieta-actions">
           <button type="button" disabled={busy} onClick={()=>void openSource('copy')}>{offset?'그제 운동 가져오기':'어제 운동 가져오기'}</button>
           <button type="button" disabled={busy} onClick={()=>void openSource('average')}>평소 수준으로 채우기</button>
         </div>
@@ -210,11 +210,10 @@ function DayPage({offset}:{offset:number}) {
           })}
           <p className="dieta-muted">{source==='copy'?(prior?'전날 기록된 값 중 비어 있는 항목만 선택할 수 있어요.':'가져올 전날 활동 기록이 없어요.'):'기록이 3일 이상인 항목만 표시해요. 선택 후 아래에서 값을 조정하고 저장하세요.'}</p>
         </fieldset>}
-        <label className="dieta-field">운동명<input value={activityName} maxLength={100} disabled={busy}
-          placeholder="예: 점심 산책" onChange={e=>{setName(e.target.value);if(e.target.value && mins==='0')setMins('');}}/></label>
-        <button type="button" disabled={busy} onClick={()=>{setName('');setMins('0');setKcal('');setEstimated(old=>old.filter(f=>f==='steps'));}}>운동 안 함</button>
+        </details>
         {estimated.map(f=><p key={f}>{activityLabels[f as ActivityField]} · 추정
           <button type="button" disabled={busy} onClick={()=>setEstimated(prev=>prev.filter(v=>v!==f))}>직접 기록으로 변경</button></p>)}
+        <div className="dieta-activity-walk"><h3>걷기</h3>
         <p className="dieta-muted">걸음을 입력하면 키와 체중으로 걷기 소모 열량을 추정해요.</p>
         <div className="dieta-field">
           <label htmlFor="dieta-activity-steps">걸음</label>
@@ -228,6 +227,12 @@ function DayPage({offset}:{offset:number}) {
         {count != null && (!legacy || replaceLegacy) && <p className="dieta-muted" aria-live="polite">
           {walking != null ? `걷기 추정 약 ${walking} kcal` : '걸음 수와 기록일 기준 키·체중이 있어야 걷기 열량을 추정할 수 있어요.'}
         </p>}
+        </div>
+        <div className="dieta-activity-workout"><h3>운동</h3>
+        <label className="dieta-field">운동명<input value={activityName} maxLength={100} disabled={busy}
+          placeholder="예: 점심 산책" onChange={e=>{setName(e.target.value);if(e.target.value && mins==='0')setMins('');}}/></label>
+        <button type="button" disabled={busy} onClick={()=>{setName('');setMins('0');setKcal('');setEstimated(old=>old.filter(f=>f==='steps'));}}>운동 안 함</button>
+        <div className="dieta-field-pair">
         <div className="dieta-field">
           <label htmlFor="dieta-activity-mins">운동 시간 (분)</label>
           <input
@@ -246,9 +251,11 @@ function DayPage({offset}:{offset:number}) {
             onChange={(e) => setKcal(e.target.value)}
           />
         </div>
+        </div>
         <p id="dieta-exercise-help" className="dieta-muted">걷기·달리기의 운동 열량을 입력했다면 그 운동 중 걸음은 위 걸음 수에서 빼 주세요. 운동 시간은 열량에 따로 더하지 않아요.</p>
         {legacy && <label className="dieta-check"><input type="checkbox" checked={replaceLegacy}
           onChange={e => setReplaceLegacy(e.target.checked)} />기존 총 {todayLog.activityKcal} kcal를 걷기 추정과 운동 입력으로 교체</label>}
+        </div>
         <button
           type="button"
           className="dieta-btn dieta-btn--primary dieta-btn--block"

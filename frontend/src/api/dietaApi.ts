@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { QuickEdit, QuickPreview, RecordWeek } from '../features/dieta/quickEntry';
+import type { MealDayDetails, QuickEdit, QuickPreview, RecordWeek } from '../features/dieta/quickEntry';
 import type {
   DietaActivityLog,
   DietaBodyLog,
@@ -115,6 +115,13 @@ const quickPreviewServerMessages = new Set([
  * `userKey` args are ignored (kept optional for call-site compatibility).
  */
 export const dietaApi = {
+  async mealDay(day:string): Promise<MealDayDetails> {
+    type Response = Omit<MealDayDetails,'queue'|'intake'> & {queue:DietaMealQueueDayApi;intake:DietaIntakeLogApi|null};
+    const {data} = await apiClient.get<Response>(`${BASE}/meal-days/${day}`, {
+      params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone},
+    });
+    return {...data,queue:mapMealQueueDay(data.queue),intake:data.intake ? mapIntakeLog(data.intake) : null};
+  },
   async activitySuggestions(day:string) {
     const {data}=await apiClient.get<{previous:DietaActivityLogApi|null; averages:Partial<Record<'steps'|'durationMin'|'exerciseKcal',{value:number;days:number}>>;revision:string}>(
       `${BASE}/activity-suggestions/${day}`,{params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}});
@@ -390,6 +397,7 @@ export const dietaApi = {
           mealType: input.mealType,
           text: input.text,
         },
+        { params: { zone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
       );
       return mapMealQueueDay(data);
     } catch (error) {
@@ -404,7 +412,7 @@ export const dietaApi = {
     try {
       const { data } = await apiClient.delete<DietaMealQueueDayApi>(
         `${BASE}/meal-queue/items/${encodeURIComponent(input.itemId)}`,
-        { params: { loggedOn: input.loggedOn } },
+        { params: { loggedOn: input.loggedOn, zone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
       );
       return mapMealQueueDay(data);
     } catch (error) {
@@ -421,6 +429,7 @@ export const dietaApi = {
       const { data } = await apiClient.post<DietaMealFinalizeApi>(
         `${BASE}/meal-queue/finalize`,
         { loggedOn, stage },
+        { params: { zone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
       );
       return {
         intake: mapIntakeLog(data.intake),
@@ -436,7 +445,8 @@ export const dietaApi = {
   ): Promise<{ intake: DietaIntakeLog; queue: DietaMealQueueDay } | null> {
     try {
       const res = await apiClient.post<DietaMealFinalizeApi | ''>(
-        `${BASE}/meal-queue/auto-finalize-yesterday`,
+        `${BASE}/meal-queue/auto-finalize-yesterday`, null,
+        {params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}},
       );
       if (res.status === 204 || res.data == null || res.data === '') {
         return null;
@@ -499,6 +509,7 @@ export const dietaApi = {
       const { data } = await apiClient.post<DietaRecipeAnalyzeApi>(
         `${BASE}/recipes/${input.recipeId}/add-to-day`,
         body,
+        { params: { zone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
       );
       return mapRecipeAnalyze(data);
     } catch (error) {

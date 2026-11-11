@@ -8,10 +8,14 @@ public record DietaGeminiMealResponse(
         LocalDate loggedOn,
         Totals totals,
         String oneLineReview,
-        tools.jackson.databind.JsonNode mealTotals
+        tools.jackson.databind.JsonNode mealTotals, tools.jackson.databind.JsonNode foods
 ) {
     public DietaGeminiMealResponse(int schemaVersion, LocalDate loggedOn, Totals totals, String review) {
-        this(schemaVersion, loggedOn, totals, review, null);
+        this(schemaVersion, loggedOn, totals, review, null, null);
+    }
+
+    public DietaGeminiMealResponse(int version, LocalDate day, Totals totals, String review, tools.jackson.databind.JsonNode meals) {
+        this(version, day, totals, review, meals, null);
     }
 
     public record Totals(

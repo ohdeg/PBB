@@ -38,13 +38,12 @@ public final class DietaGeminiRequestBuilder {
 
         List<MealGroup> meals = new ArrayList<>();
         for (String mealType : MEAL_ORDER) {
-            List<String> texts = items.stream()
-                    .filter(i -> mealType.equals(i.mealType()))
-                    .map(i -> i.text() == null ? "" : i.text().trim())
-                    .filter(t -> !t.isEmpty())
+            var entries = items.stream()
+                    .filter(i -> mealType.equals(i.mealType()) && i.text() != null && !i.text().isBlank())
                     .toList();
-            if (!texts.isEmpty()) {
-                meals.add(new MealGroup(mealType, texts));
+            if (!entries.isEmpty()) {
+                meals.add(new MealGroup(mealType, entries.stream().map(i -> i.text().trim()).toList(),
+                        entries.stream().map(i -> i.id().replaceFirst("^base:", "")).toList()));
             }
         }
 

@@ -9,6 +9,7 @@ import { DietaLineChart } from '../components/dieta/DietaCharts';
 import { DietaWeekPlanModal } from '../components/dieta/DietaWeekPlanModal';
 import type {
   DietaBodyLog,
+  DietaActivityLog,
   DietaIntakeLog,
   DietaProfile,
   DietaMealQueueDay,
@@ -63,6 +64,8 @@ export function DietaHomePage() {
   const [profile, setProfile] = useState<DietaProfile | null>(null);
   const [logs, setLogs] = useState<DietaBodyLog[]>([]);
   const [queue, setQueue] = useState<DietaMealQueueDay | null>(null);
+  const [foodNames,setFoodNames] = useState<string[]>([]);
+  const [activity,setActivity] = useState<DietaActivityLog|null|undefined>(null);
   const [meals, setMeals] = useState<DietaIntakeLog[]>([]);
   const [weightInput, setWeightInput] = useState('');
   const [weightRange, setWeightRange] = useState<WeightRange>('1M');
@@ -75,7 +78,7 @@ export function DietaHomePage() {
 
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
-  const today = todayIsoDate(new Date(), profile?.mealSchedule?.zone);
+  const today = todayIsoDate(new Date(), profile?.mealSchedule?.enabled ? profile.mealSchedule.zone : undefined);
 
   useEffect(() => {
     if (!accessToken) {
@@ -87,22 +90,23 @@ export function DietaHomePage() {
       const p = await dietaApi.getProfile(userKey);
       if (cancelled) return;
       if (!p?.onboardingComplete) { setProfile(p); setLoaded(true); return; }
-      const [body, allMeals, mealQueue] = await Promise.all([
+      const date = todayIsoDate(new Date(),p.mealSchedule?.enabled ? p.mealSchedule.zone : undefined);
+      const [body, mealDay, activityLog] = await Promise.all([
         dietaApi.listBodyLogs(userKey),
-        dietaApi.listIntakes(undefined, userKey),
-        dietaApi.getMealQueue(today, userKey),
+        dietaApi.mealDay(date),
+        dietaApi.listActivities(userKey).then(rows=>rows.find(r=>r.loggedOn===date) ?? null).catch(()=>undefined),
       ]);
       if (cancelled) {
         return;
       }
       setProfile(p);
       setLogs(body);
-      setMeals(allMeals);
-      setQueue(mealQueue);
-      const todayLog = body.find((l) => l.loggedOn === today);
-      if (todayLog?.weightKg != null) {
-        setWeightInput(String(todayLog.weightKg));
-      }
+      setMeals(mealDay.intake ? [mealDay.intake] : []);
+      setQueue(mealDay.queue);
+      setFoodNames(mealDay.foods.map(row=>row.name));
+      setActivity(activityLog);
+      const todayLog = body.find(l=>l.loggedOn===date);
+      setWeightInput(todayLog?.weightKg != null ? String(todayLog.weightKg) : '');
       setLoaded(true);
     })().catch((e: unknown) => { if (!cancelled) setLoadError(e instanceof Error ? e.message : '기록을 불러오지 못했어요.'); });
     return () => {
@@ -283,7 +287,7 @@ export function DietaHomePage() {
     <>
       <div className="dieta-title-row">
         <div>
-          <h1>오늘의 기록</h1><p className="dieta-muted">{new Intl.DateTimeFormat('ko-KR', {month:'long',day:'numeric',weekday:'long'}).format(new Date())}</p>
+          <h1>오늘의 기록</h1><p className="dieta-muted">{new Intl.DateTimeFormat('ko-KR', {month:'long',day:'numeric',weekday:'long',timeZone:'UTC'}).format(new Date(today+'T12:00:00Z'))}</p>
           <span className="dieta-badge">{goalLabel}</span>
           {profile.targetWeightKg != null && profile.goalType !== 'MAINTAIN' ? (
             <span className="dieta-muted" style={{ marginLeft: '0.45rem' }}>
@@ -294,20 +298,17 @@ export function DietaHomePage() {
         <span className="dieta-muted">{weekDay}일차</span>
       </div>
 
-      <DietaRecordWeek day={today}/>
+
       <div className={`dieta-home-grid${checkInDue ? ' is-checkin-due' : ''}`}>
       <section className="dieta-card dieta-home-week">
-        <span className="dieta-badge">이번 주</span><h2 style={{marginTop:12}}>{checkInDue ? '한 주를 돌아볼 시간이에요' : '내 리듬대로 기록하세요'}</h2>
-        <p className="dieta-muted">{checkInDue ? '체중과 식사 기록을 바탕으로 다음 주 목표를 함께 확인해요.' : `다음 체크인까지 ${Math.max(0, 8 - weekDay)}일 남았어요. 매일 체중 기록은 선택이에요.`}</p>
+        <h2>주간 체크인</h2><p className="dieta-muted">{checkInDue ? '이번 주 기록을 확인할 수 있어요.' : `다음 체크인까지 ${Math.max(0,8-weekDay)}일`}</p>
         {checkInDue && <Link className="dieta-btn dieta-btn--primary dieta-btn--block" to="/hobbies/dieta/check-in">주간 체크인 시작</Link>}
         <details className="dieta-details"><summary>기록은 어떻게 반영되나요?</summary><p>매일 체중은 변화 그래프에, 분석을 마친 식사는 섭취 요약에 반영돼요. 주간 체크인에서 다음 주 계획을 확인하고 적용할 수 있어요.</p></details>
       </section>
       <section className="dieta-card dieta-home-record">
         <h2>오늘 기록하기</h2>
-        <div className="dieta-actions"><Link className={`dieta-btn ${checkInDue ? 'dieta-btn--soft' : 'dieta-btn--primary'}`} to="/hobbies/dieta/meals">식사 기록하기</Link></div>
-        <p className="dieta-muted" style={{ marginTop: '0.35rem' }}>
-          {checkInDue ? '오늘 체중으로 다음 주 계획을 확인하세요. 확인 후 적용할 때 저장됩니다.' : '아침 공복 체중을 남겨 보세요. 오늘 기록이 있으면 수정됩니다.'}
-        </p>
+        <Link className="dieta-home-entry" to="/hobbies/dieta/meals"><span>식사</span><strong>{foodNames.length?foodNames.slice(0,2).join(', ')+(foodNames.length>2?' 외 '+(foodNames.length-2)+'개':''):'기록하기'}</strong><span aria-hidden="true">›</span></Link>
+        <Link className="dieta-home-entry" to="/hobbies/dieta/activity"><span>활동</span><strong>{activity ? [activity.steps!=null?activity.steps.toLocaleString()+'보':null,activity.activityName,activity.durationMin!=null?activity.durationMin+'분':null].filter(Boolean).join(' · ') || '활동 기록 보기' : activity===null?'기록하기':'기록 확인'}</strong><span aria-hidden="true">›</span></Link>
         <div className="dieta-field" style={{ marginTop: '0.65rem' }}>
           <label htmlFor="dieta-fasted-weight">오늘 체중 (kg)</label>
           <input
@@ -418,6 +419,7 @@ export function DietaHomePage() {
       </section>
 
       </div>
+      <DietaRecordWeek day={today}/>
       {profile.goalType !== 'GAIN' ? (
         <button
           type="button"

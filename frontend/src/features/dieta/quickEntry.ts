@@ -28,3 +28,12 @@ export function useEntryOffset() {
   const [params] = useSearchParams();
   return params.get('day') === 'yesterday' ? -1 : 0;
 }
+
+export interface MealDayDetails {
+  day: string;
+  queue: import('./types').DietaMealQueueDay;
+  intake: import('./types').DietaIntakeLog | null;
+  completedStage: 'MAIN'|'SUPPLEMENT'|null;
+  mealTotals: Partial<Record<DietaMealType|'OTHER',Nutrition>>;
+  foods: {mealType:string|null;name:string;portion:string|null;source:string;nutrition:Nutrition|null}[];
+}

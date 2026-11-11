@@ -6,7 +6,7 @@ import { dietaApi } from '../api/dietaApi';
 import { mapProfile, type DietaProfileApi } from '../api/dietaMappers';
 import { todayIsoDate } from '../features/dieta/utils/dietaMath';
 vi.mock('../api/dietaApi', () => ({ dietaApi: {
-  getProfile: vi.fn(), getMealQueue: vi.fn().mockResolvedValue(null), listBodyLogs: vi.fn(), listIntakes: vi.fn(), upsertBodyLog: vi.fn(), setMaintainMode: vi.fn(),
+  mealDay:vi.fn().mockResolvedValue({foods:[],queue:null,intake:null}),listActivities:vi.fn().mockResolvedValue([]),getProfile: vi.fn(), getMealQueue: vi.fn().mockResolvedValue(null), listBodyLogs: vi.fn(), listIntakes: vi.fn(), upsertBodyLog: vi.fn(), setMaintainMode: vi.fn(),
 } }));
 vi.mock('../stores/authStore', () => ({ useAuthStore: (select: (state: object) => unknown) =>
   select({ accessToken: 'session', userId: 'user', email: 'test@example.com' }) }));

@@ -56,6 +56,12 @@ public class DietaController {
     private final DietaService dietaService;
     private final AccessTokenResolver accessTokenResolver;
 
+    @GetMapping("/meal-days/{day}")
+    public com.studiobs.spring_backend.domain.dieta.service.DietaMealDay mealDay(
+            HttpServletRequest request, @PathVariable LocalDate day, @RequestParam(defaultValue="UTC") String zone) {
+        return dietaService.mealDay(accessTokenResolver.requireEmail(request), day, zone);
+    }
+
     @GetMapping("/quick-entry/{day}")
     public com.studiobs.spring_backend.domain.dieta.service.DietaEntryStore.Preview quickPreview(
             HttpServletRequest req,@PathVariable LocalDate day,@RequestParam(defaultValue="UTC") String zone) {
@@ -198,19 +204,25 @@ public class DietaController {
     @PostMapping("/meal-queue/items")
     public DietaMealQueueDayResponse addMealQueueItem(
             HttpServletRequest request,
+            @RequestParam(required = false) String zone,
             @Valid @RequestBody DietaMealQueueAddItemRequest body
     ) {
-        return dietaService.addMealQueueItem(accessTokenResolver.requireEmail(request), body);
+        String email = accessTokenResolver.requireEmail(request);
+        dietaService.checkManualEntryDay(email,body.loggedOn(),zone);
+        return dietaService.addMealQueueItem(email, body);
     }
 
     @DeleteMapping("/meal-queue/items/{itemId}")
     public DietaMealQueueDayResponse removeMealQueueItem(
             HttpServletRequest request,
+            @RequestParam(required = false) String zone,
             @PathVariable String itemId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate loggedOn
     ) {
+        String email = accessTokenResolver.requireEmail(request);
+        dietaService.checkManualEntryDay(email,loggedOn,zone);
         return dietaService.removeMealQueueItem(
-                accessTokenResolver.requireEmail(request), loggedOn, itemId);
+                email, loggedOn, itemId);
     }
 
     @GetMapping("/recipes")
@@ -232,26 +244,32 @@ public class DietaController {
     @PostMapping("/recipes/{recipeId}/add-to-day")
     public DietaRecipeAnalyzeResponse addRecipeToDay(
             HttpServletRequest request,
+            @RequestParam(required = false) String zone,
             @PathVariable UUID recipeId,
             @Valid @RequestBody DietaRecipeAddToDayRequest body
     ) {
+        String email = accessTokenResolver.requireEmail(request);
+        dietaService.checkManualEntryDay(email,body.loggedOn(),zone);
         return dietaService.addRecipeToDay(
-                accessTokenResolver.requireEmail(request), recipeId, body);
+                email, recipeId, body);
     }
 
     @PostMapping("/meal-queue/finalize")
     public DietaMealFinalizeResponse finalizeMealDay(
             HttpServletRequest request,
+            @RequestParam(required = false) String zone,
             @Valid @RequestBody DietaMealFinalizeRequest body
     ) {
+        String email = accessTokenResolver.requireEmail(request);
+        dietaService.checkManualEntryDay(email,body.loggedOn(),zone);
         return dietaService.finalizeMealDay(
-                accessTokenResolver.requireEmail(request), body.loggedOn(), body.stage());
+                email, body.loggedOn(), body.stage());
     }
 
     @PostMapping("/meal-queue/auto-finalize-yesterday")
-    public ResponseEntity<DietaMealFinalizeResponse> autoFinalizeYesterday(HttpServletRequest request) {
+    public ResponseEntity<DietaMealFinalizeResponse> autoFinalizeYesterday(HttpServletRequest request, @RequestParam(required=false) String zone) {
         DietaMealFinalizeResponse result =
-                dietaService.autoFinalizeYesterday(accessTokenResolver.requireEmail(request));
+                dietaService.autoFinalizeYesterday(accessTokenResolver.requireEmail(request), zone);
         if (result == null) {
             return ResponseEntity.noContent().build();
         }

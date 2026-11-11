@@ -32,8 +32,12 @@ public record DietaGeminiMealRequest(
 
     public record MealGroup(
             String mealType,
-            List<String> items
+            List<String> items,
+            List<String> entryIds
     ) {
+        public MealGroup(String mealType, List<String> items) {
+            this(mealType, items, null);
+        }
     }
 
     /** Pre-analyzed homemade recipes for the day — macros already known; do not re-estimate. */

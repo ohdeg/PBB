@@ -145,7 +145,9 @@ public class DietaService {
         else if (pending && (attempt == null || !"FAILED".equals(attempt.state()))) status = "pending";
         else if (attempt != null && attempt.spent()) status = "exhausted";
         else {
-            status = intake != null ? "done" : ("failed".equals(queue.status()) || "pending".equals(queue.status()) ? "failed" : "open");
+            boolean retryable = attempt != null && "RETRYABLE".equals(attempt.state());
+            status = retryable ? "failed" : intake != null ? "done"
+                    : ("failed".equals(queue.status()) || "pending".equals(queue.status()) ? "failed" : "open");
             if (reconstructable) available = stage.name();
         }
         return new DietaMealQueueDayResponse(day, status, items, queue.updatedAt(), available, added);
@@ -425,13 +427,21 @@ public class DietaService {
         return DietaActivityHistory.suggestions(rows,day,revision);
     }
 
+    public void checkManualEntryDay(String email, LocalDate day, String deviceZone) {
+        checkEntryDay(requireUser(email).getId(), day, deviceZone == null ? ZoneId.systemDefault().getId() : deviceZone);
+    }
+
     void checkEntryDay(UUID user, LocalDate day, String deviceZone) {
+        var today = entryToday(user, deviceZone);
+        if (day.isBefore(today.minusDays(1)) || day.isAfter(today)) throw DietaEntryStore.invalid("오늘 또는 어제 날짜를 선택해 주세요.");
+    }
+
+    private LocalDate entryToday(UUID user, String deviceZone) {
         var schedule=analyses.schedule(user);
         java.time.ZoneId zone;
         try { zone=java.time.ZoneId.of(schedule.enabled()?schedule.zone():deviceZone==null?"UTC":deviceZone); }
         catch(java.time.DateTimeException e) { throw DietaEntryStore.invalid("시간대를 확인해 주세요."); }
-        var today=LocalDate.now(clock.withZone(zone));
-        if (day.isBefore(today.minusDays(1)) || day.isAfter(today)) throw DietaEntryStore.invalid("오늘 또는 어제 날짜를 선택해 주세요.");
+        return LocalDate.now(clock.withZone(zone));
     }
 
     private record ActivityMeta(String name, java.util.Set<String> fields) {}
@@ -559,22 +569,79 @@ public class DietaService {
 
     public DietaMealQueueDayResponse getMealQueue(String email, LocalDate loggedOn) {
         User user = requireUser(email);
-        return locked(user.getId(), () -> {
-            UUID id = user.getId();
-            var queue = currentQueue(id, loggedOn);
-            var schedule = analyses.schedule(id);
-            ZoneId zone = schedule.enabled() ? ZoneId.of(schedule.zone()) : ZoneId.systemDefault();
-            LocalDate yesterday = LocalDate.now(clock.withZone(zone)).minusDays(1);
-            var attempt = analyses.attempt(id, yesterday, Stage.MAIN);
-            if (attempt != null && !attempt.spent() && !"SKIPPED".equals(attempt.state())
-                    && requireProfile(id).isGeminiMealConsent()) {
-                var previous = currentQueue(id, yesterday);
-                if ("MAIN".equals(previous.availableStage()) && previous.newItemCount() > 0) {
-                    return queue.withRetryableYesterday(yesterday);
-                }
-            }
-            return queue;
-        });
+        return locked(user.getId(), () -> withYesterdayRetry(user.getId(), currentQueue(user.getId(), loggedOn),
+                entryToday(user.getId(), ZoneId.systemDefault().getId()).minusDays(1)));
+    }
+
+    private DietaMealQueueDayResponse withYesterdayRetry(UUID user, DietaMealQueueDayResponse queue, LocalDate yesterday) {
+        var attempt = analyses.attempt(user, yesterday, Stage.MAIN);
+        if (attempt == null || attempt.spent() || "SKIPPED".equals(attempt.state())
+                || !requireProfile(user).isGeminiMealConsent()) return queue;
+        var previous = currentQueue(user, yesterday);
+        return "MAIN".equals(previous.availableStage()) && previous.newItemCount() > 0
+                ? queue.withRetryableYesterday(yesterday) : queue;
+    }
+
+    @Transactional(readOnly = true)
+    public DietaMealDay mealDay(String email, LocalDate day, String zone) {
+        UUID user = requireUser(email).getId();
+        requireProfile(user);
+        var today = entryToday(user, zone);
+        if (day.isAfter(today)) throw DietaEntryStore.invalid("미래 날짜는 조회할 수 없어요.");
+        var queue = currentQueue(user, day);
+        if (day.equals(today)) queue = withYesterdayRetry(user, queue, day.minusDays(1));
+        var log = intakeLogRepository.findByUserIdAndLoggedOn(user, day);
+        var intake = reportedIntakes(user, log.stream().toList(), day, day).stream().findFirst().orElse(null);
+        var doc = log.map(r -> DietaIntakeSourceDocument.parse(objectMapper,r.getSourceMealsJson()))
+                .orElseGet(DietaIntakeSourceDocument::empty);
+        var totals = new java.util.LinkedHashMap<String,MacroTotals>();
+        var json = entries.raw(user, day, "ANALYSIS");
+        if (json != null) objectMapper.readTree(json).properties().forEach(e ->
+                totals.put(e.getKey(),objectMapper.treeToValue(e.getValue(),MacroTotals.class)));
+        if (totals.isEmpty() && doc.meals().size() == 1 && doc.queueTotals() != null)
+            totals.put(doc.meals().getFirst().mealType(),doc.queueTotals());
+        var unknownMeals = new java.util.HashSet<String>();
+        for (var meal : doc.meals()) if (!totals.containsKey(meal.mealType())) unknownMeals.add(meal.mealType());
+
+        var foods = new java.util.ArrayList<DietaMealDay.Row>();
+        var details = entries.read(user,day,"FOODS_V1",DietaFoodDetails.class);
+        for (var item : queue.items()) {
+            boolean reflected = item.id().startsWith("base:");
+            var rows = reflected && details != null ? details.entries().get(item.id().substring(5)) : null;
+            if (rows == null) foods.add(new DietaMealDay.Row(item.mealType(),item.text(),null,
+                    reflected ? "legacy" : "unanalysed",null));
+            else for (var row : rows) foods.add(new DietaMealDay.Row(item.mealType(),row.name(),row.portion(),
+                    row.estimatedPortion() ? "estimatedPortion" : "analysed",row.nutrition()));
+        }
+        var recipeIds = new java.util.HashSet<String>();
+        for (var recipe : dayRecipes(user,day)) {
+            var dto = toRecipeResponse(recipe);
+            var n = recipeNutrition(recipe);
+            recipeIds.add(recipe.getId().toString());
+            foods.add(new DietaMealDay.Row(dto.mealType(),dto.title(),
+                    (dto.consumedPortion() == null ? BigDecimal.ONE : dto.consumedPortion()).stripTrailingZeros().toPlainString()+"인분",
+                    "recipe",n));
+            totals.merge(dto.mealType(),n,MacroTotals::plus);
+        }
+        for (var recipe : doc.analyzedRecipes()) {
+            if (recipe.recipeId() != null && !recipeIds.add(recipe.recipeId())) continue;
+            var n = recipe.carbG() == null || recipe.proteinG() == null || recipe.fatG() == null ? null :
+                    new MacroTotals(recipe.carbG(),recipe.proteinG(),recipe.fatG(),recipe.kcal());
+            foods.add(new DietaMealDay.Row(recipe.mealType(),recipe.title(),null,"recipe",n));
+            if (n != null) totals.merge(recipe.mealType(),n,MacroTotals::plus);
+            else unknownMeals.add(recipe.mealType());
+        }
+        for (var estimate : entries.estimates(user,day,day)) {
+            foods.add(new DietaMealDay.Row(estimate.meal(),"평균 추정",null,"average",estimate.value()));
+            totals.merge(estimate.meal(),estimate.value(),MacroTotals::plus);
+        }
+        totals.remove(null);
+        if (doc.queueTotals() != null && doc.meals().isEmpty()) totals.clear();
+        unknownMeals.forEach(totals::remove);
+        var supplement = analyses.attempt(user,day,Stage.SUPPLEMENT);
+        String completed = doc.queueTotals() == null ? null :
+                supplement != null && "DONE".equals(supplement.state()) ? "SUPPLEMENT" : "MAIN";
+        return new DietaMealDay(day,queue,intake,completed,totals,foods);
     }
 
     @Transactional(readOnly = true)
@@ -960,8 +1027,10 @@ public class DietaService {
                 }
                 MacroTotals queueTotals = new MacroTotals(queueCarb, queueProtein, queueFat, queueKcal);
                 entries.write(userId,loggedOn,"REFLECTED",reflectedItems(pending));
-                entries.write(userId, loggedOn, "ANALYSIS", DietaMealBreakdown.validated(
-                        geminiRequest.meals(), geminiResponse.mealTotals(), queueTotals));
+                var breakdown = DietaMealBreakdown.validated(geminiRequest.meals(), geminiResponse.mealTotals(), queueTotals);
+                entries.write(userId, loggedOn, "ANALYSIS", breakdown);
+                entries.write(userId, loggedOn, "FOODS_V1",
+                        DietaFoodDetails.validated(geminiRequest.meals(), geminiResponse.foods(), breakdown));
                 MacroTotals recipeSum = sumRecipeMacros(dayRecipes);
 
                 DietaIntakeLog existing = intakeLogRepository
@@ -1075,9 +1144,9 @@ public class DietaService {
         return attempt == null || "READY".equals(attempt.state()) && !Origin.MANUAL.name().equals(attempt.origin());
     }
 
-    public DietaMealFinalizeResponse autoFinalizeYesterday(String email) {
+    public DietaMealFinalizeResponse autoFinalizeYesterday(String email, String zone) {
         UUID userId = requireUser(email).getId();
-        return finalizeDay(userId, LocalDate.now(clock.withZone(ZoneId.systemDefault())).minusDays(1),
+        return finalizeDay(userId, entryToday(userId, zone == null ? ZoneId.systemDefault().getId() : zone).minusDays(1),
                 Stage.MAIN, Origin.LEGACY_AUTO, null);
     }
 

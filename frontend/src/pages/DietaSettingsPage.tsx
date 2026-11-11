@@ -109,7 +109,7 @@ export function DietaSettingsPage() {
   };
   const field = (key: 'target' | 'weekly' | 'cut' | 'activity' | 'ceiling', label: string) => <div className="dieta-field"><label htmlFor={`dieta-setting-${key}`}>{label}</label><input id={`dieta-setting-${key}`} name={key} inputMode="decimal" autoComplete="off" aria-describedby={error ? 'dieta-settings-error' : undefined} value={draft[key]} disabled={busy} onChange={e => edit({[key]:e.target.value})} /></div>;
   return <>
-    <div className="dieta-title-row"><div><h1>설정</h1><p className="dieta-muted">내 목표와 식사 리듬을 조절하세요.</p></div></div>
+    <div className="dieta-title-row"><div><h1>설정</h1></div></div>
     {dirty && <p className="dieta-notice" role="status">저장하지 않은 변경이 있어요. 각 항목에서 저장하거나 취소해 주세요.</p>}
     {error && <p id="dieta-settings-error" role="alert" className="dieta-notice dieta-notice--error">{error}</p>}
     {msg && <p role="status" className="dieta-notice">{msg}</p>}
@@ -118,11 +118,11 @@ export function DietaSettingsPage() {
       <p className="dieta-muted">목표 체중에 도달하면 자동으로 유지 모드가 됩니다. {dirty ? '모드를 바꾸려면 먼저 변경을 저장하거나 취소해 주세요.' : '끄면 이전 감량·증량 목표로 돌아갑니다.'}</p>
       <details className="dieta-details"><summary>목표 계산 기준</summary><p>하루 예상 소비량 {profile.tdeeKcal} kcal · 기초대사량 {profile.bmrKcal} kcal</p><p>탄수화물 {Math.round(profile.macros.carbPct*100)}% · 단백질 {Math.round(profile.macros.proteinPct*100)}% · 지방 {Math.round(profile.macros.fatPct*100)}%</p></details>
     </section>
-    <section className="dieta-card"><h2>목표 편집</h2>{field('target','목표 체중 (kg)')}{!maintain && field('weekly','주간 목표 변화 (kg)')}
+    <details className="dieta-settings-group" open={targetDirty || undefined}><summary>목표 편집 <small>{profile.targetWeightKg != null ? profile.targetWeightKg+' kg' : '미설정'}</small></summary>{field('target','목표 체중 (kg)')}{!maintain && field('weekly','주간 목표 변화 (kg)')}
       <div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !targetDirty} onClick={() => save('target')}>{busy ? '저장 중…' : '목표 저장'}</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !targetDirty} onClick={() => cancel(['target','weekly'])}>목표 변경 취소</button></div>
-    </section>
-    <details className="dieta-card dieta-details"><summary>고급 조절</summary><p className="dieta-muted">주간 체크인에서 사용할 조절량입니다.</p>{field('cut','정체 시 식사 감소량 (kcal)')}{field('activity','정체 시 추가 활동량 (kcal)')}{field('ceiling','증량 시 추가 식사량 상한 (kcal)')}<div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !advancedDirty} onClick={() => save('advanced')}>조절량 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !advancedDirty} onClick={() => cancel(['cut','activity','ceiling'])}>조절량 변경 취소</button></div></details>
-    <section className="dieta-card"><h2>AI 식사 분석</h2><label className="dieta-check"><input type="checkbox" checked={draft.consent} disabled={busy} onChange={e => edit({consent:e.target.checked})} />식사 내용을 AI로 분석하는 데 동의합니다.</label><p className="dieta-muted">분석을 요청하면 기록한 음식과 레시피를 Gemini로 보내 영양 정보를 추정합니다.</p>
+    </details>
+    <details className="dieta-settings-group" open={advancedDirty || undefined}><summary>고급 조절</summary><p className="dieta-muted">주간 체크인에서 사용할 조절량입니다.</p>{field('cut','정체 시 식사 감소량 (kcal)')}{field('activity','정체 시 추가 활동량 (kcal)')}{field('ceiling','증량 시 추가 식사량 상한 (kcal)')}<div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !advancedDirty} onClick={() => save('advanced')}>조절량 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !advancedDirty} onClick={() => cancel(['cut','activity','ceiling'])}>조절량 변경 취소</button></div></details>
+    <details className="dieta-settings-group" open={consentDirty || undefined}><summary>AI 식사 분석 <small>{profile.mealSchedule?.enabled ? '매일 '+profile.mealSchedule.time : '예약 꺼짐'}</small></summary><label className="dieta-check"><input type="checkbox" checked={draft.consent} disabled={busy} onChange={e => edit({consent:e.target.checked})} />식사 내용을 AI로 분석하는 데 동의합니다.</label><p className="dieta-muted">분석을 요청하면 기록한 음식과 레시피를 Gemini로 보내 영양 정보를 추정합니다.</p>
       <label className="dieta-check"><input type="checkbox" checked={draft.scheduled && draft.consent} disabled={busy || !draft.consent}
         onChange={e => edit({scheduled: e.target.checked})} />매일 식사 자동 분석</label>
       {draft.scheduled && draft.consent && <div className="dieta-field">
@@ -131,7 +131,7 @@ export function DietaSettingsPage() {
         {draft.zone !== Intl.DateTimeFormat().resolvedOptions().timeZone && <button type="button" className="dieta-link" onClick={() => edit({zone:Intl.DateTimeFormat().resolvedOptions().timeZone})}>현재 기기 시간대로 변경</button>}
         <p className="dieta-muted">먼저 직접 분석하면 그날 예약은 건너뛰어요. 이후 새 음식은 한 번 더 직접 분석할 수 있어요.</p>
         {!consentDirty && profile.mealSchedule?.nextRunAt && <p>다음 분석 {new Date(profile.mealSchedule.nextRunAt).toLocaleString('ko-KR', {timeZone:draft.zone})}</p>}
-      </div>}<div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !consentDirty} onClick={() => save('consent')}>분석 설정 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !consentDirty} onClick={() => cancel(['consent','scheduled','time','zone'])}>동의 변경 취소</button></div></section>
+      </div>}<div className="dieta-actions"><button className="dieta-btn dieta-btn--primary" disabled={busy || !consentDirty} onClick={() => save('consent')}>분석 설정 저장</button><button className="dieta-btn dieta-btn--ghost" disabled={busy || !consentDirty} onClick={() => cancel(['consent','scheduled','time','zone'])}>동의 변경 취소</button></div></details>
     <section className="dieta-card dieta-danger-zone"><h2>데이터 관리</h2><p className="dieta-muted">체중, 식사, 레시피, 활동과 체크인 기록을 모두 삭제하고 처음부터 설정합니다. 삭제한 기록은 복구할 수 없어요.</p><button className="dieta-btn dieta-btn--ghost" disabled={busy} onClick={() => { if(window.confirm('모든 Dieta 기록(체중·식사·레시피·활동·체크인)을 삭제합니다. 복구할 수 없습니다. 삭제 후 다시 시작할까요?')) void run(async () => { await dietaApi.resetAll(userKey); if (!isCurrent()) return; savedDraft=null; void navigate('/hobbies/dieta/onboarding',{replace:true}); }); }}>모든 기록 삭제 후 다시 시작</button></section>
   </>;
 }

@@ -5,7 +5,7 @@ import type { MenuItem, QuickEdit, QuickPreview } from '../../features/dieta/qui
 
 const modes = {previous:'전날 식사 가져오기', favorite:'자주 먹는 식사', saveFavorite:'자주 먹는 식사로 저장', estimate:'평소 수준으로 채우기'} as const;
 type Mode = keyof typeof modes;
-export function DietaQuickMeals({day,mealType,refresh,disabled,offset=0}:{offset?:number;day:string;mealType:DietaMealType;refresh:()=>Promise<void>;disabled:boolean}) {
+export function DietaQuickMeals({day,mealType,refresh,disabled,offset=0,canSave=true}:{canSave?:boolean;offset?:number;day:string;mealType:DietaMealType;refresh:()=>Promise<void>;disabled:boolean}) {
   const previousLabel=offset?'그제 식사 가져오기':'어제 식사 가져오기';
   const [targetMeal,setTargetMeal]=useState(mealType);
   const [mode,setMode]=useState<Mode>('previous');
@@ -49,8 +49,8 @@ export function DietaQuickMeals({day,mealType,refresh,disabled,offset=0}:{offset
   function update(id:string, patch:Partial<MenuItem>) {setItems(all=>all.map(i=>i.id===id?{...i,...patch}:i));}
   const avg=preview?.averages.find(a=>a.mealType===targetMeal);
   const already=preview?.current.some(i=>i.mealType===targetMeal);
-  return <section className="dieta-card"><h2>간편 식사 기록</h2>
-    <div className="dieta-actions">{(Object.keys(modes) as Mode[]).map(k=><button type="button" className="dieta-btn dieta-btn--ghost" key={k}
+  return <section className="dieta-import-options" aria-label="간편 식사 기록">
+    <div className="dieta-actions">{(Object.keys(modes) as Mode[]).filter(k=>k!=='saveFavorite' || canSave).map(k=><button type="button" className="dieta-btn dieta-btn--ghost" key={k}
       disabled={busy || disabled} onClick={()=>void open(k)}>{k==='previous'?previousLabel:modes[k]}</button>)}</div>
     {preview && <fieldset disabled={busy || disabled} className="dieta-field"><legend>{mode==='previous'?previousLabel:modes[mode]}</legend>
       <p>{mode==='previous'?`${preview.previousDay} → ${day}`:day}</p>

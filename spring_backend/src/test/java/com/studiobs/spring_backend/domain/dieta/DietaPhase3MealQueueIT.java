@@ -27,6 +27,9 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
+    private com.studiobs.spring_backend.domain.dieta.service.DietaService dietaService;
+
+    @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean(name = "fixtureGeminiClient")
@@ -311,7 +314,10 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
 
     @Test
     void recipeAverageIsDisplayedWithoutAnalysisAndActualFoodRemovesIt() throws Exception {
-        String token=newQueueUser("average");
+        String email="average"+System.nanoTime()+"@example.com";
+        String token=signupAndLogin(email,"q"+System.nanoTime()%1000000);
+        mockMvc.perform(post("/api/v1/dieta/onboarding").header(HttpHeaders.AUTHORIZATION,"Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content(onboardingJson(true))).andExpect(status().isCreated());
         var today=LocalDate.now(java.time.Clock.systemUTC());
         var mapper=tools.jackson.databind.json.JsonMapper.builder().build();
         var created=mockMvc.perform(post("/api/v1/dieta/recipes/analyze")
@@ -320,11 +326,17 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk()).andReturn();
         var id=mapper.readTree(created.getResponse().getContentAsString()).path("recipeId").asString();
         for (int age : new int[]{1,2,28}) {
-            mockMvc.perform(post("/api/v1/dieta/recipes/"+id+"/add-to-day").header(HttpHeaders.AUTHORIZATION,"Bearer "+token)
-                    .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(
-                            java.util.Map.of("loggedOn",today.minusDays(age).toString(),"mealType","LUNCH"))))
-                    .andExpect(status().isOk());
+            dietaService.addRecipeToDay(email,java.util.UUID.fromString(id),
+                    new com.studiobs.spring_backend.domain.dieta.dto.meal.DietaRecipeAddToDayRequest(today.minusDays(age),"LUNCH"));
         }
+        var historyDay=today.minusDays(28);
+        mockMvc.perform(get("/api/v1/dieta/meal-days/"+historyDay).header(HttpHeaders.AUTHORIZATION,"Bearer "+token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.foods[0].name").value("두부"))
+                .andExpect(jsonPath("$.mealTotals.LUNCH.kcal").value(270)).andExpect(jsonPath("$.intake.kcal").value(270));
+        mockMvc.perform(post("/api/v1/dieta/recipes/"+id+"/add-to-day").header(HttpHeaders.AUTHORIZATION,"Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(
+                        java.util.Map.of("loggedOn",historyDay.toString(),"mealType","LUNCH"))))
+                .andExpect(status().isBadRequest());
         var url="/api/v1/dieta/quick-entry/"+today;
         var result=mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION,"Bearer "+token))
                 .andExpect(jsonPath("$.averages[0].days").value(3)).andReturn();

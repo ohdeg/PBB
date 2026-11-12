@@ -26,6 +26,7 @@ import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaRecipeAnalyzeReque
 import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaRecipeAnalyzeResponse;
 import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaRecipeResponse;
 import com.studiobs.spring_backend.domain.dieta.service.DietaService;
+import com.studiobs.spring_backend.domain.dieta.service.DietaMealJournal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -60,6 +61,19 @@ public class DietaController {
     public com.studiobs.spring_backend.domain.dieta.service.DietaMealDay mealDay(
             HttpServletRequest request, @PathVariable LocalDate day, @RequestParam(defaultValue="UTC") String zone) {
         return dietaService.mealDay(accessTokenResolver.requireEmail(request), day, zone);
+    }
+
+    @PutMapping("/meal-days/{day}/statuses/{meal}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setMealStatus(HttpServletRequest request,@PathVariable LocalDate day,@PathVariable String meal,
+            @RequestParam(defaultValue="UTC") String zone,@RequestBody DietaMealJournal.Change change) {
+        dietaService.setMealStatus(accessTokenResolver.requireEmail(request),day,zone,meal,change);
+    }
+
+    @GetMapping("/meal-week/{end}")
+    public List<DietaMealJournal.WeekMeal> mealWeek(HttpServletRequest request,@PathVariable LocalDate end,
+            @RequestParam(defaultValue="UTC") String zone) {
+        return dietaService.mealWeek(accessTokenResolver.requireEmail(request),end,zone);
     }
 
     @GetMapping("/quick-entry/{day}")
@@ -263,7 +277,7 @@ public class DietaController {
         String email = accessTokenResolver.requireEmail(request);
         dietaService.checkManualEntryDay(email,body.loggedOn(),zone);
         return dietaService.finalizeMealDay(
-                email, body.loggedOn(), body.stage());
+                email, body.loggedOn(), body.stage(), body.expectedExtraIds());
     }
 
     @PostMapping("/meal-queue/auto-finalize-yesterday")

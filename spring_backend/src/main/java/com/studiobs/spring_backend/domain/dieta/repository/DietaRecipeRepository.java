@@ -10,6 +10,8 @@ public interface DietaRecipeRepository extends JpaRepository<DietaRecipe, UUID> 
 
     List<DietaRecipe> findByUserIdAndLoggedOnOrderByCreatedAtAsc(UUID userId, LocalDate loggedOn);
 
+    List<DietaRecipe> findByUserIdAndLoggedOnBetweenAndRecordKindNot(UUID userId,LocalDate start,LocalDate end,String excluded);
+
     List<DietaRecipe> findTop100ByUserIdAndRecordKindInOrderByCreatedAtDescIdDesc(UUID userId, List<String> kinds);
 
     void deleteByUserId(UUID userId);

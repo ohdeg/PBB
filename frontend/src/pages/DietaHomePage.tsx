@@ -64,6 +64,7 @@ export function DietaHomePage() {
   const [profile, setProfile] = useState<DietaProfile | null>(null);
   const [logs, setLogs] = useState<DietaBodyLog[]>([]);
   const [queue, setQueue] = useState<DietaMealQueueDay | null>(null);
+  const [dayReview,setDayReview]=useState('');
   const [foodNames,setFoodNames] = useState<string[]>([]);
   const [activity,setActivity] = useState<DietaActivityLog|null|undefined>(null);
   const [meals, setMeals] = useState<DietaIntakeLog[]>([]);
@@ -103,6 +104,8 @@ export function DietaHomePage() {
       setLogs(body);
       setMeals(mealDay.intake ? [mealDay.intake] : []);
       setQueue(mealDay.queue);
+      const review=mealDay.feedback?.dayReview ?? mealDay.intake?.review;
+      setDayReview(review ? (mealDay.feedbackStale?'지난 분석 기준 · ':'')+review : '');
       setFoodNames(mealDay.foods.map(row=>row.name));
       setActivity(activityLog);
       const todayLog = body.find(l=>l.loggedOn===date);
@@ -308,7 +311,8 @@ export function DietaHomePage() {
       <section className="dieta-card dieta-home-record">
         <h2>오늘 기록하기</h2>
         <Link className="dieta-home-entry" to="/hobbies/dieta/meals"><span>식사</span><strong>{foodNames.length?foodNames.slice(0,2).join(', ')+(foodNames.length>2?' 외 '+(foodNames.length-2)+'개':''):'기록하기'}</strong><span aria-hidden="true">›</span></Link>
-        <Link className="dieta-home-entry" to="/hobbies/dieta/activity"><span>활동</span><strong>{activity ? [activity.steps!=null?activity.steps.toLocaleString()+'보':null,activity.activityName,activity.durationMin!=null?activity.durationMin+'분':null].filter(Boolean).join(' · ') || '활동 기록 보기' : activity===null?'기록하기':'기록 확인'}</strong><span aria-hidden="true">›</span></Link>
+        {dayReview && <p className="dieta-review">{dayReview}</p>}
+        <Link className="dieta-home-entry" to="/hobbies/dieta/activity"><span>활동</span><strong>{activity ? [activity.steps!=null?activity.steps.toLocaleString()+'보':null,activity.workouts?.length ? '운동 '+activity.workouts.length+'회' : activity.activityName,activity.durationMin!=null?activity.durationMin+'분':null].filter(Boolean).join(' · ') || '활동 기록 보기' : activity===null?'기록하기':'기록 확인'}</strong><span aria-hidden="true">›</span></Link>
         <div className="dieta-field" style={{ marginTop: '0.65rem' }}>
           <label htmlFor="dieta-fasted-weight">오늘 체중 (kg)</label>
           <input

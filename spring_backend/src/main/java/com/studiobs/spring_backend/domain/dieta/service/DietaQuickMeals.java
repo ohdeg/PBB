@@ -62,7 +62,8 @@ public class DietaQuickMeals {
                     || row.exerciseKcal()!=null && !fields.contains("exerciseKcal")
                     || !row.splitCalories() && row.activityKcal()!=null) activities++;
             else if (!fields.isEmpty()) actEst++;
-            if (row.activityName()!=null || row.durationMin()!=null && row.durationMin()>0 && !fields.contains("durationMin")
+            if (row.workouts()!=null) workouts+=row.workouts().size();
+            else if (row.activityName()!=null || row.durationMin()!=null && row.durationMin()>0 && !fields.contains("durationMin")
                     || row.exerciseKcal()!=null && row.exerciseKcal()>0 && !fields.contains("exerciseKcal")) workouts++;
         }
         estimateDays.removeAll(recorded);
@@ -188,9 +189,13 @@ public class DietaQuickMeals {
             case "estimate" -> {
                 if (p.current().stream().anyMatch(i->i.mealType().equals(edit.mealType()))) throw DietaEntryStore.stale();
                 var avg = p.averages().stream().filter(a->a.mealType().equals(edit.mealType())).findFirst().orElseThrow(DietaEntryStore::stale);
+                store.setMealStatus(user,day,avg.mealType(),null);
                 store.write(user,day,"EST:"+avg.mealType(),DietaEntryStore.scale(avg.totals(),portion(edit.portion())));
             }
-            case "clearEstimate" -> store.clearEstimate(user,day,edit.mealType());
+            case "clearEstimate" -> {
+                if (p.estimates().containsKey(edit.mealType())) store.setMealStatus(user,day,edit.mealType(),null);
+                store.clearEstimate(user,day,edit.mealType());
+            }
             case "deleteFavorite" -> { if (favorite==null) throw DietaEntryStore.stale(); store.deleteFavorite(user,favorite.id()); }
             case "saveFavorite" -> {
                 if (edit.name()==null || edit.name().isBlank() || edit.name().length()>80) throw DietaEntryStore.invalid("식사 이름을 입력해 주세요.");

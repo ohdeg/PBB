@@ -16,6 +16,7 @@ public final class DietaActivityHistory {
         var results=new TreeMap<String,Average>();
         fields.forEach((field,get)->{
             var numbers=rows.stream().filter(a->a.loggedOn().isBefore(day) && !a.loggedOn().isBefore(day.minusDays(28))
+                    && !(field.equals("durationMin") && a.missingDurationMin()>0 || field.equals("exerciseKcal") && a.missingExerciseKcal()>0)
                     && !a.estimatedFields().contains(field)).map(get).filter(Objects::nonNull).mapToInt(Integer::intValue).summaryStatistics();
             if(numbers.getCount()>=3) results.put(field,new Average((int)Math.round(numbers.getAverage()),(int)numbers.getCount()));
         });

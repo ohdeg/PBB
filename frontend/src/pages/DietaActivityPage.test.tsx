@@ -40,6 +40,9 @@ it('submits only exercise calories alongside step count', async () => {
  fireEvent.change(await screen.findByLabelText('걸음'), {target:{value:'5000'}});
  fireEvent.change(screen.getByLabelText('운동 소모 열량 (kcal)'), {target:{value:'120'}});
  fireEvent.click(screen.getByRole('button',{name:'오늘 활동 저장'}));
+ expect(dietaApi.upsertActivity).not.toHaveBeenCalled();
+ fireEvent.change(screen.getByLabelText('운동명'),{target:{value:'수영'}});
+ fireEvent.click(screen.getByRole('button',{name:'오늘 활동 저장'}));
  expect(dietaApi.upsertActivity).toHaveBeenCalledWith(expect.objectContaining({steps:5000,exerciseKcal:120}), 'fixture');
 });
 it('preserves the old daily total when editing minutes without conversion', async () => {
@@ -54,7 +57,7 @@ it('preserves the old daily total when editing minutes without conversion', asyn
 
 it('records a named activity for yesterday with missing minutes and kcal', async () => {
  render(<MemoryRouter><DietaActivityPage /></MemoryRouter>);
- fireEvent.click(await screen.findByRole('button',{name:'어제'}));
+ fireEvent.click(await screen.findByRole('button',{name:'이전 날짜'}));
  const day = await screen.findByText('어제 활동 기록');
  expect(day).toBeInTheDocument();
  fireEvent.change(screen.getByLabelText('운동명'),{target:{value:'점심 산책'}});
@@ -69,4 +72,36 @@ it('retains provenance of an adjusted average and submits its source revision', 
  fireEvent.change(screen.getByLabelText('걸음'),{target:{value:'7500'}});
  fireEvent.click(screen.getByRole('button',{name:'오늘 활동 저장'}));
  expect(dietaApi.upsertActivity).toHaveBeenCalledWith(expect.objectContaining({steps:7500,estimatedFields:['steps'],suggestionRevision:'prior-4'}),'fixture');
+});
+
+it('opens dated activity history without edit controls or repeated list fetches', async () => {
+ vi.mocked(dietaApi.listActivities).mockResolvedValue([{id:'old',loggedOn:'2024-02-29',steps:5800,durationMin:30,
+   exerciseKcal:120,activityKcal:220,walkingKcal:100,splitCalories:true,activityName:'실내 자전거',note:null}]);
+ render(<MemoryRouter initialEntries={['/?day=2024-02-29']}><DietaActivityPage/></MemoryRouter>);
+ expect(await screen.findByText('실내 자전거')).toBeVisible();
+ expect(screen.queryByLabelText('운동명')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'다음 날짜'}));
+ expect(await screen.findByText('이날 기록한 활동이 없어요.')).toBeVisible();
+ expect(screen.getByRole('button',{name:'2024-03-01 날짜 선택'})).toBeVisible();
+ fireEvent.click(screen.getByRole('button',{name:'오늘로 돌아가기'}));
+ expect(await screen.findByLabelText('운동명')).toBeVisible();
+ expect(screen.getByRole('button',{name:'다음 날짜'})).toBeDisabled();
+ expect(dietaApi.listActivities).toHaveBeenCalledTimes(1);
+ expect(dietaApi.upsertActivity).not.toHaveBeenCalled();
+});
+
+it('keeps a draft on its original date across midnight', async()=>{
+ vi.useFakeTimers({toFake:['Date']});
+ try {
+   vi.setSystemTime(new Date(2026,10,12,23,59));
+   render(<MemoryRouter><DietaActivityPage/></MemoryRouter>);
+   const name=await screen.findByLabelText('운동명');
+   fireEvent.change(name,{target:{value:'야간 산책'}});
+   vi.setSystemTime(new Date(2026,10,13,0,1));
+   fireEvent.focus(window);
+   expect(await screen.findByRole('button',{name:'어제 활동 저장'})).toBeVisible();
+   expect(screen.getByLabelText('운동명')).toHaveValue('야간 산책');
+   fireEvent.click(screen.getByRole('button',{name:'어제 활동 저장'}));
+   expect(dietaApi.upsertActivity).toHaveBeenCalledWith(expect.objectContaining({loggedOn:'2026-11-12',activityName:'야간 산책'}),'fixture');
+ } finally {vi.useRealTimers();}
 });

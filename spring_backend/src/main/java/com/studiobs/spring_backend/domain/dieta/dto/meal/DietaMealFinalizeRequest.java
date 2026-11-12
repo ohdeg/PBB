@@ -5,6 +5,6 @@ import java.time.LocalDate;
 
 public record DietaMealFinalizeRequest(
         @NotNull LocalDate loggedOn,
-        com.studiobs.spring_backend.domain.dieta.service.DietaAnalysisStore.Stage stage
+        com.studiobs.spring_backend.domain.dieta.service.DietaAnalysisStore.Stage stage, java.util.List<String> expectedExtraIds
 ) {
 }

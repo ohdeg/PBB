@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 public record DietaMealDay(LocalDate day, DietaMealQueueDayResponse queue, DietaIntakeLogResponse intake,
-        String completedStage, Map<String,MacroTotals> mealTotals, List<Row> foods) {
+        String completedStage, Map<String,MacroTotals> mealTotals, List<Row> foods, DietaFeedback feedback, boolean feedbackStale,
+        Map<String,DietaMealJournal.Status> mealStatuses) {
     public record Row(String mealType, String name, String portion, String source, MacroTotals nutrition) {}
 }

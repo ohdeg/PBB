@@ -1,4 +1,3 @@
-import { useSearchParams } from 'react-router-dom';
 import type { DietaMealType } from './types';
 
 export function shiftDay(iso: string, days: number) {
@@ -22,17 +21,28 @@ export interface QuickEdit {
   requestId:string;revision:string;favoriteId?:string;name?:string;
   picks?:MenuItem[];mealType?:DietaMealType;portion?:number;
 }
-export interface RecordWeek { mealDays:number;estimatedMealDays:number;activityDays:number;estimatedActivityDays:number;workouts:number }
-
-export function useEntryOffset() {
-  const [params] = useSearchParams();
-  return params.get('day') === 'yesterday' ? -1 : 0;
+export const mealStatusLabels = {COMPLETE:'기록 완료', SKIPPED:'건너뜀', UNKNOWN:'기억 안 남'} as const;
+export type MealStatus = keyof typeof mealStatusLabels;
+export interface WeekMeal {
+  mealType:DietaMealType;
+  directDays:number;
+  estimatedDays:number;
+  mixedDays:number;
+  skippedDays:number;
+  unknownDays:number;
+  frequentFood:string|null;
+  foodDays:number;
+  trend?:{earlyAverage:number;earlyDays:number;lateAverage:number;lateDays:number}|null;
 }
+export interface RecordWeek { mealDays:number;estimatedMealDays:number;activityDays:number;estimatedActivityDays:number;workouts:number }
 
 export interface MealDayDetails {
   day: string;
   queue: import('./types').DietaMealQueueDay;
   intake: import('./types').DietaIntakeLog | null;
+  feedback?: {dayReview:string;meals:Partial<Record<DietaMealType,string>>}|null;
+  feedbackStale?:boolean;
+  mealStatuses?:Partial<Record<DietaMealType,MealStatus>>;
   completedStage: 'MAIN'|'SUPPLEMENT'|null;
   mealTotals: Partial<Record<DietaMealType|'OTHER',Nutrition>>;
   foods: {mealType:string|null;name:string;portion:string|null;source:string;nutrition:Nutrition|null}[];

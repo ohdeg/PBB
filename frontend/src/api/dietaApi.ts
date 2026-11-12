@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { MealDayDetails, QuickEdit, QuickPreview, RecordWeek } from '../features/dieta/quickEntry';
+import type { MealDayDetails, QuickEdit, QuickPreview, RecordWeek, MealStatus, WeekMeal } from '../features/dieta/quickEntry';
 import type {
   DietaActivityLog,
   DietaBodyLog,
@@ -152,6 +152,18 @@ export const dietaApi = {
   async quickApply(day:string, edit:QuickEdit): Promise<void> {
     try { await apiClient.post(`${BASE}/quick-entry/${day}`, edit, {params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone}}); }
     catch (error) { rethrowDieta(error,'간편 기록을 저장하지 못했어요.'); }
+  },
+  async setMealStatus(day:string,meal:DietaMealType,status:MealStatus|null,expected:MealStatus|null) {
+    try {
+      await apiClient.put(`${BASE}/meal-days/${day}/statuses/${meal}`,{status,expected},{
+        params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone},
+      });
+    } catch (error) { rethrowDieta(error,'끼니 상태를 저장하지 못했어요.'); }
+  },
+  async mealWeek(day:string):Promise<WeekMeal[]> {
+    return (await apiClient.get<WeekMeal[]>(`${BASE}/meal-week/${day}`,{
+      params:{zone:Intl.DateTimeFormat().resolvedOptions().timeZone},
+    })).data;
   },
   async recordWeek(day:string): Promise<RecordWeek> {
     return (await apiClient.get<RecordWeek>(`${BASE}/record-week/${day}`)).data;
@@ -424,11 +436,12 @@ export const dietaApi = {
     loggedOn: string,
     _key?: string | null,
     stage: 'MAIN' | 'SUPPLEMENT' = 'MAIN',
+    expectedExtraIds?:string[],
   ): Promise<{ intake: DietaIntakeLog; queue: DietaMealQueueDay }> {
     try {
       const { data } = await apiClient.post<DietaMealFinalizeApi>(
         `${BASE}/meal-queue/finalize`,
-        { loggedOn, stage },
+        { loggedOn, stage, expectedExtraIds },
         { params: { zone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
       );
       return {
@@ -533,6 +546,7 @@ export const dietaApi = {
       loggedOn: string;
       steps: number | null;
       durationMin: number | null;
+      workouts?: DietaActivityLog['workouts'];
       exerciseKcal: number | null;
       preservedLegacyKcal?: number;
       expectedLegacyKcal?: number;
@@ -551,6 +565,7 @@ export const dietaApi = {
           loggedOn: input.loggedOn,
           steps: input.steps,
           durationMin: input.durationMin,
+          workouts: input.workouts,
           splitCalories: input.preservedLegacyKcal == null,
           activityKcal: input.preservedLegacyKcal,
           exerciseKcal: input.preservedLegacyKcal == null ? input.exerciseKcal : null,

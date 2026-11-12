@@ -1,11 +1,12 @@
 import { activityFields, activityLabels, type ActivityField } from '../features/dieta/quickEntry';
 import { DietaEntryDate } from '../components/dieta/DietaEntryDate';
-import { shiftDay, useEntryOffset } from '../features/dieta/quickEntry';
+import { shiftDay } from '../features/dieta/quickEntry';
 import { DietaLoadState } from '../components/dieta/DietaLoadState';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, Navigate } from 'react-router-dom';
+import { useDietaRecordDate } from '../features/dieta/useDietaRecordDate';
+import { Navigate } from 'react-router-dom';
 import { dietaApi } from '../api/dietaApi';
-import type { DietaActivityLog, DietaBodyLog, DietaProfile } from '../features/dieta/types';
+import type { DietaActivityLog, DietaWorkout, DietaBodyLog, DietaProfile } from '../features/dieta/types';
 import { useDietaUserKey } from '../features/dieta/useDietaUserKey';
 import {
   activityFromExtraKcal,
@@ -14,23 +15,75 @@ import {
 import { useAuthStore } from '../stores/authStore';
 
 export function DietaActivityPage() {
-  const offset = useEntryOffset();
-  const location=useLocation();
   const owner=useDietaUserKey();
-  return <DayPage key={owner+":"+location.key+":"+offset} offset={offset} />;
+  return <ActivityHistory key={owner}/>;
 }
-function DayPage({offset}:{offset:number}) {
-  const [openedAt] = useState(()=>new Date());
-  const label = offset ? '어제' : '오늘';
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const userKey = useDietaUserKey();
-  const [profile, setProfile] = useState<DietaProfile | null>(null);
-  const [logs, setLogs] = useState<DietaBodyLog[]>([]);
-  const [todayLog, setTodayLog] = useState<DietaActivityLog | null>(null);
-  const [recent, setRecent] = useState<DietaActivityLog[]>([]);
+
+function ActivityHistory() {
+  const accessToken=useAuthStore(s=>s.accessToken);
+  const userKey=useDietaUserKey();
+  const [data,setData]=useState<{profile:DietaProfile|null;logs:DietaBodyLog[];acts:DietaActivityLog[]}|null>(null);
+  const [error,setError]=useState('');
+  const [retry,setRetry]=useState(0);
+  const profile=data?.profile;
+  const date=useDietaRecordDate(profile?.mealSchedule?.enabled?profile.mealSchedule.zone:undefined);
+  const load=useCallback(async ()=>{
+    const p=await dietaApi.getProfile(userKey);
+    const [logs,acts]=p?.onboardingComplete ? await Promise.all([dietaApi.listBodyLogs(userKey),dietaApi.listActivities(userKey)]) : [[],[]];
+    return {profile:p,logs,acts};
+  },[userKey]);
+  useEffect(()=>{
+    if (!accessToken) return;
+    let active=true;
+    setError('');
+    load().then(result=>{if(active)setData(result);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'활동을 불러오지 못했어요.');});
+    return ()=>{active=false;};
+  },[accessToken,load,retry]);
+  if (!accessToken) return <Navigate to="/login" replace state={{from:'/hobbies/dieta/activity'}}/>;
+  if (!data || error) return <DietaLoadState error={error} onRetry={()=>setRetry(n=>n+1)}/>;
+  if (!profile?.onboardingComplete) return <Navigate to="/hobbies/dieta/onboarding" replace/>;
+  const row=data.acts.find(a=>a.loggedOn===date.day)??null;
+  const calendar=(disabled=false)=><DietaEntryDate section="활동" day={date.day} today={date.today} onChange={date.select} disabled={disabled}/>;
+  return <>
+    <h1>활동</h1>
+    {date.day<date.yesterday ? <>{calendar()}<PastActivity row={row}/></> :
+      <DayPage key={date.day} today={date.day} todayLog={row} profile={profile} logs={data.logs}
+        recent={data.acts.slice(-7).reverse()} offset={date.day===date.today?0:-1} calendar={calendar} pinDay={date.pinSelectedDay}
+        refresh={async()=>setData(await load())}/>}
+  </>;
+}
+
+function PastActivity({row}:{row:DietaActivityLog|null}) {
+  return <section className="dieta-card"><h2>이날의 활동</h2>
+    {!row ? <p>이날 기록한 활동이 없어요.</p> : <>
+      {row.steps!=null && <p>걸음 {row.steps.toLocaleString()}보{row.estimatedFields?.includes('steps')?' (추정)':''}</p>}
+      {row.walkingKcal!=null && <p>걷기 추정 약 {row.walkingKcal} kcal</p>}
+      {row.workouts?.length ? row.workouts.map(w=><div key={w.id} className="dieta-food-detail">
+        <strong>{w.name}</strong><p>{w.durationMin==null?'시간 미입력':w.durationMin+'분'} · {w.exerciseKcal==null?'열량 미입력':w.exerciseKcal+' kcal'}</p>
+      </div>) : <>
+        {row.activityName && <strong>{row.activityName}</strong>}
+        {row.durationMin!=null && <p>운동 시간 {row.durationMin}분{row.estimatedFields?.includes('durationMin')?' (추정)':''}</p>}
+        {row.exerciseKcal!=null && <p>운동 열량 {row.exerciseKcal} kcal{row.estimatedFields?.includes('exerciseKcal')?' (추정)':''}</p>}
+      </>}
+      {row.activityKcal!=null && <p>{row.splitCalories?'기록된 활동 열량':'기존 활동 총량'} {row.activityKcal} kcal</p>}
+      {row.note && <p>{row.note}</p>}
+    </>}
+  </section>;
+}
+
+function DayPage({offset,today,todayLog,profile,logs,recent,calendar,pinDay,refresh}:{
+  offset:number;today:string;todayLog:DietaActivityLog|null;profile:DietaProfile;logs:DietaBodyLog[];
+  recent:DietaActivityLog[];calendar:(disabled:boolean)=>React.ReactNode;pinDay:()=>void;refresh:()=>Promise<void>;
+}) {
+  const label=offset?'어제':'오늘';
+  const userKey=useDietaUserKey();
   const [suggestions,setSuggestions]=useState<Awaited<ReturnType<typeof dietaApi.activitySuggestions>>|null>(null);
   const [sourceRevision,setSourceRevision]=useState<string>();
 
+  const [workouts,setWorkouts]=useState<DietaWorkout[]|null>(null);
+  const [draftId,setDraftId]=useState(()=>crypto.randomUUID() as string);
+  const [draftSource,setDraftSource]=useState<DietaWorkout['source']>('direct');
+  const [editing,setEditing]=useState(false);
   const [activityName,setName] = useState('');
   const [estimated,setEstimated] = useState<string[]>([]);
   const [source,setSource] = useState<''|'copy'|'average'>('');
@@ -41,48 +94,32 @@ function DayPage({offset}:{offset:number}) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  const [loadError, setLoadError] = useState('');
-  const [retry, setRetry] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const today = shiftDay(todayIsoDate(openedAt, profile?.mealSchedule?.zone), offset);
-
-  const refresh = useCallback(async () => {
-    const p = await dietaApi.getProfile(userKey);
-    if (!p?.onboardingComplete) {setProfile(p); setLoaded(true); setLoadError(''); return;}
-    const [body, acts] = await Promise.all([
-      dietaApi.listBodyLogs(userKey),
-      dietaApi.listActivities(userKey),
-    ]);
-    setLoaded(true); setLoadError('');
-    setProfile(p);
-    setLogs(body);
-    const date = shiftDay(todayIsoDate(openedAt, p.mealSchedule?.zone), offset);
-    const row = acts.find((a) => a.loggedOn === date) ?? null;
-    setTodayLog(row);
+  useEffect(()=>{
+    const row=todayLog;
     setSourceRevision(undefined);
     setSuggestions(null);
-    setName(row?.activityName ?? '');
+    const legacyWorkout=row?.splitCalories && !row.estimatedFields?.some(f=>f!=='steps') &&
+      (row.activityName || (row.durationMin??0)>0 || (row.exerciseKcal??0)>0);
+    const rows=row?.workouts ?? (row && legacyWorkout ? [{id:row.id,name:row.activityName || '운동',
+      durationMin:row.durationMin,exerciseKcal:row.exerciseKcal??null,source:'direct' as const}] : null);
+    const aggregate=!rows?.length;
+    setWorkouts(rows);
+    setEditing(false);
+    setDraftId(crypto.randomUUID());
+    setDraftSource('direct');
+    setName(!aggregate ? '' : row?.activityName ?? '');
     setEstimated(row?.estimatedFields ?? []);
-    setRecent(acts.slice(-7).reverse());
     if (row) {
       setSteps(row.steps != null ? String(row.steps) : '');
-      setMins(row.durationMin != null ? String(row.durationMin) : '');
-      setKcal(row.exerciseKcal != null ? String(row.exerciseKcal) : '');
+      setMins(aggregate && row.durationMin != null ? String(row.durationMin) : '');
+      setKcal(aggregate && row.exerciseKcal != null ? String(row.exerciseKcal) : '');
     } else {
       setSteps('');
       setMins('');
       setKcal('');
     }
     setReplaceLegacy(false);
-  }, [userKey, offset,openedAt]);
-
-  useEffect(() => {
-    if (!accessToken) {
-      return;
-    }
-    setLoadError(''); setLoaded(false);
-    void refresh().catch(e => setLoadError(e instanceof Error ? e.message : '활동을 불러오지 못했어요.'));
-  }, [accessToken, userKey, today, retry, refresh]);
+  },[todayLog]);
 
   const weightKg =
     [...logs].reverse().find((l) => l.loggedOn <= today && l.weightKg != null && l.weightKg > 0)?.weightKg ?? null;
@@ -102,19 +139,6 @@ function DayPage({offset}:{offset:number}) {
     });
   }, [profile, weightKg]);
 
-  if (!accessToken) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ from: '/hobbies/dieta/activity' }}
-      />
-    );
-  }
-
-  if (!loaded || loadError) return <DietaLoadState error={loadError} onRetry={() => setRetry(n => n + 1)} />;
-  if (!profile?.onboardingComplete) return <Navigate to="/hobbies/dieta/onboarding" replace />;
-
   const legacy = todayLog?.activityKcal != null && !todayLog.splitCalories;
   const count = steps.trim() ? Number(steps) : null;
   const walking = todayLog?.splitCalories && todayLog.steps === count && todayLog.walkingKcal != null
@@ -123,6 +147,9 @@ function DayPage({offset}:{offset:number}) {
       ? Math.round(count * profile.heightCm * 0.415 / 100000 * weightKg * 0.5) : null;
 
   const prior = suggestions?.previous;
+  const priorRows=prior?.workouts ?? (prior?.splitCalories && prior.activityName && !prior.estimatedFields?.some(f=>f!=='steps')
+    ? [{id:prior.id,name:prior.activityName,durationMin:prior.durationMin,exerciseKcal:prior.exerciseKcal??null,source:'direct' as const}]
+    : null);
   const means = suggestions?.averages ?? {};
   async function openSource(kind:'copy'|'average') {
     if (source===kind) {setSource('');return;}
@@ -143,8 +170,29 @@ function DayPage({offset}:{offset:number}) {
     setters[field](String(value));
     setEstimated(old=>[...old.filter(k=>k!==field),...(isEstimate?[field]:[])]);
   }
+  function clearDraft() {
+    setName(''); setMins(''); setKcal(''); setEditing(false);
+    setDraftId(crypto.randomUUID()); setDraftSource('direct');
+  }
+  function readDraft(): DietaWorkout | null {
+    if (!activityName.trim()) { setMsg('운동 이름을 입력해 주세요.'); return null; }
+    const numbers=[mins,kcal].map(s=>s.trim()?Number(s):null);
+    if (numbers.some(n=>n!==null && (!Number.isSafeInteger(n)||n<0||n>2147483647))) {
+      setMsg('운동량은 0 이상 정수로 입력해 주세요.'); return null;
+    }
+    return {id:draftId,name:activityName.trim(),durationMin:numbers[0],exerciseKcal:numbers[1],source:draftSource,sourceId:workouts?.find(w=>w.id===draftId)?.sourceId};
+  }
+  function withDraft(row:DietaWorkout) {
+    return editing ? (workouts??[]).map(w=>w.id===row.id?row:w) : [...workouts??[],row];
+  }
+  function addWorkout() {
+    const row=readDraft();
+    if (!row) return;
+    setWorkouts(withDraft(row)); setEstimated(old=>old.filter(f=>f==='steps'));
+    clearDraft(); setMsg('');
+  }
   const save = async () => {
-    if (today!==shiftDay(todayIsoDate(new Date(), profile?.mealSchedule?.zone),offset)) {setMsg('날짜가 바뀌었어요. 표시된 날짜를 확인하고 화면을 다시 열어 주세요.');return;}
+    if (today!==shiftDay(todayIsoDate(new Date(), profile.mealSchedule?.enabled?profile.mealSchedule.zone:undefined),offset)) {setMsg('날짜가 바뀌었어요. 표시된 날짜를 확인하고 화면을 다시 열어 주세요.');return;}
     const stepsN = steps.trim() ? Number(steps) : null;
     const minsN = mins.trim() ? Number(mins) : null;
     const kcalN = kcal.trim() ? Number(kcal) : null;
@@ -157,7 +205,14 @@ function DayPage({offset}:{offset:number}) {
       return;
     }
     const preserveLegacy = legacy && !replaceLegacy;
-    if (stepsN == null && minsN == null && kcalN == null && !preserveLegacy && !activityName.trim()) {
+    let rows=workouts;
+    const namedWorkoutRequired=!preserveLegacy && !estimated.some(f=>f!=='steps') && (kcalN!=null || minsN!=null && minsN>0);
+    if ((namedWorkoutRequired || !!rows?.length || activityName.trim() && !estimated.some(f=>f!=='steps')) && (activityName.trim() || mins.trim() || kcal.trim() || editing)) {
+      const draft=readDraft();
+      if (!draft) return;
+      rows=withDraft(draft);
+    }
+    if (rows===null && stepsN == null && minsN == null && kcalN == null && !preserveLegacy && !activityName.trim()) {
       setMsg('걸음·분·운동 kcal 중 하나 이상 적어 주세요.');
       return;
     }
@@ -167,7 +222,7 @@ function DayPage({offset}:{offset:number}) {
       await dietaApi.upsertActivity(
         {
           loggedOn: today,
-          steps: stepsN,
+          steps: stepsN, workouts:rows ?? undefined,
           durationMin: minsN,
           exerciseKcal: preserveLegacy ? null : kcalN,
           preservedLegacyKcal: preserveLegacy ? todayLog.activityKcal! : undefined,
@@ -190,23 +245,24 @@ function DayPage({offset}:{offset:number}) {
 
   return (
     <>
-      <div className="dieta-title-row">
-        <h1>활동</h1>
-      </div>
-
-      <section className="dieta-activity-log">
-        <DietaEntryDate offset={offset} day={today} disabled={busy}/>
+      {calendar(busy)}
+      <section className="dieta-activity-log" onChangeCapture={pinDay} onClickCapture={pinDay}>
         <h2>{label} 활동 기록</h2>
         <details className="dieta-import"><summary>활동 불러오기</summary><div className="dieta-actions">
           <button type="button" disabled={busy} onClick={()=>void openSource('copy')}>{offset?'그제 운동 가져오기':'어제 운동 가져오기'}</button>
           <button type="button" disabled={busy} onClick={()=>void openSource('average')}>평소 수준으로 채우기</button>
         </div>
         {source && <fieldset disabled={busy}><legend>{source==='copy'?shiftDay(today,-1)+' → '+today:'이전 28일 내 기록 평균'}</legend>
-          {source==='copy' && prior?.activityName && <button disabled={!!activityName || mins==='0'} onClick={()=>{setName(prior.activityName!);setSourceRevision(suggestions?.revision);}}>{prior.activityName} 가져오기</button>}
+          {source==='copy' && priorRows?.map(w=><button key={w.id} type="button"
+            disabled={busy || !!activityName || !!mins || !!kcal || !!(legacy && !replaceLegacy) || workouts?.some(row=>row.source==='copied' && row.sourceId===w.id)}
+            onClick={()=>{setWorkouts(old=>[...old??[],{...w,id:crypto.randomUUID(),sourceId:w.id,source:'copied'}]);setSourceRevision(suggestions?.revision);}}>
+              {w.name} 가져오기</button>)}
+          {source==='copy' && !priorRows && prior?.activityName && <button disabled={!!activityName || mins==='0'} onClick={()=>{setName(prior.activityName!);setSourceRevision(suggestions?.revision);}}>{prior.activityName} 가져오기</button>}
           {activityFields.map(f=>{
+            if (f!=='steps' && (!!workouts?.length || source==='copy' && priorRows)) return null;
             const n=source==='copy' ? prior?.estimatedFields?.includes(f)?null:prior?.[f] : means[f]?.value;
             return n==null?null:<button key={f} type="button" disabled={!!values[f] || (f==='exerciseKcal' && legacy && !replaceLegacy) || (f==='durationMin' && n===0 && (!!activityName || Number(kcal)>0))}
-              onClick={()=>{fill(f,n,source==='average');setSourceRevision(suggestions?.revision);}}>{activityLabels[f]} {n} {source==='average'?`(${means[f]?.days}일 평균)`:'가져오기'}</button>;
+              onClick={()=>{fill(f,n,source==='average');if (source==='copy' && f!=='steps' && n>0 && !activityName) setName(prior?.activityName || '운동');setSourceRevision(suggestions?.revision);}}>{activityLabels[f]} {n} {source==='average'?`(${means[f]?.days}일 평균)`:'가져오기'}</button>;
           })}
           <p className="dieta-muted">{source==='copy'?(prior?'전날 기록된 값 중 비어 있는 항목만 선택할 수 있어요.':'가져올 전날 활동 기록이 없어요.'):'기록이 3일 이상인 항목만 표시해요. 선택 후 아래에서 값을 조정하고 저장하세요.'}</p>
         </fieldset>}
@@ -229,9 +285,23 @@ function DayPage({offset}:{offset:number}) {
         </p>}
         </div>
         <div className="dieta-activity-workout"><h3>운동</h3>
+        {workouts && workouts.length>0 && <div>
+          {workouts.map(w=><div key={w.id} className="dieta-food-detail">
+            <strong>{w.name}</strong><p>{w.durationMin!=null?w.durationMin+'분':'시간 미입력'} · {w.exerciseKcal!=null?w.exerciseKcal+' kcal':'열량 미입력'}</p>
+            <button type="button" aria-label={w.name+' 수정'} disabled={busy || editing || !!activityName || !!mins || !!kcal} onClick={()=>{
+              setEditing(true);setDraftId(w.id);setDraftSource(w.source);setName(w.name);
+              setMins(w.durationMin?.toString()??'');setKcal(w.exerciseKcal?.toString()??'');
+            }}>수정</button>
+            <button type="button" aria-label={w.name+' 삭제'} disabled={busy} onClick={()=>{
+              if(editing && draftId===w.id)clearDraft();setWorkouts(workouts.filter(row=>row.id!==w.id));
+            }}>삭제</button>
+          </div>)}
+          <p>운동 {workouts.length}회 · {workouts.some(w=>w.durationMin!=null)?workouts.reduce((n,w)=>n+(w.durationMin??0),0)+'분':'시간 미입력'} · 입력 열량 {workouts.some(w=>w.exerciseKcal!=null)?workouts.reduce((n,w)=>n+(w.exerciseKcal??0),0)+' kcal':'없음'}
+            {workouts.some(w=>w.exerciseKcal==null) && ' ('+workouts.filter(w=>w.exerciseKcal==null).length+'건 미입력)'}</p>
+        </div>}
         <label className="dieta-field">운동명<input value={activityName} maxLength={100} disabled={busy}
           placeholder="예: 점심 산책" onChange={e=>{setName(e.target.value);if(e.target.value && mins==='0')setMins('');}}/></label>
-        <button type="button" disabled={busy} onClick={()=>{setName('');setMins('0');setKcal('');setEstimated(old=>old.filter(f=>f==='steps'));}}>운동 안 함</button>
+        {!workouts?.length && <button type="button" disabled={busy} onClick={()=>{setName('');setMins('0');setKcal('');setEstimated(old=>old.filter(f=>f==='steps'));}}>운동 안 함</button>}
         <div className="dieta-field-pair">
         <div className="dieta-field">
           <label htmlFor="dieta-activity-mins">운동 시간 (분)</label>
@@ -252,6 +322,11 @@ function DayPage({offset}:{offset:number}) {
           />
         </div>
         </div>
+        {estimated.some(f=>f!=='steps') && <button type="button" disabled={busy} onClick={()=>{
+          clearDraft();setEstimated(old=>old.filter(f=>f==='steps'));
+        }}>추정 운동을 개별 운동으로 교체</button>}
+        <button type="button" disabled={busy || !!(legacy && !replaceLegacy) || estimated.some(f=>f!=='steps')} onClick={addWorkout}>{editing?'수정 반영':'운동 추가'}</button>
+        {editing && <button type="button" onClick={clearDraft}>수정 취소</button>}
         <p id="dieta-exercise-help" className="dieta-muted">걷기·달리기의 운동 열량을 입력했다면 그 운동 중 걸음은 위 걸음 수에서 빼 주세요. 운동 시간은 열량에 따로 더하지 않아요.</p>
         {legacy && <label className="dieta-check"><input type="checkbox" checked={replaceLegacy}
           onChange={e => setReplaceLegacy(e.target.checked)} />기존 총 {todayLog.activityKcal} kcal를 걷기 추정과 운동 입력으로 교체</label>}
@@ -310,7 +385,7 @@ function DayPage({offset}:{offset:number}) {
               <span>{r.loggedOn}</span>
               <span className="dieta-muted">
                 {[
-                  r.activityName,
+                  r.workouts?.length ? r.workouts.map(w=>w.name).join(', ') : r.activityName,
                   r.estimatedFields?.length ? "추정 포함" : null,
                   r.steps != null ? `${r.steps.toLocaleString()}보` : null,
                   r.durationMin != null ? `${r.durationMin}분` : null,

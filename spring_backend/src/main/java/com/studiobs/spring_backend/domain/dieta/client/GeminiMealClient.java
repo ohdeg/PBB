@@ -122,6 +122,7 @@ public class GeminiMealClient {
                 schemaVersion (1), loggedOn (YYYY-MM-DD), totals { carbG, proteinG, fatG, kcal }, oneLineReview (Korean).
                 Use the supplied activityKcal as recorded. Never add steps or minutes to it.
                 If estimateActivityKcalIfMissing is false, leave missing activity energy unknown.
+                Optionally suggest observations [{mealType,entryId,kind:"protein"}] for a verified protein contributor.
                 For daily requests include foods: an array of {entryId, items: [food,...]}, one group per input entry ID.
                 Input entryIds correspond to input items in order. Each food has name and portion in Korean,
                 estimatedPortion (boolean), carbG, proteinG, fatG (grams) and integer kcal for the amount eaten.

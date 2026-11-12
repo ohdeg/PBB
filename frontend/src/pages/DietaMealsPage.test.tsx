@@ -56,6 +56,7 @@ it.each([0, 1])('enables the last analysis only after new food is recorded (%i e
  render(<MemoryRouter><DietaMealsPage /></MemoryRouter>);
  const button = await screen.findByRole('button',{name:/추가 음식 포함해 다시 분석/});
  expect(button).toHaveProperty('disabled',count === 0);
+ expect(!!screen.queryByText('지난 분석 이후 추가한 음식')).toBe(count>0);
  expect(screen.getByLabelText('오늘 먹은 것')).toBeEnabled();
 });
 

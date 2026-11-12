@@ -60,6 +60,7 @@ import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaMealQueueItemDto;
 import com.studiobs.spring_backend.domain.dieta.dto.meal.DietaMealSchedule;
 import java.util.Comparator;
 import java.util.List;
+import com.studiobs.spring_backend.domain.dieta.dto.DietaWorkout;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -416,9 +417,10 @@ public class DietaService {
     }
 
     List<DietaActivityLogResponse> activitiesInRange(UUID user, LocalDate start, LocalDate end) {
-        var records=entries.activityMetadata(user,start,end);
+        var records=entries.recordsInRange(user,start,end,"ACTIVITY");
+        var workouts=entries.recordsInRange(user,start,end,"WORKOUTS_V1");
         return activityLogRepository.findByUserIdAndLoggedOnBetweenOrderByLoggedOnAsc(user,start,end).stream()
-                .map(log->activityResponse(log,records.get(log.getLoggedOn()))).toList();
+                .map(log->activityResponse(log,records.get(log.getLoggedOn()),workouts.get(log.getLoggedOn()))).toList();
     }
 
     DietaActivityHistory.Suggestions activitySuggestions(UUID user,LocalDate day) {
@@ -446,15 +448,16 @@ public class DietaService {
 
     private record ActivityMeta(String name, java.util.Set<String> fields) {}
     DietaActivityLogResponse activityResponse(UUID user, DietaActivityLog log) {
-        return activityResponse(log,entries.raw(user,log.getLoggedOn(),"ACTIVITY"));
+        return activityResponse(log,entries.raw(user,log.getLoggedOn(),"ACTIVITY"),entries.raw(user,log.getLoggedOn(),"WORKOUTS_V1"));
     }
-    private DietaActivityLogResponse activityResponse(DietaActivityLog log,String json) {
+    private DietaActivityLogResponse activityResponse(DietaActivityLog log,String json,String workoutJson) {
+        var workouts=workoutJson == null ? null : List.of(objectMapper.readValue(workoutJson,DietaWorkout[].class));
         var meta=json==null?null:objectMapper.readValue(json,ActivityMeta.class);
         if (meta == null) meta = new ActivityMeta(null,java.util.Set.of());
         var plain = DietaActivityLogResponse.from(log);
         return new DietaActivityLogResponse(plain.id(),plain.loggedOn(),plain.steps(),plain.durationMin(),plain.activityKcal(),
                 plain.splitCalories(),plain.walkingKcal(),plain.exerciseKcal(),plain.note(),meta.name(),meta.fields(),
-                entries.hash(new Object[]{plain,meta.name(),meta.fields().stream().sorted().toList()}));
+                entries.hash(new Object[]{plain,meta.name(),meta.fields().stream().sorted().toList(),workouts}), workouts);
     }
 
     @Transactional(readOnly = true)
@@ -475,6 +478,22 @@ public class DietaService {
             return previous;
         if (request.revision() != null && !request.revision().equals(previous.revision())
                 && !(request.revision().equals("empty") && log.getId() == null)) throw DietaEntryStore.stale();
+        var workouts = request.workouts();
+        if (previous.workouts()!=null && workouts==null || workouts!=null && request.revision()==null)
+            throw DietaEntryStore.stale();
+        Integer minutes=request.durationMin();
+        Integer exercise=request.exerciseKcal();
+        if (workouts!=null) {
+            var totals=DietaWorkoutTotals.of(workouts);
+            if (!workouts.isEmpty()) {
+                minutes=totals.minutes();
+                exercise=totals.kcal();
+            } else {
+                var estimates=request.estimatedFields()==null ? Set.<String>of() : request.estimatedFields();
+                if (!estimates.contains("durationMin") && !Integer.valueOf(0).equals(minutes)) minutes=null;
+                if (!estimates.contains("exerciseKcal")) exercise=null;
+            }
+        }
         var fields = request.estimatedFields() == null ? new java.util.HashSet<>(previous.estimatedFields())
                 : new java.util.HashSet<>(request.estimatedFields());
         if (!java.util.Set.of("steps","durationMin","exerciseKcal").containsAll(fields)) throw DietaEntryStore.invalid("알 수 없는 활동 지표예요.");
@@ -486,25 +505,35 @@ public class DietaService {
         if (request.steps() == null) fields.remove("steps");
         if (request.durationMin() == null) fields.remove("durationMin");
         if (request.exerciseKcal() == null) fields.remove("exerciseKcal");
+        if (workouts!=null && !workouts.isEmpty()) { fields.remove("durationMin"); fields.remove("exerciseKcal"); }
         if (request.revision()!=null) checkEntryDay(user.getId(),request.loggedOn(),request.deviceZone());
-        if (request.suggestionRevision()!=null || !previous.estimatedFields().containsAll(fields)) {
+        var newCopies=workouts==null ? List.<DietaWorkout>of() : workouts.stream().filter(w->"copied".equals(w.source())
+                && (previous.workouts()==null || previous.workouts().stream().noneMatch(old->old.id().equals(w.id())
+                && java.util.Objects.equals(old.sourceId(),w.sourceId())))).toList();
+        if (!newCopies.isEmpty() || request.suggestionRevision()!=null || !previous.estimatedFields().containsAll(fields)) {
             var suggestions=activitySuggestions(user.getId(),request.loggedOn());
             if (!suggestions.revision().equals(request.suggestionRevision())) throw DietaEntryStore.stale();
+            var prior=suggestions.previous();
+            if (newCopies.stream().anyMatch(w->prior==null || (prior.workouts()!=null
+                    ? prior.workouts().stream().noneMatch(original->original.id().equals(w.sourceId()))
+                    : !prior.splitCalories() || prior.activityName()==null || !prior.id().equals(w.sourceId())
+                    || prior.estimatedFields().stream().anyMatch(f->!f.equals("steps"))))) throw DietaEntryStore.stale();
             var allowed = suggestions.averages();
             if (fields.stream().anyMatch(f -> !previous.estimatedFields().contains(f) && !allowed.containsKey(f)))
                 throw DietaEntryStore.stale();
         }
         String name = request.estimatedFields() == null ? previous.activityName() : request.activityName();
+        if (workouts!=null) name=workouts.isEmpty()?null:workouts.getFirst().name();
         if (name != null && name.isBlank()) name = null;
-        if (request.estimatedFields()!=null && Integer.valueOf(0).equals(request.durationMin())
+        if (workouts==null && request.estimatedFields()!=null && Integer.valueOf(0).equals(request.durationMin())
                 && (name!=null || request.exerciseKcal()!=null && request.exerciseKcal()>0))
             throw DietaEntryStore.invalid("운동 안 함을 기록하려면 운동명과 운동 열량을 비워 주세요.");
-        if (name == null && request.steps()==null && request.durationMin()==null && request.exerciseKcal()==null
+        if (workouts==null && name == null && request.steps()==null && request.durationMin()==null && request.exerciseKcal()==null
                 && request.activityKcal()==null && (request.note()==null || request.note().isBlank()))
             throw DietaEntryStore.invalid("활동 기록을 하나 이상 입력해 주세요.");
         boolean split = Boolean.TRUE.equals(request.splitCalories());
         if (split && request.activityKcal() != null
-                || !split && request.exerciseKcal() != null) {
+                || !split && exercise != null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "활동 열량의 입력 방식을 확인해 주세요.");
         }
         if (request.expectedLegacyKcal() != null && (!split || log.isSplitCalories()
@@ -526,15 +555,16 @@ public class DietaService {
                 throw new BusinessException(HttpStatus.BAD_REQUEST, "걸음 수가 너무 큽니다.");
             }
         }
-        log.update(request.steps(), request.durationMin(), request.activityKcal(), request.note());
+        log.update(request.steps(), minutes, request.activityKcal(), request.note());
         if (split) {
             try {
-                log.setCalorieBreakdown(walking, request.exerciseKcal());
+                log.setCalorieBreakdown(walking, exercise);
             } catch (ArithmeticException ex) {
                 throw new BusinessException(HttpStatus.BAD_REQUEST, "활동 열량이 너무 큽니다.");
             }
         }
         if (request.revision()!=null) checkEntryDay(user.getId(),request.loggedOn(),request.deviceZone());
+        if (workouts!=null) entries.write(user.getId(),request.loggedOn(),"WORKOUTS_V1",workouts);
         entries.write(user.getId(),request.loggedOn(),"ACTLAST",fingerprint);
         entries.write(user.getId(),request.loggedOn(),"ACTIVITY",new ActivityMeta(name,fields));
         return activityResponse(user.getId(),activityLogRepository.save(log));
@@ -590,6 +620,80 @@ public class DietaService {
         if (day.isAfter(today)) throw DietaEntryStore.invalid("미래 날짜는 조회할 수 없어요.");
         var queue = currentQueue(user, day);
         if (day.equals(today)) queue = withYesterdayRetry(user, queue, day.minusDays(1));
+        var result=mealContents(user,day,queue);
+        var feedback=entries.read(user,day,"FEEDBACK_V1",DietaFeedback.class);
+        return new DietaMealDay(day,queue,result.intake(),result.completedStage(),result.mealTotals(),result.foods(),
+                feedback,feedback!=null && (!feedback.inputVersion().equals(feedbackVersion(result))
+                        || feedback.activityVersion()!=null && !activityLogRepository.findByUserIdAndLoggedOn(user,day)
+                        .map(a->activityResponse(user,a).revision()).filter(feedback.activityVersion()::equals).isPresent()), result.mealStatuses());
+    }
+
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public void setMealStatus(String email,LocalDate day,String zone,String meal,DietaMealJournal.Change change) {
+        var user=requireUser(email).getId();
+        requireProfile(user);
+        checkEntryDay(user,day,zone);
+        var queue=currentQueue(user,day);
+        if ("pending".equals(queue.status())) throw DietaEntryStore.stale();
+        DietaMealJournal.validate(meal,change,mealContents(user,day,queue));
+        entries.setMealStatus(user,day,meal,change.status());
+    }
+
+    @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public List<DietaMealJournal.WeekMeal> mealWeek(String email,LocalDate end,String zone) {
+        var user=requireUser(email).getId();
+        requireProfile(user);
+        var today=entryToday(user,zone);
+        if (end.isAfter(today)) throw DietaEntryStore.invalid("미래 날짜는 조회할 수 없어요.");
+        var start=end.minusDays(6);
+        var days=new java.util.TreeMap<LocalDate,DietaMealJournal.Day>();
+        var records=entries.journalRange(user,start,end);
+        for (int i=0;i<7;i++) {
+            var date=start.plusDays(i);
+            var day=new DietaMealJournal.Day();
+            days.put(date,day);
+            var values=records.getOrDefault(date,java.util.Map.of());
+            if (values.containsKey("FEEDBACK_V1")) {
+                var feedback=objectMapper.readValue(values.get("FEEDBACK_V1"),DietaFeedback.class);
+                if (feedback.comparableKcal()!=null) day.analysedKcal=feedback.comparableKcal();
+            }
+            var statuses=values.get("MEAL_STATUS_V1");
+            if (statuses!=null) day.statuses=objectMapper.readValue(statuses,DietaMealJournal.Selections.class).values();
+            values.keySet().stream().filter(k->k.startsWith("EST:")).forEach(k->day.estimates.add(k.substring(4)));
+            var items=values.get("ITEMS");
+            if (items!=null) {
+                for (var item:objectMapper.readValue(items,DietaMealQueueItemDto[].class)) day.record(item.mealType(),null);
+            } else if (!date.isBefore(today.minusDays(2))) {
+                // Pre-migration drafts can exist only in the short-lived Redis queue.
+                for (var item:mealQueueRedisService.getOrEmpty(user,date).items()) day.record(item.mealType(),null);
+            }
+            if (values.containsKey("REFLECTED") && values.containsKey("FOODS_V1")) {
+                var details=objectMapper.readValue(values.get("FOODS_V1"),DietaFoodDetails.class);
+                for (var item:objectMapper.readValue(values.get("REFLECTED"),DietaMealQueueItemDto[].class)) {
+                    if (!item.id().startsWith("base:")) continue;
+                    for (var food:details.entries().getOrDefault(item.id().substring(5),List.of())) day.record(item.mealType(),food.name());
+                }
+            }
+        }
+        for (var intake:intakeLogRepository.findByUserIdAndLoggedOnGreaterThanEqualAndLoggedOnLessThanOrderByLoggedOnAsc(user,start,end.plusDays(1))) {
+            var day=days.get(intake.getLoggedOn());
+            var source=DietaIntakeSourceDocument.parse(objectMapper,intake.getSourceMealsJson());
+            source.meals().forEach(m->day.record(m.mealType(),null));
+            source.analyzedRecipes().forEach(r->day.record(r.mealType(),r.title()));
+        }
+        recipeRepository.findByUserIdAndLoggedOnBetweenAndRecordKindNot(user,start,end,"LIBRARY")
+                .forEach(r->days.get(r.getLoggedOn()).record(r.getMealType(),r.getTitle()));
+        return DietaMealJournal.summarize(List.copyOf(days.values()));
+    }
+
+    private String feedbackVersion(DietaMealDay day) {
+        var rows=day.foods().stream().map(entries::hash).sorted().toList();
+        var inputs=List.of(rows,day.queue().items().stream().map(i->i.id()).sorted().toList(),
+                new java.util.TreeMap<>(day.mealTotals()));
+        return entries.hash(day.mealStatuses().isEmpty()?inputs:List.of(inputs,new java.util.TreeMap<>(day.mealStatuses())));
+    }
+
+    private DietaMealDay mealContents(UUID user, LocalDate day, DietaMealQueueDayResponse queue) {
         var log = intakeLogRepository.findByUserIdAndLoggedOn(user, day);
         var intake = reportedIntakes(user, log.stream().toList(), day, day).stream().findFirst().orElse(null);
         var doc = log.map(r -> DietaIntakeSourceDocument.parse(objectMapper,r.getSourceMealsJson()))
@@ -641,7 +745,7 @@ public class DietaService {
         var supplement = analyses.attempt(user,day,Stage.SUPPLEMENT);
         String completed = doc.queueTotals() == null ? null :
                 supplement != null && "DONE".equals(supplement.state()) ? "SUPPLEMENT" : "MAIN";
-        return new DietaMealDay(day,queue,intake,completed,totals,foods);
+        return new DietaMealDay(day,queue,intake,completed,totals,foods,null,false,entries.mealStatuses(user,day));
     }
 
     @Transactional(readOnly = true)
@@ -696,6 +800,7 @@ public class DietaService {
         }
         entries.write(user.getId(), request.loggedOn(), "ITEMS", items);
         entries.clearEstimate(user.getId(), request.loggedOn(), mealType);
+        entries.setMealStatus(user.getId(),request.loggedOn(),mealType,null);
         return currentQueue(user.getId(), request.loggedOn());
     }
 
@@ -708,6 +813,8 @@ public class DietaService {
         if ("SUPPLEMENT".equals(queue.availableStage()) && !itemId.startsWith("extra:")) {
             throw new BusinessException(HttpStatus.CONFLICT, "이미 분석한 음식은 삭제할 수 없어요.");
         }
+        queue.items().stream().filter(i->i.id().equals(itemId)).findFirst()
+                .ifPresent(i->entries.setMealStatus(user.getId(),loggedOn,i.mealType(),null));
         entries.write(user.getId(), loggedOn, "ITEMS", mealQueueRedisService.removeItem(queue, itemId).items());
         return currentQueue(user.getId(), loggedOn);
     }
@@ -843,6 +950,7 @@ public class DietaService {
             DietaIntakeSourceDocument.AnalyzedRecipe legacy) {
         if ("pending".equals(currentQueue(userId,date).status())) throw DietaEntryStore.stale();
         entries.clearEstimate(userId, date, mealType);
+        entries.setMealStatus(userId,date,mealType,null);
         var nutrition = DietaEntryStore.scale(recipeNutrition(source), portion);
         // Copy 1인분 (per-serving) macros into the day row.
         DietaRecipe savedRecipe = recipeRepository.save(DietaRecipe.builder()
@@ -942,13 +1050,17 @@ public class DietaService {
     }
 
     public DietaMealFinalizeResponse finalizeMealDay(String email, LocalDate day, Stage stage) {
-        return finalizeDay(requireUser(email).getId(), day, stage == null ? Stage.MAIN : stage, Origin.MANUAL, null);
+        return finalizeMealDay(email,day,stage,null);
+    }
+
+    public DietaMealFinalizeResponse finalizeMealDay(String email, LocalDate day, Stage stage,List<String> expectedExtraIds) {
+        return finalizeDay(requireUser(email).getId(),day,stage==null?Stage.MAIN:stage,Origin.MANUAL,null,expectedExtraIds);
     }
 
     private record Claim(DietaMealQueueDayResponse queue, DietaIntakeLogResponse existing) {}
 
     private DietaMealFinalizeResponse finalizeDay(UUID userId, LocalDate loggedOn, Stage stage, Origin origin,
-            DietaAnalysisStore.Due due) {
+            DietaAnalysisStore.Due due,List<String> expectedExtraIds) {
         UUID claim = UUID.randomUUID();
         Claim work = locked(userId, () -> {
             var profile = requireProfile(userId);
@@ -973,6 +1085,7 @@ public class DietaService {
                 }
                 throw new BusinessException(HttpStatus.CONFLICT, "새 기록과 남은 분석 기회를 확인해 주세요.");
             }
+            if (stage==Stage.SUPPLEMENT && expectedExtraIds!=null) DietaMealJournal.checkPreview(queue,expectedExtraIds);
             analyses.reserve(userId, loggedOn, stage, origin, claim);
             return new Claim(mealQueueRedisService.save(userId, mealQueueRedisService.withStatus(queue, "pending")), null);
         });
@@ -989,7 +1102,7 @@ public class DietaService {
                 if (activity == null) return mealRequest;
                 var details = activityResponse(userId,activity);
                 var hint = new DietaGeminiMealRequest.ActivityHint(details.steps(),details.durationMin(),details.activityKcal(),
-                        details.activityName(),details.estimatedFields());
+                        details.workouts()!=null && details.workouts().size()>1 ? "운동 "+details.workouts().size()+"회" : details.activityName(),details.estimatedFields());
                 return new DietaGeminiMealRequest(mealRequest.schemaVersion(),mealRequest.locale(),loggedOn,
                         mealRequest.goalHint(),mealRequest.meals(),mealRequest.knownRecipes(),hint,mealRequest.instructions());
             });
@@ -1096,6 +1209,14 @@ public class DietaService {
                 if (!analyses.transition(userId, loggedOn, stage, claim, "SENT", "DONE")) {
                     throw new BusinessException(HttpStatus.CONFLICT, "분석 처리권이 만료되었어요.");
                 }
+                var result=mealContents(userId,loggedOn,currentQueue(userId,loggedOn));
+                var samples=entries.feedbackHistory(userId,loggedOn);
+                var details=entries.read(userId,loggedOn,"FOODS_V1",DietaFoodDetails.class);
+                var feedback=DietaFeedback.create(result,geminiRequest.goalHint().dailyKcalTarget(),samples,
+                        geminiResponse.observations(),details,feedbackVersion(result),
+                        activityLogRepository.findByUserIdAndLoggedOn(userId,loggedOn).map(a->activityResponse(userId,a)).orElse(null));
+                entries.write(userId,loggedOn,"FEEDBACK_V1",feedback);
+                intake.update(combined.carbG(),combined.proteinG(),combined.fatG(),combined.kcal(),feedback.dayReview(),sourceJson);
                 return DietaIntakeLogResponse.from(intake);
             });
         } catch (RuntimeException ex) {
@@ -1147,7 +1268,7 @@ public class DietaService {
     public DietaMealFinalizeResponse autoFinalizeYesterday(String email, String zone) {
         UUID userId = requireUser(email).getId();
         return finalizeDay(userId, entryToday(userId, zone == null ? ZoneId.systemDefault().getId() : zone).minusDays(1),
-                Stage.MAIN, Origin.LEGACY_AUTO, null);
+                Stage.MAIN, Origin.LEGACY_AUTO, null,null);
     }
 
     void runDue(DietaAnalysisStore.Due due) {
@@ -1158,7 +1279,7 @@ public class DietaService {
         // Leave the due cursor in place until dispatch finishes. A restart can recover a pre-send claim.
         if (!due.at().isBefore(clock.instant().minus(java.time.Duration.ofHours(48)))) {
             try {
-                finalizeDay(id, day, Stage.MAIN, Origin.SCHEDULED, due);
+                finalizeDay(id, day, Stage.MAIN, Origin.SCHEDULED, due,null);
             } finally {
                 advanceDueUnlessPreparing(due, day);
             }

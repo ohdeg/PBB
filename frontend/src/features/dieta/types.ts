@@ -162,6 +162,14 @@ export interface DietaRecipeAddToDayInput {
   mealType?: DietaMealType | null;
 }
 
+export interface DietaWorkout {
+  id:string;
+  name:string;
+  durationMin:number|null;
+  exerciseKcal:number|null;
+  source:'direct'|'copied';
+  sourceId?:string|null;
+}
 export interface DietaActivityLog {
   id: string;
   loggedOn: string;
@@ -169,6 +177,7 @@ export interface DietaActivityLog {
   durationMin: number | null;
   activityKcal: number | null;
   walkingKcal?: number | null;
+  workouts?: DietaWorkout[] | null;
   exerciseKcal?: number | null;
   splitCalories?: boolean;
   activityName?: string | null;

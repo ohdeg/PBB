@@ -1,3 +1,4 @@
+import { mealStatusLabels } from '../../features/dieta/quickEntry';
 import type { ReactNode } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 import type { MealDayDetails, Nutrition } from '../../features/dieta/quickEntry';
@@ -29,7 +30,8 @@ export function DietaMealDetails({details,editor,library}:{details:MealDayDetail
       <div className="dieta-nutrients">{([['탄수화물',intake.carbG],['단백질',intake.proteinG],['지방',intake.fatG]] as const)
         .map(([label,value])=><div key={label}><span>{label}</span><strong>{Number(value.toFixed(1))} g</strong></div>)}</div>
       {intake.includesEstimate && <p className="dieta-muted">평균 추정 포함</p>}
-      {intake.review && <p className="dieta-review">{intake.review}</p>}
+      {details.feedbackStale && <small>지난 분석 기준</small>}
+      {(details.feedback?.dayReview || intake.review) && <p className="dieta-review">{details.feedback?.dayReview || intake.review}</p>}
       {!foods.length && !queue.items.length && <p className="dieta-muted">음식별 상세 기록 없음</p>}
     </> : <p className="dieta-muted">{foods.length || queue.items.length?'아직 분석된 영양 정보가 없어요.':'이날 기록한 식사가 없어요.'}</p>}
     {progress && <p className="dieta-muted">{progress}</p>}
@@ -40,14 +42,16 @@ export function DietaMealDetails({details,editor,library}:{details:MealDayDetail
         const raw = editable ? queue.items.filter(i=>i.mealType===meal && !i.id.startsWith('base:')) : [];
         const rows = editable ? group.filter(r=>r.source!=='unanalysed') : group;
         const totals = mealTotals[meal];
-        if (!editable && !group.length && !totals) return null;
+        const state=meal!=='OTHER' && details.mealStatuses?.[meal];
+        if (!editable && !group.length && !totals && !state) return null;
         const name = meal==='OTHER'?'끼니 미지정':DIETA_MEAL_LABELS[meal];
         const active = editable && editor.selected===meal;
         const preview = [...rows.map(f=>f.name),...raw.map(i=>i.text)].join(', ');
-        const header = <><strong>{name}</strong><span id={'dieta-preview-'+meal} className="dieta-food-preview">{active?'':preview || '기록하기'}</span>
+        const header = <><strong>{name}</strong><span id={'dieta-preview-'+meal} className="dieta-food-preview">{state ? [mealStatusLabels[state],active?'':preview].filter(Boolean).join(' · ') : active?'':preview || '기록하기'}</span>
           {totals && <span id={'dieta-subtotal-'+meal} className="dieta-subtotal">{totals.kcal} kcal</span>}
           {editable && !preview ? <Plus size={17} aria-hidden="true"/>:<ChevronDown size={17} aria-hidden="true"/>}</>;
         const body = <>
+          {meal!=='OTHER' && details.feedback?.meals[meal] && <p className="dieta-review">{details.feedback.meals[meal]}</p>}
           {totals && <p className="dieta-muted">{macros(totals)}</p>}
           {rows.map((row,i)=><div key={i} className="dieta-food-detail">
             <strong>{row.name}</strong>{row.portion && <span> · {row.portion}{row.source==='estimatedPortion'?' (추정)':''}</span>}

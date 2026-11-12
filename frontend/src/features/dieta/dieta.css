@@ -859,3 +859,12 @@ button.dieta-link {
 }
 
 .dieta-back-today { display: block; margin: -16px 0 8px auto; min-height: 44px; }
+
+.dieta-status-select select { min-height: 44px; max-width: 100%; font: inherit; }
+.dieta-supplement-preview, .dieta-week-meals dd { overflow-wrap: anywhere; }
+.dieta-supplement-preview h3 { font-size: 1rem; }
+.dieta-supplement-preview ul { padding-inline-start: 1.25rem; margin-block: .35rem .75rem; }
+.dieta-week-meals > div { display: grid; grid-template-columns: 3rem minmax(0,1fr); margin-block: .75rem; }
+.dieta-week-meals dt { font-weight: 650; }
+.dieta-week-meals dd { margin: 0; }
+.dieta-week-meals p { margin-block: .25rem; }

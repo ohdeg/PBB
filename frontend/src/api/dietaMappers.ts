@@ -80,6 +80,7 @@ export interface DietaActivityLogApi {
   durationMin: number | null;
   activityKcal: number | null;
   walkingKcal?: number | null;
+  workouts?: DietaActivityLog['workouts'];
   exerciseKcal?: number | null;
   splitCalories?: boolean;
   activityName?: string | null;
@@ -342,6 +343,7 @@ export function mapActivityLog(api: DietaActivityLogApi): DietaActivityLog {
     activityKcal: api.activityKcal,
     walkingKcal: api.walkingKcal,
     exerciseKcal: api.exerciseKcal,
+    workouts: api.workouts,
     splitCalories: api.splitCalories,
     activityName: api.activityName,
     estimatedFields: api.estimatedFields,

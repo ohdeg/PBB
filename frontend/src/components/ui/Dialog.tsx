@@ -1,5 +1,5 @@
 import {
-  useEffect,
+  useLayoutEffect,
   useId,
   useRef,
   type KeyboardEvent,
@@ -52,7 +52,7 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
       return;
     }
@@ -79,14 +79,11 @@ export function Dialog({
       state.element.setAttribute('aria-hidden', 'true');
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      const firstFocusable = initialFocus === 'panel' ? null : panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-      (firstFocusable ?? panel)?.focus();
-    });
+    const panel = panelRef.current;
+    const firstFocusable = initialFocus === 'panel' ? null : panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    (firstFocusable ?? panel)?.focus();
 
     return () => {
-      window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
       for (const state of backgroundStates) {
         state.element.inert = state.inert;
@@ -98,7 +95,7 @@ export function Dialog({
       }
       const opener = openerRef.current;
       if (opener?.isConnected) {
-        window.requestAnimationFrame(() => opener.focus());
+        opener.focus();
       }
     };
   }, [open, initialFocus]);

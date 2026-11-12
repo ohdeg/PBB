@@ -20,7 +20,7 @@ for (const width of [375, 1280]) {
           target: 'PBB', action: 'FEATURED_APPS', before: 'veveno', after: more ? 'sranko' : 'dieta' }],
         nextCursor: more ? null : '2' };
       }
-      await route.fulfill({ json: body, headers: { 'Access-Control-Allow-Credentials': 'true' } });
+      await route.fulfill({ json: body });
     });
     await page.goto('/profile');
     const panel = page.getByRole('region', { name: '오늘의 운영 기록' });

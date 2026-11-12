@@ -76,11 +76,8 @@ describe('Dialog', () => {
     const opener = screen.getByRole('button', { name: '열기' });
     opener.focus();
     fireEvent.click(opener);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '첫 번째' })).toHaveFocus();
-    });
-
-    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.getByRole('button', { name: '첫 번째' })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
 
     expect(onClose).toHaveBeenCalledOnce();
     await waitFor(() => expect(opener).toHaveFocus());

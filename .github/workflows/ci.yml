@@ -59,6 +59,17 @@ jobs:
           cache: gradle
       - run: chmod +x gradlew
       - run: ./gradlew test jacocoTestReport --no-daemon
+      - name: Summarize backend tests
+        if: ${{ !cancelled() }}
+        run: python3 ../scripts/ci_test_summary.py build/test-results/test >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload backend test results
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-test-results
+          path: spring_backend/build/test-results/test/TEST-*.xml
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload backend coverage
         if: always()
         uses: actions/upload-artifact@v5

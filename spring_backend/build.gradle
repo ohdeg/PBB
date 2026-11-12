@@ -59,6 +59,10 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    reports.junitXml {
+        includeSystemOutLog = false
+        includeSystemErrLog = false
+    }
     finalizedBy tasks.named('jacocoTestReport')
 }
 

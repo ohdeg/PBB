@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
 import { afterEach,beforeEach,expect,it,vi } from 'vitest';
 import { DietaQuickMeals } from './DietaQuickMeals';

@@ -1175,13 +1175,6 @@ public class DietaService {
                 }
 
                 String dayReview = geminiResponse.oneLineReview();
-                int recipeCount = dayRecipes.isEmpty()
-                        ? prior.analyzedRecipes().size()
-                        : dayRecipes.size();
-                if (recipeCount > 0) {
-                    dayReview = "레시피 " + recipeCount + "건 포함. " + dayReview;
-                }
-
                 DietaIntakeLog intake;
                 if (existing != null) {
                     existing.update(

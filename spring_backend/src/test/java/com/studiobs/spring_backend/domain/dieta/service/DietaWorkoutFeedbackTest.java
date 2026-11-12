@@ -97,7 +97,7 @@ class DietaWorkoutFeedbackTest {
         var lunch=new DietaMealDay.Row("LUNCH","평균 추정",null,"average",n);
         var snapshot=day(List.of(lunch,dinner));
         var three=DietaFeedback.create(snapshot,500,Map.of("DINNER",List.of(80,90,100)),null,null,"v1",null);
-        assertThat(three.dayReview()).contains("3일","60 kcal 높았어요");
+        assertThat(three.dayReview()).contains("레시피 1건 포함.", "3일", "60 kcal 높았어요");
         assertThat(three.comparableKcal()).containsOnlyKeys("DINNER");
         assertThat(three.meals().get("LUNCH")).contains("추정치");
         assertThat(DietaFeedback.create(snapshot,500,Map.of("DINNER",List.of(80,90)),null,null,"v1",null)

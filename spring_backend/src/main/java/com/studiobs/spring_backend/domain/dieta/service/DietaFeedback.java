@@ -99,6 +99,10 @@ public record DietaFeedback(String dayReview, Map<String,String> meals, String i
             review+=" 이날 활동 기록은 "+movement+"예요.";
             activityVersion=activity.revision();
         }
+        long recipeCount = day.foods().stream().filter(row -> "recipe".equals(row.source())).count();
+        if (recipeCount > 0) {
+            review = "레시피 " + recipeCount + "건 포함. " + review;
+        }
         return new DietaFeedback(review,meals,version,target,comparable,comparisons,activityVersion,day.intake().kcal());
     }
 

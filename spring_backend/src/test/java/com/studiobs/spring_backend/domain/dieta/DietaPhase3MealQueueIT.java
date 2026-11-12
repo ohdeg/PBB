@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.studiobs.spring_backend.domain.auth.consent.ConsentCatalog;
 import com.studiobs.spring_backend.support.AbstractIntegrationTest;
 import java.time.LocalDate;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -512,7 +513,7 @@ class DietaPhase3MealQueueIT extends AbstractIntegrationTest {
                         .content("{\"email\":\"" + email + "\"}"))
                 .andExpect(status().isOk());
 
-        String code = stringRedisTemplate.opsForValue().get("signup:" + email);
+        String code = stringRedisTemplate.opsForValue().get("signup:" + email.trim().toLowerCase(Locale.ROOT));
         mockMvc.perform(post("/api/v1/auth/email/verify")
                         .header("X-Forwarded-For", clientIp)
                         .contentType(MediaType.APPLICATION_JSON)

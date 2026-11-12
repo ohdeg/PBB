@@ -8519,3 +8519,10 @@ html[data-orientation='landscape'] .metronome-beat-indicator {
 .tempori-pdf-metronome button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; touch-action: manipulation; }
 .tempori-pdf-metronome button:hover { background: #f1f1f1; }
 .tempori-pdf-tempo-shortcut { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.ops-panel { min-width: 0; overflow-wrap: anywhere; }
+.ops-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.ops-panel h3 { margin-block: 1.4rem .6rem; }
+.ops-list { list-style: none; padding: 0; margin: .5rem 0 1rem; }
+.ops-list li { display: grid; gap: .25rem; padding-block: .65rem; border-bottom: 1px solid var(--border-soft); }
+.ops-list small { color: var(--text-muted); }

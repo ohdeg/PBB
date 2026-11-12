@@ -1,0 +1,42 @@
+name: PBB external uptime
+on:
+  schedule:
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      test_notification:
+        description: 'Discord 테스트 메시지 보내기'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: pbb-production-uptime
+  cancel-in-progress: false
+jobs:
+  check:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/pbb-uptime-state.json
+          key: pbb-uptime-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pbb-uptime-v1-
+      - id: probe
+        env:
+          PBB_DISCORD_WEBHOOK_URL: ${{ secrets.PBB_DISCORD_WEBHOOK_URL }}
+          TEST_NOTIFICATION: ${{ inputs.test_notification }}
+        run: |
+          args=()
+          if [[ "$TEST_NOTIFICATION" == "true" ]]; then args+=(--test-notification); fi
+          python3 scripts/uptime.py "$RUNNER_TEMP/pbb-uptime-state.json" "${args[@]}"
+      - uses: actions/cache/save@v4
+        if: steps.probe.outputs.save == 'yes'
+        with:
+          path: ${{ runner.temp }}/pbb-uptime-state.json
+          key: pbb-uptime-v1-${{ github.run_id }}-${{ github.run_attempt }}

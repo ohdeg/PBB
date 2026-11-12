@@ -526,3 +526,5 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 SPA 라우팅: `frontend/public/_redirects` (`/* /index.html 200`)
 
 운영 시크릿(`.env` / `.env.prod`, `secrets/`, `*.pem`, 모델 가중치)과 로컬 오버라이드(`docker-compose.override.yml`)는 git에 올리지 않습니다. 예시는 `.env.prod.example`, `spring_backend/.env.example`을 참고하세요.
+
+외부 장애 감시의 Discord 설정, 운영 스키마 적용 순서 및 DEV 프로필 기록의 범위는 [운영 감시 안내](docs/operations.md)를 참고하세요.

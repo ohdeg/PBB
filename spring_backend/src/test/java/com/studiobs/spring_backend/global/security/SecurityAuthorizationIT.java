@@ -76,6 +76,39 @@ class SecurityAuthorizationIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void operationalDataRequiresCurrentDevRoleAndNeverCaches() throws Exception {
+        var dev = saveUser(UserClass.DEV);
+        String token = bearer(dev);
+        String path = "/api/v1/dev/operations/today";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(
+                        "Cache-Control", "no-store"));
+        mockMvc.perform(get(path).param("cursor", "bad").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isBadRequest());
+        dev.changeUserClass(UserClass.FREE);
+        userRepository.saveAndFlush(dev);
+        mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminClassChangeAddsOneAuditForActualChangeOnly() throws Exception {
+        var actor = saveUser(UserClass.DEV);
+        var target = saveUser(UserClass.FREE);
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/dev/users/class")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(actor)).contentType("application/json")
+                            .content("{\"query\":\"" + target.getNickname() + "\",\"userClass\":\"dev\"}"))
+                    .andExpect(status().isOk());
+        }
+        var auditIds = org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                "$.changes[?(@.target == '" + target.getId() + "' && @.before == 'FREE' && @.after == 'DEV')].id");
+        mockMvc.perform(get("/api/v1/dev/operations/today").header(HttpHeaders.AUTHORIZATION, bearer(actor)))
+                .andExpect(status().isOk()).andExpect(auditIds.value(org.hamcrest.Matchers.hasSize(1)));
+    }
+
     private User saveUser(UserClass userClass) {
         String suffix = Long.toUnsignedString(System.nanoTime());
         return userRepository.save(User.builder()

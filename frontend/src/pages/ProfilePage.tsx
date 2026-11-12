@@ -5,6 +5,7 @@ import { authApi } from '../api/authApi';
 import { Dialog } from '../components/ui/Dialog';
 import { vevenoApi } from '../api/vevenoApi';
 import { configApi } from '../api/configApi';
+import { OperationsPanel } from '../components/OperationsPanel';
 import { devApi } from '../api/devApi';
 import { HOBBY_APPS } from '../data/hobbies';
 import { useAuthStore } from '../stores/authStore';
@@ -15,6 +16,7 @@ import { getErrorMessage } from '../utils/error';
 type WithdrawStep = 'closed' | 'veveno-warning' | 'password';
 
 export function ProfilePage() {
+  const opsActor = useAuthStore((state) => state.userId);
   const navigate = useNavigate();
   const accessToken = useAuthStore((state) => state.accessToken);
   const nickname = useAuthStore((state) => state.nickname);
@@ -347,6 +349,7 @@ export function ProfilePage() {
 
       {userClass === 'dev' ? (
         <section className="profile-dev-panel" aria-label="개발자 설정">
+          <OperationsPanel key={opsActor} />
           <div className="profile-dev-card">
             <h2>메인 추천 앱</h2>
             <p className="profile-lead">
